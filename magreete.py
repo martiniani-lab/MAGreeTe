@@ -9,6 +9,8 @@ import sys
 import os
 from utils import alpha_cold_atoms_2d, alpha_small_dielectric_object, plot_transmission_angularbeam, generate_square_lattice_chunk
 from Transmission2D import Transmission2D
+from lattices import square
+
 
 import argparse
 
@@ -63,7 +65,6 @@ def main(head_directory, n_cpus=1, lattice=None):
     Ntheta = 360
     thetas = onp.arange(Ntheta)/Ntheta*2*np.pi
     meas_points = 2*L*onp.vstack([onp.cos(thetas),onp.sin(thetas)]).T
-
 
     
     solver = Transmission2D(points)

@@ -17,7 +17,7 @@ I = np.tensor(onp.identity(3)).reshape(1,3,3) #identity matrix
 
 
 
-class Transmission2D:
+class Transmission3D:
     
 
     def __init__(self, points, source='beam'):
