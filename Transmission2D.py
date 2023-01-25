@@ -59,15 +59,29 @@ class Transmission2D:
         EkTE_ = np.matmul(self.G0_TE(points, k0, alpha), EkTE).reshape(points.shape[0],2,-1) + E0j 
         return EkTE_, EkTM_
    
-    def run_EM(self, k0, alpha, thetas):
+    def run_EM(self, k0, alpha, thetas, radius):
+
+        ### TM calculation
         E0j, u = self.generate_source(self.r, k0, thetas)
         G0 = self.G0_TM(self.r, k0, alpha)
         G0.fill_diagonal_(-1)
+        # Add self-interaction
+        volume = onp.pi*radius*radius
+        dims = G0.shape
+        self_int_TM = alpha*k0*k0*np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+        G0 += self_int_TM
+        # Solve
         EkTM = np.linalg.solve(G0,-E0j)
         
+        ### TE calculation
         E0j = E0j.reshape(self.N,1,len(thetas))*u
         G0 = self.G0_TE(None, k0, alpha)
         G0.fill_diagonal_(-1)
+        # Add self-interaction
+        dims = G0.shape
+        self_int_TE = 0.5*alpha*k0*k0*np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+        G0 += self_int_TE
+        # Solve
         EkTE = np.linalg.solve(G0, -E0j.reshape(2*self.N,-1)) 
         return EkTE, EkTM
 

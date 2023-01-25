@@ -7,23 +7,29 @@ import colorsys
 import hickle as hkl
 import sys
 import os
+from utils import alpha_cold_atoms_2d
 from Transmission2D import Transmission2D
 
-c = 3e8   #speed of light in vacuum, m/s
-omega0 = 3e15 #resonance frequency 1/s
-Gamma = 5e16 #linewidth 1/s
 w = 2.1e-5 #beam waist m
 L = 100e-6 #box side length m
 
 def main():
-    k0range = onp.arange(40,81)*64/128*2*onp.pi/L
-    alpharange = -2*Gamma/(omega0*(k0range*k0range-omega0*omega0/(c*c)+0.5j*Gamma*k0range*k0range/omega0))
     phi = 0.6
     N = 4096
     size_ratio = 1.0
     a = -1.0
     k = 80
     ndim = 2
+
+    if ndim == 2:
+        volume = L*L*phi/N
+        radius = onp.sqrt(volume/onp.pi )
+    else:
+        volume = L*L*L*phi/N
+        radius = onp.cbrt(volume * 3.0 / (4.0 * onp.pi))
+
+    k0range = onp.arange(40,81)*64/128*2*onp.pi/L
+    alpharange = alpha_cold_atoms_2d(k0range)
 
     dname = '../HPY'+str(ndim)+'D/phi'+str(phi)+'/a'+str(a)+'/'
     file_name = 'HPY'+str(ndim)+'D_phi'+str(phi)+'_a'+str(a)+'_N'+str(N)+'_K'+str(k)
@@ -48,7 +54,7 @@ def main():
     ETEall = []
     ETMall = []
     for k0, alpha in zip(k0range,alpharange):
-        EjTE, EjTM = solver.run_EM(k0, alpha, thetas)
+        EjTE, EjTM = solver.run_EM(k0, alpha, thetas, radius)
         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
         params = [alpha, k0]
         hkl.dump([onp.array(EjTE), onp.array(EjTM), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(i)+'.hkl')
