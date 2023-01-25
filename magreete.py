@@ -10,10 +10,12 @@ import os
 from utils import alpha_cold_atoms_2d
 from Transmission2D import Transmission2D
 
+import argparse
+
 w = 2.1e-5 #beam waist m
 L = 100e-6 #box side length m
 
-def main():
+def main(head_directory):
     phi = 0.6
     N = 4096
     size_ratio = 1.0
@@ -31,7 +33,7 @@ def main():
     k0range = onp.arange(40,81)*64/128*2*onp.pi/L
     alpharange = alpha_cold_atoms_2d(k0range)
 
-    dname = '../HPY'+str(ndim)+'D/phi'+str(phi)+'/a'+str(a)+'/'
+    dname = head_directory+'HPY'+str(ndim)+'D/phi'+str(phi)+'/a'+str(a)+'/'
     file_name = 'HPY'+str(ndim)+'D_phi'+str(phi)+'_a'+str(a)+'_N'+str(N)+'_K'+str(k)
     #dname = '../hyperalg/sandbox/init_HSL/'
     #file_name = 'init_HSL2D_phi'+str(phi)+'_N'+str(N)
@@ -93,9 +95,17 @@ def main():
     plt.close()       
 
 if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(description="Run a full solving and plotting routine of MAGreeTe")
+    parser.add_argument("head_directory", type=str, help="parent directory containing all configurations")
+
+    args = parser.parse_args()
+
+    head_directory = args.head_directory
+
     np.set_num_threads(32)
     np.device("cpu")
-    main()
+    main(head_directory)
     sys.exit()
 
 

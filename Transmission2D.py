@@ -67,7 +67,7 @@ class Transmission2D:
         G0.fill_diagonal_(-1)
         # Add self-interaction
         volume = onp.pi*radius*radius
-        dims = G0.shape
+        dims = G0.shape[0]
         self_int_TM = alpha*k0*k0*np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
         G0 += self_int_TM
         # Solve
@@ -78,7 +78,7 @@ class Transmission2D:
         G0 = self.G0_TE(None, k0, alpha)
         G0.fill_diagonal_(-1)
         # Add self-interaction
-        dims = G0.shape
+        dims = G0.shape[0]
         self_int_TE = 0.5*alpha*k0*k0*np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
         G0 += self_int_TE
         # Solve
