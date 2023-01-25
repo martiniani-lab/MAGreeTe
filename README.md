@@ -7,13 +7,5 @@ Ceci n’est pas un algorithme FDTD
 This is not a Finite Difference Time Domain algorithm
 
 
-
-Dependencies:
-
-numpy
-
-scipy
-
-matplotlib
-
-torch
+Installation:
+Create a conda environment using MAGreeTe.yml, then install PyTorch 2.0 and joblib using pip

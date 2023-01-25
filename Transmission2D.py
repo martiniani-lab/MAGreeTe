@@ -51,43 +51,59 @@ class Transmission2D:
                 E0j[:,idx] = np.exp(1j*rrot[:,0]*k0-(rrot[:,1]**2/(w*w*(1+1j*a))))/np.sqrt(1+1j*a)
         return E0j, u
  
-    def calc_EM(self,points, EkTE, EkTM, k0, alpha, thetas):
+    def calc_EM(self,points, EkTE, EkTM, k0, alpha, thetas, n_cpus=1):
         points = np.tensor(points)
         E0j, u = self.generate_source(points, k0, thetas)
-        EkTM_ = np.matmul(self.G0_TM(points, k0, alpha), EkTM) + E0j
+        EkTM_ = np.matmul(self.G0_TM(points, k0, alpha, n_cpus=n_cpus), EkTM) + E0j
         E0j = E0j.reshape(points.shape[0],1,len(thetas))*u
-        EkTE_ = np.matmul(self.G0_TE(points, k0, alpha), EkTE).reshape(points.shape[0],2,-1) + E0j 
+        EkTE_ = np.matmul(self.G0_TE(points, k0, alpha, n_cpus=n_cpus), EkTE).reshape(points.shape[0],2,-1) + E0j 
         return EkTE_, EkTM_
    
-    def run_EM(self, k0, alpha, thetas):
+    def run_EM(self, k0, alpha, thetas, radius, n_cpus=1, self_interaction=True):
+
+        ### TM calculation
         E0j, u = self.generate_source(self.r, k0, thetas)
-        G0 = self.G0_TM(self.r, k0, alpha)
+        G0 = self.G0_TM(self.r, k0, alpha, n_cpus=n_cpus)
         G0.fill_diagonal_(-1)
+        if self_interaction:
+            # Add self-interaction
+            volume = onp.pi*radius*radius
+            dims = G0.shape[0]
+            self_int_TM = alpha*k0*k0*np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+            G0 += self_int_TM
+        # Solve
         EkTM = np.linalg.solve(G0,-E0j)
         
+        ### TE calculation
         E0j = E0j.reshape(self.N,1,len(thetas))*u
-        G0 = self.G0_TE(None, k0, alpha)
+        G0 = self.G0_TE(None, k0, alpha, n_cpus=n_cpus)
         G0.fill_diagonal_(-1)
+        if self_interaction:
+            # Add self-interaction
+            dims = G0.shape[0]
+            self_int_TE = 0.5*alpha*k0*k0*np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+            G0 += self_int_TE
+        # Solve
         EkTE = np.linalg.solve(G0, -E0j.reshape(2*self.N,-1)) 
         return EkTE, EkTM
 
-    def G0_TM(self, points, k0, alpha):
+    def G0_TM(self, points, k0, alpha, n_cpus=1):
         #Green's function
         print('Calculating TM greens function')
-        G0 = Parallel(n_jobs=32, require='sharedmem')(delayed(self.greensTM)(self.r.reshape(-1,2)-rr,k0) for rr in points)
+        G0 = Parallel(n_jobs=n_cpus, require='sharedmem')(delayed(self.greensTM)(self.r.reshape(-1,2)-rr,k0) for rr in points)
         G0 = np.vstack(G0) #shape is (N,N)
         #Construct matrix form
         G0 *= alpha*k0*k0
         return G0
 
-    def G0_TE(self, points, k0, alpha):
+    def G0_TE(self, points, k0, alpha, n_cpus=1):
         #Green's function
         if points == None:
             points_ = self.r
         else:
             points_ = points
         print('Calculating TE greens function')
-        G0 = Parallel(n_jobs=32, require='sharedmem')(delayed(self.greensTE)(self.r.reshape(-1,2)-rr,k0) for rr in points_)
+        G0 = Parallel(n_jobs=n_cpus, require='sharedmem')(delayed(self.greensTE)(self.r.reshape(-1,2)-rr,k0) for rr in points_)
         G0 = np.stack(G0) #shape is (N,N,2,2)
         #Construct matrix form
         if points == None:
