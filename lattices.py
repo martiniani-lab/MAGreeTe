@@ -16,12 +16,13 @@ def square(Nside=65):
     r += np.tensor(disp)
     idx = np.nonzero(np.linalg.norm(r,axis=-1)<=0.5)
     r = np.squeeze(r[idx])
+    r = r.to(np.double)
     return r
 
 def triangular(Nx=71,Ny=41):
     N = Nx*Ny
-    x = np.arange(-Nx,Nx+1,dtype=np.float)*onp.sqrt(3)/2
-    y = np.arange(-Ny,Ny+1,dtype=np.float)
+    x = np.arange(-Nx,Nx+1,dtype=np.double)*onp.sqrt(3)/2
+    y = np.arange(-Ny,Ny+1,dtype=np.double)
     grid = np.zeros((x.shape[0],y.shape[0],2))
     grid[:,:,0] = x.reshape(-1,1)
     grid[:,:,1] = y.reshape(1,-1)
@@ -31,6 +32,7 @@ def triangular(Nx=71,Ny=41):
     r /= 65
     idx = np.nonzero(np.linalg.norm(r,axis=-1)<=0.5)
     r = np.squeeze(r[idx])
+    r = r.to(np.double)
     return r
 
 def honeycomb(Nx=71,Ny=41):
@@ -50,6 +52,7 @@ def honeycomb(Nx=71,Ny=41):
     r -= 0.5
     idx = np.nonzero(np.linalg.norm(r,axis=-1)<=0.5)
     r = np.squeeze(r[idx])
+    r = r.to(np.double)
     return r
 
 def quasicrystal(nspan=46, ndirs=5, mode=None):
@@ -112,8 +115,9 @@ def quasicrystal(nspan=46, ndirs=5, mode=None):
         r = onp.asarray(voro.vertices)
     rabs = onp.absolute(r)
     points = r[onp.nonzero((rabs[:,0]<=0.5)*(rabs[:,1]<=0.5))]+0.5
-    r = tensor(r)
+    r = np.tensor(r)
     idx = np.nonzero(np.linalg.norm(r,axis=-1)<=0.5)
     r = np.squeeze(r[idx])
+    r = r.to(np.double)
     return r
 
