@@ -7,8 +7,9 @@ import colorsys
 import hickle as hkl
 import sys
 import os
-from utils import alpha_cold_atoms_2d, alpha_small_dielectric_object, plot_transmission_angularbeam, generate_square_lattice_chunk, generate_triangular_lattice_chunk
+from utils import alpha_cold_atoms_2d, alpha_small_dielectric_object, plot_transmission_angularbeam
 from Transmission2D import Transmission2D
+import lattices
 
 
 import argparse
@@ -56,8 +57,7 @@ def main(head_directory, n_cpus=1, lattice=None, just_plot = False):
 
         i=0
 
-        Nside = 65
-        points = generate_square_lattice_chunk(Nside)
+        points = lattices.square()
         N = points.shape[0]
         points *= L
 
@@ -66,9 +66,16 @@ def main(head_directory, n_cpus=1, lattice=None, just_plot = False):
 
         i = 0
 
-        Nx = 71
-        Ny = 41
-        points = generate_triangular_lattice_chunk(Nx, Ny)
+        points = lattices.triangular()
+        N = points.shape[0]
+        points *= L
+
+    elif lattice == 'quasidual':
+        file_name = 'quasidual'
+
+        i = 0
+
+        points = lattices.quasicrystal(mode='quasidual')
         N = points.shape[0]
         points *= L
 
@@ -138,7 +145,7 @@ if __name__ == '__main__':
     n_cpus = 32
     np.set_num_threads(n_cpus)
     np.device("cpu")
-    main(head_directory, n_cpus, lattice='triangular', just_plot=False)
+    main(head_directory, n_cpus, lattice='quasidual', just_plot=False)
     sys.exit()
 
 
