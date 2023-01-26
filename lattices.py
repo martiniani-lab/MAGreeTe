@@ -2,7 +2,20 @@ import numpy as onp
 import torch as np
 from scipy.spatial import Delaunay, Voronoi
 
-def square(Nside=65):
+def cut_circle(r, rad=0.5):
+    idx = np.nonzero(np.linalg.norm(r,axis=-1)<=rad)
+    r = np.squeeze(r[idx])
+    return r
+
+def add_displacement(r, dr=1e-6):
+    disp = onp.random.random(r.shape[0])*2*onp.pi
+    if r.shape[1]==2:
+        disp = onp.vstack([onp.cos(disp),onp.sin(disp)]).T*dr
+    else:
+        disp = (onp.random.random(r.shape)-0.5)*dr
+    return r + np.tensor(disp)
+
+def square(Nside=65,cut=True, disp=0):
     N = Nside*Nside
     x = np.arange(Nside)
     grid = np.zeros((Nside,Nside,2),dtype=np.double)
@@ -11,15 +24,13 @@ def square(Nside=65):
     r = grid.reshape(-1,2)
     r /= Nside-1
     r -= 0.5
-    disp = onp.random.random(N)*2*onp.pi
-    disp = onp.vstack([onp.cos(disp),onp.sin(disp)]).T*1e-6
-    r += np.tensor(disp)
-    idx = np.nonzero(np.linalg.norm(r,axis=-1)<=0.5)
-    r = np.squeeze(r[idx])
-    r = r.to(np.double)
+    if disp != 0:
+        r = add_displacement(r,dr=disp)
+    if cut:
+        return cut_circle(r)
     return r
 
-def triangular(Nx=71,Ny=41):
+def triangular(Nx=71,Ny=41,cut=True,disp=0):
     N = Nx*Ny
     x = np.arange(-Nx,Nx+1,dtype=np.double)*onp.sqrt(3)/2
     y = np.arange(-Ny,Ny+1,dtype=np.double)
@@ -29,33 +40,34 @@ def triangular(Nx=71,Ny=41):
     grid[::2,:,1] += 0.5
     r = grid.reshape(-1,2)
     #r += onp.random.random(2)
-    r /= 65
-    idx = np.nonzero(np.linalg.norm(r,axis=-1)<=0.5)
-    r = np.squeeze(r[idx])
-    r = r.to(np.double)
+    r /= np.sqrt(Nx*Ny)
+    r -= 0.5
+    if disp != 0:
+        r = add_displacement(r,dr=disp)
+    if cut:
+        return cut_circle(r)
     return r
 
-def honeycomb(Nx=71,Ny=41):
-    N = Nx*Ny
-    x = np.arange(Nx)
-    y = np.arange(Ny)
-    x = x[np.nonzero(x%3!=1)]
-    y = y[np.nonzero(y%3!=0)]
-    x = x*onp.sqrt(3)/2
-    grid = np.zeros((x.shape[0],y.shape[0],2))
+def honeycomb(Nx=71,Ny=41,cut=True,disp=0):
+    x = np.arange(Nx)*onp.sqrt(3)/2
+    y = np.arange(Ny)*1.5
+    grid = np.zeros((x.shape[0],y.shape[0],2),dtype=np.double)
     grid[:,:,0] = x.reshape(-1,1)
     grid[:,:,1] = y.reshape(1,-1)
-    grid[::2,:,1] += 0.5
+    grid[::2,::2,1] += 0.5
+    grid[1::2,1::2,1] += 0.5
     r = grid.reshape(-1,2)
     #r += onp.random.random(2)
-    r /= 41
+    r /= Ny*1.5
     r -= 0.5
-    idx = np.nonzero(np.linalg.norm(r,axis=-1)<=0.5)
-    r = np.squeeze(r[idx])
-    r = r.to(np.double)
+    if disp != 0:
+        r = add_displacement(r,dr=disp)
+    if cut:
+        return cut_circle(r)
     return r
 
-def quasicrystal(nspan=46, ndirs=5, mode=None):
+
+def quasicrystal(nspan=46, ndirs=5, mode=None,cut=True,disp=0):
     N = 4096
     if mode != None:
         nspan=33
@@ -116,8 +128,60 @@ def quasicrystal(nspan=46, ndirs=5, mode=None):
     rabs = onp.absolute(r)
     points = r[onp.nonzero((rabs[:,0]<=0.5)*(rabs[:,1]<=0.5))]+0.5
     r = np.tensor(r)
-    idx = np.nonzero(np.linalg.norm(r,axis=-1)<=0.5)
-    r = np.squeeze(r[idx])
-    r = r.to(np.double)
+    if disp != 0:
+        r = add_displacement(r,dr=disp)
+    if cut:
+        return cut_circle(r)
     return r
 
+def cubic(Nside=17,cut=True,disp=0,normalize=True):
+    x = np.arange(Nside)
+    grid = np.zeros((Nside,Nside,Nside,3),dtype=np.double)
+    grid[:,:,:,0] = x.reshape(-1,1,1)
+    grid[:,:,:,1] = x.reshape(1,-1,1)
+    grid[:,:,:,2] = x.reshape(1,1,-1)
+    r = grid.reshape(-1,3)
+    if normalize:
+        r /= Nside-1
+        r -= 0.5
+    if disp != 0:
+        r = add_displacement(r,dr=disp)
+    if cut:
+        return cut_circle(r)
+    return r
+
+def bcc(Nside=17,cut=True,disp=0,normalize=True):
+    r = cubic(Nside,cut=False, normalize=False)
+    r = np.cat((r,r+np.tensor([0.5,0.5,0.5]).reshape(1,3)),0)
+    if normalize:
+        r /= Nside-1
+        r -= 0.5
+    if disp != 0:
+        r = add_displacement(r,dr=disp)
+    if cut:
+        return cut_circle(r)
+    return r
+
+def fcc(Nside=17,cut=True,disp=0,normalize=True):
+    r = cubic(Nside,cut=False,normalize=False)
+    r = np.cat((r,r+np.tensor([0.5,0.5,0]).reshape(1,3),r+np.tensor([0.5,0,0.5]).reshape(1,3),r+np.tensor([0,0.5,0.5]).reshape(1,3)),0)
+    if normalize:
+        r /= Nside-1
+        r -= 0.5
+    if disp != 0:
+        r = add_displacement(r,dr=disp)
+    if cut:
+        return cut_circle(r)
+    return r
+
+def diamond(Nside=17,cut=True, disp=0, normalize=True):
+    r = fcc(Nside,cut=False,normalize=False)
+    r = np.cat((r,r+np.tensor([0.25,0.25,0.25]).reshape(1,3)),0)
+    if normalize:
+        r /= Nside-1
+        r -= 0.5
+    if disp != 0:
+        r = add_displacement(r,dr=disp)
+    if cut:
+        return cut_circle(r)
+    return r
