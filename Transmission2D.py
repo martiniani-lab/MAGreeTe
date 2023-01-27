@@ -8,10 +8,6 @@ from joblib import Parallel, delayed
 
 
 c = 3e8   #speed of light in vacuum, m/s
-omega0 = 3e15 #resonance frequency 1/s
-Gamma = 5e16 #linewidth 1/s
-w = 2.1e-5 #beam waist m
-L = 100e-6 #box side length mi
 I = onp.identity(2).reshape(1,2,2) #identity matrix
 #N = 1000 #number of scatterers
 
@@ -112,3 +108,118 @@ class Transmission2D:
         G0 = np.transpose(G0,1,2).reshape(2*G0.shape[0],2*G0.shape[1]).to(np.complex128)
         G0 *= alpha*k0*k0
         return G0
+
+    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, n_cpus=1, self_interaction= True):
+        '''
+        Computes the LDOS averaged at a list of measurement points, for TM and TE.
+        This computation is a bit less expensive than the actual LDOS one,
+        due to invariance of the trace under permutation and the use of Hadamard products
+        measure_points      - (M,3)  coordinates of points where the LDOS is evaluated
+        k0                  - (1)    frequency of source beam
+        alpha               - (1)    bare static polarizability at given k0
+        radius              - (1)    radius of the scatterers
+        n_cpus              - (1)    number of cpus to multithread the generation of G0 over, defaults to 1
+        self_interaction    - (bool) include or not self-interactions, defaults to True 
+        '''
+
+        Npoints = measure_points.shape[0]
+
+        ### TM Calculation
+        G0 = self.G0_TM(None, k0, alpha, n_cpus=n_cpus)
+        G0.fill_diagonal_(-1)
+        if self_interaction:
+            # Add self-interaction
+            volume = onp.pi*radius*radius
+            dims = G0.shape[0]
+            self_int_TM = alpha*k0*k0*np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+            G0 += self_int_TM
+        # Invert the matrix 1 - k^2 alpha Green
+        G0 *= -1
+        Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
+
+        # Define the propagators from scatterers to measurement points
+        G0_measure = self.G0_TM(measure_points, k0, alpha, n_cpus=n_cpus)
+        #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
+        # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
+        #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
+        dos_factor_TM = ( np.matmul(G0_measure.t(), G0_measure) * Ainv ).sum()/Npoints
+        dos_factor_TM *= 4.0 * k0*k0*alpha / onp.pi()
+        dos_factor_TM = np.imag(dos_factor_TM)
+
+        ### TE calculation
+        G0 = self.G0_TE(None, k0, alpha, n_cpus=n_cpus)
+        G0.fill_diagonal_(-1)
+        if self_interaction:
+            # Add self-interaction
+            dims = G0.shape[0]
+            self_int_TE = alpha*k0*k0*np.eye(dims) * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+            G0 += self_int_TE
+        # Invert the matrix 1 - k^2 alpha Green
+        G0 *= -1
+        Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
+
+        # Define the propagators from scatterers to measurement points
+        G0_measure = self.G0_TE(measure_points, k0, alpha, n_cpus=n_cpus)
+        #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
+        # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
+        #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
+        dos_factor_TE = ( np.matmul(G0_measure.t(), G0_measure) * Ainv ).sum()/Npoints
+        dos_factor_TE *= 4.0 * k0*k0* alpha / onp.pi()
+        dos_factor_TE = np.imag(dos_factor_TE)
+
+        return dos_factor_TE, dos_factor_TM
+
+    def LDOS_measurements(self, measure_points, k0, alpha, radius, n_cpus=1, self_interaction= True):
+        '''
+        Computes the LDOS at a list of measurement points, for TM and TE.
+        This computation is fairly expensive, the number of measurement points should be 
+        measure_points      - (M,3)  coordinates of points where the LDOS is evaluated
+        k0                  - (1)    frequency of source beam
+        alpha               - (1)    bare static polarizability at given k0
+        radius              - (1)    radius of the scatterers
+        n_cpus              - (1)    number of cpus to multithread the generation of G0 over, defaults to 1
+        self_interaction    - (bool) include or not self-interactions, defaults to True 
+        '''
+
+        ### TM Calculation
+        G0 = self.G0_TM(None, k0, alpha, n_cpus=n_cpus)
+        G0.fill_diagonal_(-1)
+        if self_interaction:
+            # Add self-interaction
+            volume = onp.pi*radius*radius
+            dims = G0.shape[0]
+            self_int_TM = alpha*k0*k0*np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+            G0 += self_int_TM
+        # Invert the matrix 1 - k^2 alpha Green
+        G0 *= -1
+        Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
+
+        # Define the propagators from scatterers to measurement points
+        G0_measure = self.G0_TM(measure_points, k0, alpha, n_cpus=n_cpus)
+        # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
+        # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
+        ldos_factor_TM = np.einsum('ij, ji->i',np.matmul(G0_measure, np.tensor(Ainv)), (G0_measure).t() )
+        ldos_factor_TM *= 4.0 * k0*k0*alpha / onp.pi()
+        ldos_factor_TM = np.imag(ldos_factor_TM)
+
+        ### TE calculation
+        G0 = self.G0_TE(None, k0, alpha, n_cpus=n_cpus)
+        G0.fill_diagonal_(-1)
+        if self_interaction:
+            # Add self-interaction
+            dims = G0.shape[0]
+            self_int_TE = alpha*k0*k0*np.eye(dims) * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+            G0 += self_int_TE
+        # Invert the matrix 1 - k^2 alpha Green
+        G0 *= -1
+        Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
+
+        # Define the propagators from scatterers to measurement points
+        G0_measure = self.G0_TE(measure_points, k0, alpha, n_cpus=n_cpus)
+        # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
+        # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
+        ldos_factor_TE = np.einsum('ij, ji->i',np.matmul(G0_measure, np.tensor(Ainv)), (G0_measure).t() )
+        ldos_factor_TE *= 4.0 * k0*k0*alpha / onp.pi()
+        ldos_factor_TE = np.imag(ldos_factor_TE)
+
+        return ldos_factor_TE, ldos_factor_TM

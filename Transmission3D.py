@@ -8,10 +8,6 @@ from joblib import Parallel, delayed
 
 
 c = 3e8   #speed of light in vacuum, m/s
-omega0 = 3e15 #resonance frequency 1/s
-Gamma = 5e16 #linewidth 1/s
-w = 2.1e-5 #beam waist m
-L = 100e-6 #box side length mi
 I = np.tensor(onp.identity(3)).reshape(1,3,3) #identity matrix
 #N = 1000 #number of scatterers
 
@@ -29,7 +25,7 @@ class Transmission3D:
         R = np.linalg.norm(r,axis=-1)
         RxR = r.reshape(-1,1,3)*r.reshape(-1,3,1)
         RxR /= R*R
-        return (I-RxR-(I-3*RxR)*(1/(1j*k0*R)+(k0*R)**-2))*np.exp(1j*k0*R)/(4*np.pi*R)
+        return (I-RxR-(I-3*RxR)*(1/(1j*k0*R)+(k0*R)**-2))*np.exp(1j*k0*R)/(4*onp.pi*R)
 
     def generate_source(self, points, k0, u, p):
         '''
@@ -88,7 +84,7 @@ class Transmission3D:
         u                   - (Ndirs, 3)    propagation directions for the source
         p                   - (Ndirs, 3)    polarization directions for the source
         n_cpus              - (1)           number of cpus to multithread the generation of G0 over, defaults to 1
-        self_interactions   - (bool)        include or not self-interactions, defaults to True 
+        self_interaction    - (bool)        include or not self-interactions, defaults to True 
         '''
 
         # generate source field for scatterer positions

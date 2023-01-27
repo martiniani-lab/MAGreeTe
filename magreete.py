@@ -14,10 +14,14 @@ import lattices
 
 import argparse
 
-w = 2.1e-5 #beam waist m
 L = 100e-6 #box side length m
 
 def main(head_directory, n_cpus=1, lattice=None, just_plot = False):
+    '''
+    Simple front-end for MAGreeTe
+    '''
+
+    #Todo: clean up this main to have explicit 2d or 3d cases, just make main callable from the outside
     phi = 0.1
     N = 4096
     size_ratio = 1.0
@@ -51,33 +55,49 @@ def main(head_directory, n_cpus=1, lattice=None, just_plot = False):
         idx = np.nonzero(np.linalg.norm(points,axis=-1)<=0.5)
         points = np.squeeze(points[idx])
         points *= L
+    else:
+        if ndim==2:
+            if lattice == 'square':
+                file_name = 'square'
 
-    elif lattice == 'square':
-        file_name = 'square'
+                i=0
 
-        i=0
+                points = lattices.square()
+                N = points.shape[0]
+                points *= L
 
-        points = lattices.square()
-        N = points.shape[0]
-        points *= L
+            elif lattice == 'triangular':
+                file_name = 'triangular'
 
-    elif lattice == 'triangular':
-        file_name = 'triangular'
+                i = 0
 
-        i = 0
+                points = lattices.triangular()
+                N = points.shape[0]
+                points *= L
 
-        points = lattices.triangular()
-        N = points.shape[0]
-        points *= L
+            elif lattice == 'quasidual':
+                file_name = 'quasidual'
 
-    elif lattice == 'quasidual':
-        file_name = 'quasidual'
+                i = 0
 
-        i = 0
+                points = lattices.quasicrystal(mode='quasidual')
+                N = points.shape[0]
+                points *= L 
+            
+            else:
+                print("Not a valid lattice!")
+                exit()
+        elif ndim == 3:
+            if lattice == 'cubic':
+                file_name = 'cubic'
+                i=0
 
-        points = lattices.quasicrystal(mode='quasidual')
-        N = points.shape[0]
-        points *= L
+                points = lattices.cubic()
+                N = points.shape[0]
+                points *= L
+            else: 
+                print("Not a valid lattice!")
+                exit()
 
 
     Ntheta = 360
@@ -147,7 +167,7 @@ if __name__ == '__main__':
     n_cpus = 32
     np.set_num_threads(n_cpus)
     np.device("cpu")
-    main(head_directory, n_cpus, lattice='quasidual', just_plot=True)
+    main(head_directory, n_cpus, lattice='quasidual', just_plot=False)
     sys.exit()
 
 
