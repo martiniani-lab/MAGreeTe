@@ -1,13 +1,15 @@
 import numpy as onp
 import torch as np
 import scipy as sp
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.colors as clr
 import colorsys
 import hickle as hkl
 import sys
 import os
-from utils import alpha_cold_atoms_2d, alpha_small_dielectric_object, plot_transmission_angularbeam, plot_transmission_flat
+from utils import alpha_cold_atoms_2d, alpha_small_dielectric_object, plot_transmission_angularbeam, plot_transmission_flat, uniform_unit_disk_picking
 from Transmission2D import Transmission2D
 import lattices
 
@@ -153,7 +155,32 @@ def main(head_directory, n_cpus=1, lattice=None, just_plot = False):
     plot_transmission_angularbeam(k0range, L, thetas, TMtotal, file_name, appended_string='TM')
     plot_transmission_angularbeam(k0range, L, thetas, TEtotal, file_name, appended_string='TE')
     plot_transmission_flat(k0range, L, thetas, TMtotal, file_name, appended_string='TM')
-    plot_transmission_flat(k0range, L, thetas, TEtotal, file_name, appended_string='TE') 
+    plot_transmission_flat(k0range, L, thetas, TEtotal, file_name, appended_string='TE')
+
+    compute_DOS = True
+
+    if compute_DOS:
+        DOSall_TE = []
+        DOSall_TM = []
+        k0_range = []
+
+        M = 2 * N
+        measurement_points = uniform_unit_disk_picking(M)
+        measurement_points *= L/2
+
+        for k0, alpha in zip(k0range,alpharange):
+            dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, n_cpus=n_cpus)
+            DOSall_TE.append(dos_TE.numpy())
+            DOSall_TM.append(dos_TM.numpy())
+
+            k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+            k0_range.append(k0_)
+
+            onp.savetxt(file_name+'_temp_dos_TE.csv',[k0_range,DOSall_TE])
+            onp.savetxt(file_name+'_temp_dos_TM.csv',[k0_range,DOSall_TM])
+
+        onp.savetxt(file_name+'_dos_TE.csv',[k0_range,DOSall_TE])
+        onp.savetxt(file_name+'_dos_TM.csv',[k0_range,DOSall_TM])
 
 if __name__ == '__main__':
 
@@ -164,10 +191,10 @@ if __name__ == '__main__':
 
     head_directory = args.head_directory
 
-    n_cpus = 32
+    n_cpus = 28
     np.set_num_threads(n_cpus)
     np.device("cpu")
-    main(head_directory, n_cpus, lattice='quasidual', just_plot=False)
+    main(head_directory, n_cpus, lattice='square', just_plot=True)
     sys.exit()
 
 

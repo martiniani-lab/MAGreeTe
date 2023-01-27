@@ -2,6 +2,9 @@ import numpy as onp
 import torch as np
 import scipy as sp
 
+import matplotlib
+matplotlib.use('Agg')
+
 import matplotlib.pyplot as plt
 import matplotlib.colors as clr
 
@@ -45,6 +48,38 @@ def alpha_small_dielectric_object(refractive_n, volume):
     delta_epsilon = epsilon - 1 
 
     return volume*delta_epsilon
+
+def uniform_unit_disk_picking(n_points):
+    '''
+    Generates an (N,2) tensor of n_points random points with a flat distribution inside the unit disk
+    '''
+    
+    U1 = onp.random.uniform(size = n_points)
+    U2 = onp.random.uniform(size = n_points)
+    X = onp.sqrt(U2) * onp.cos(2 * onp.pi * U1)
+    Y = onp.sqrt(U2) * onp.sin(2 * onp.pi * U1)
+
+    points = np.tensor(onp.vstack((X,Y)))
+
+    return points.t()
+
+
+def uniform_unit_ball_picking(n_points, dim):
+    '''
+    Generates an (N,dim) tensor of n_points random points with a flat distribution inside the unit dim-ball
+    https://mathworld.wolfram.com/BallPointPicking.html
+    '''
+
+    normals = np.normal(0,1, size=(n_points, dim))
+    exps = np.empty((n_points, 1))
+    exps.exponential_()
+    exps = np.sqrt(exps)
+    proxies =  np.cat((normals, exps),0)
+    
+    points = normals/(np.linalg.norm(proxies, axis=-1)).reshape(-1,1,1)
+
+    return points.t()
+
 
 def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root, appended_string=None):
     '''

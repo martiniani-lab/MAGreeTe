@@ -10,7 +10,8 @@ from joblib import Parallel, delayed
 c = 3e8   #speed of light in vacuum, m/s
 I = onp.identity(2).reshape(1,2,2) #identity matrix
 #N = 1000 #number of scatterers
-
+L = 100e-6 #box side length m
+w = L/5
 
 
 class Transmission2D:
@@ -125,7 +126,7 @@ class Transmission2D:
         Npoints = measure_points.shape[0]
 
         ### TM Calculation
-        G0 = self.G0_TM(None, k0, alpha, n_cpus=n_cpus)
+        G0 = self.G0_TM(self.r, k0, alpha, n_cpus=n_cpus)
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -143,7 +144,7 @@ class Transmission2D:
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
         dos_factor_TM = ( np.matmul(G0_measure.t(), G0_measure) * Ainv ).sum()/Npoints
-        dos_factor_TM *= 4.0 * k0*k0*alpha / onp.pi()
+        dos_factor_TM *= 4.0 * k0*k0*alpha / onp.pi # For prefactor in systems invariant along z, see https://www.sciencedirect.com/science/article/pii/S1569441007000387
         dos_factor_TM = np.imag(dos_factor_TM)
 
         ### TE calculation
@@ -164,7 +165,7 @@ class Transmission2D:
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
         dos_factor_TE = ( np.matmul(G0_measure.t(), G0_measure) * Ainv ).sum()/Npoints
-        dos_factor_TE *= 4.0 * k0*k0* alpha / onp.pi()
+        dos_factor_TE *= 4.0 * k0*k0* alpha / onp.pi
         dos_factor_TE = np.imag(dos_factor_TE)
 
         return dos_factor_TE, dos_factor_TM
@@ -182,7 +183,7 @@ class Transmission2D:
         '''
 
         ### TM Calculation
-        G0 = self.G0_TM(None, k0, alpha, n_cpus=n_cpus)
+        G0 = self.G0_TM(self.r, k0, alpha, n_cpus=n_cpus)
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -199,7 +200,7 @@ class Transmission2D:
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
         ldos_factor_TM = np.einsum('ij, ji->i',np.matmul(G0_measure, np.tensor(Ainv)), (G0_measure).t() )
-        ldos_factor_TM *= 4.0 * k0*k0*alpha / onp.pi()
+        ldos_factor_TM *= 4.0 * k0*k0*alpha / onp.pi
         ldos_factor_TM = np.imag(ldos_factor_TM)
 
         ### TE calculation
@@ -219,7 +220,7 @@ class Transmission2D:
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
         ldos_factor_TE = np.einsum('ij, ji->i',np.matmul(G0_measure, np.tensor(Ainv)), (G0_measure).t() )
-        ldos_factor_TE *= 4.0 * k0*k0*alpha / onp.pi()
+        ldos_factor_TE *= 4.0 * k0*k0*alpha / onp.pi
         ldos_factor_TE = np.imag(ldos_factor_TE)
 
         return ldos_factor_TE, ldos_factor_TM
