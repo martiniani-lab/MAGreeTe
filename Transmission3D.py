@@ -28,6 +28,7 @@ class Transmission3D:
     def greens(self,r,k0):
         R = np.linalg.norm(r,axis=-1)
         RxR = r.reshape(-1,1,3)*r.reshape(-1,3,1)
+        RxR /= R*R
         return (I-RxR-(I-3*RxR)*(1/(1j*k0*R)+(k0*R)**-2))*np.exp(1j*k0*R)/(4*np.pi*R)
 
     def generate_source(self, points, k0, u, p):
@@ -50,7 +51,7 @@ class Transmission3D:
             pvec = np.stack([np.sin(theta)*np.cos(phi), np.sin(theta)*np.sin(phi), p[:,2]])
         return E0j.reshape(points.shape[0],1,-1)*pvec.reshape(1,3,1)
  
-    def calc(self, points, Ek, k0, alpha, u, p):
+    def calc(self, points, Ek, k0, alpha, u, p, n_cpus=1):
         '''
         Calculates the EM field at a set of measurement points
 
@@ -60,6 +61,7 @@ class Transmission3D:
         alpha  - (1)        bare static polarizability at given k0
         u      - (Ndirs, 3) propagation directions for the source
         p      - (Ndirs, 3) polarization directions for the source
+        n_cpus - (1)        number of cpus to multithread the generation of G0 over, defaults to 1
         '''
         points = np.tensor(points)
         
@@ -74,35 +76,44 @@ class Transmission3D:
         E0j = self.generate_source(points, k0, u, p) #(M,3,Ndirs)
         
         # calculate Ek field at all measurement points
-        Ek = np.matmul(self.G0(points, k0, alpha), Ek).reshape(points.shape[0],3,-1) + E0j 
+        Ek = np.matmul(self.G0(points, k0, alpha, n_cpus), Ek).reshape(points.shape[0],3,-1) + E0j 
         return Ek
    
-    def run(self, k0, alpha, u, p):
+    def run(self, k0, alpha, u, p, radius, n_cpus=1, self_interaction=True):
         '''
         Solves the EM field at each scatterer
 
-        k0     - (1)        frequency being measured
-        alpha  - (1)        bare static polarizability at given k0
-        u      - (Ndirs, 3) propagation directions for the source
-        p      - (Ndirs, 3) polarization directions for the source
+        k0                  - (1)           frequency being measured
+        alpha               - (1)           bare static polarizability at given k0
+        u                   - (Ndirs, 3)    propagation directions for the source
+        p                   - (Ndirs, 3)    polarization directions for the source
+        n_cpus              - (1)           number of cpus to multithread the generation of G0 over, defaults to 1
+        self_interactions   - (bool)        include or not self-interactions, defaults to True 
         '''
 
         # generate source field for scatterer positions
         E0j = self.generate_source(self.r, k0, u, p) #(N,3,Ndirs)
         
         # calculate Ek field at each scatterer position
-        G0 = self.G0(None, k0, alpha)
+        G0 = self.G0(None, k0, alpha, n_cpus)
         G0.fill_diagonal_(-1)
+        if self_interaction:
+            # Add self-interaction
+            dims = G0.shape[0]
+            volume = 4*onp.pi*(radius**3)/3
+            self_int = (alpha/volume) * np.eye(dims)*((2.0/3.0)*onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
+            G0 += self_int
         Ek = np.linalg.solve(G0, -E0j.reshape(3*self.N,-1)) 
         return Ek
 
-    def G0(self, points, k0, alpha):
+    def G0(self, points, k0, alpha, n_cpus=1):
         '''
         Generate the Green's tensor for a set of positions
 
         points - (N,3)      set of point positions, None indicates the saved point pattern
         k0     - (1)        frequency being measured
         alpha  - (1)        bare static polarizability at given k0
+        n_cpus - (1)        number of cpus to multithread the generation of G0 over, defaults to 1
         '''
 
         # check if None
@@ -112,7 +123,7 @@ class Transmission3D:
             points_ = points
         print('Calculating greens tensor')
         # populate Green's tensor
-        G0 = Parallel(n_jobs=32, require='sharedmem')(delayed(self.greensTE)(self.r.reshape(-1,3)-rr,k0) for rr in points_)
+        G0 = Parallel(n_jobs=n_cpus, require='sharedmem')(delayed(self.greens)(self.r.reshape(-1,3)-rr,k0) for rr in points_)
         G0 = np.stack(G0) #shape is (N,N,3,3)
 
         # replace NaN entries resulting from divergence (r-r'=0)

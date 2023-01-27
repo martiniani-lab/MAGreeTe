@@ -7,7 +7,7 @@ import colorsys
 import hickle as hkl
 import sys
 import os
-from utils import alpha_cold_atoms_2d, alpha_small_dielectric_object, plot_transmission_angularbeam
+from utils import alpha_cold_atoms_2d, alpha_small_dielectric_object, plot_transmission_angularbeam, plot_transmission_flat
 from Transmission2D import Transmission2D
 import lattices
 
@@ -131,7 +131,9 @@ def main(head_directory, n_cpus=1, lattice=None, just_plot = False):
         TMtotal = onp.absolute(ETMall)**2
 
     plot_transmission_angularbeam(k0range, L, thetas, TMtotal, file_name, appended_string='TM')
-    plot_transmission_angularbeam(k0range, L, thetas, TEtotal, file_name, appended_string='TE') 
+    plot_transmission_angularbeam(k0range, L, thetas, TEtotal, file_name, appended_string='TE')
+    plot_transmission_flat(k0range, L, thetas, TMtotal, file_name, appended_string='TM')
+    plot_transmission_flat(k0range, L, thetas, TEtotal, file_name, appended_string='TE') 
 
 if __name__ == '__main__':
 
@@ -145,7 +147,7 @@ if __name__ == '__main__':
     n_cpus = 32
     np.set_num_threads(n_cpus)
     np.device("cpu")
-    main(head_directory, n_cpus, lattice='quasidual', just_plot=False)
+    main(head_directory, n_cpus, lattice='quasidual', just_plot=True)
     sys.exit()
 
 

@@ -48,7 +48,7 @@ def alpha_small_dielectric_object(refractive_n, volume):
 
 def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root, appended_string=None):
     '''
-    Plots one of the transmission_angularbeam plots given 
+    Plots one a radial version of the frequency-angle transmission plot given 
     k0range: list of wave vector moduli, in rad/m
     L: system sidelength, in m
     thetas: list of angles used for the orientation of the laser, in radians
@@ -66,4 +66,44 @@ def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,
     cbar = fig.colorbar(pc)
     cbar.ax.tick_params(labelsize=24)
     plt.savefig(file_name_root+'_transmission_angularbeam_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
+    plt.close()
+
+def plot_transmission_flat(k0range, L, thetas, intensity, file_name_root, appended_string=None):
+    '''
+    Plots one a flattened version of the frequency-angle transmission plot given 
+    k0range: list of wave vector moduli, in rad/m
+    L: system sidelength, in m
+    thetas: list of angles used for the orientation of the laser, in radians
+    intensity: the relevant field intensity
+    file_name_root: prepended to the name of the file
+    appended_string: possible postfix for the name of the file, e.g. "TM" or "TE"
+    '''
+    freqs = onp.real(k0range*L/(2*onp.pi))
+    total_ = onp.sum(intensity*onp.diag(onp.ones(intensity.shape[-1])),axis=1)
+    fig = plt.figure()
+    ax = fig.gca()
+    pc = ax.imshow(total_[:,:int(total_.shape[1]/2)], norm=clr.LogNorm(vmin=1e-2,vmax=1e0), cmap=cmr.ember, extent =[0,180,freqs[0],freqs[-1]], origin='lower')
+    ax.set_xlabel(r'$\theta$')
+    ax.set_ylabel('Frequency')
+    ax.set_aspect(180/(freqs[-1] - freqs[0]))
+    fig.colorbar(pc)
+    plt.savefig(file_name_root+'_transmission_beam_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
+    plt.close()
+
+def plot_singlebeam_angular_frequency_plot(k0range, L, thetas, intensity, file_name_root, appended_string=None):
+    '''
+    Plots specific intensity for a single beam, in a radial frequency-angle plot 
+    k0range: list of wave vector moduli, in rad/m
+    L: system sidelength, in m
+    thetas: list of angles used for the orientation of the laser, in radians
+    intensity: the relevant field intensity
+    file_name_root: prepended to the name of the file
+    appended_string: possible postfix for the name of the file, e.g. "TM" or "TE"
+    '''
+    fig, ax = plt.subplots(subplot_kw={'projection':'polar'})
+    freqs = onp.real(k0range*L/(2*onp.pi))
+    total_ = intensity[:,:,0]
+    pc = ax.pcolormesh(thetas,freqs,total_,norm=clr.LogNorm(vmin=total_.min(),vmax=total_.max()), cmap=cmr.ember)
+    fig.colorbar(pc)
+    plt.savefig(file_name_root+'_transmission_angular'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
     plt.close()

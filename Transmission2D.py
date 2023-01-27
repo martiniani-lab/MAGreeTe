@@ -81,7 +81,7 @@ class Transmission2D:
         if self_interaction:
             # Add self-interaction
             dims = G0.shape[0]
-            self_int_TE = 0.5*alpha*k0*k0*np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+            self_int_TE = alpha*k0*k0*np.eye(dims) * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
             G0 += self_int_TE
         # Solve
         EkTE = np.linalg.solve(G0, -E0j.reshape(2*self.N,-1)) 
