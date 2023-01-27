@@ -131,3 +131,76 @@ class Transmission3D:
         G0 = np.transpose(G0,1,2).reshape(3*G0.shape[0],3*G0.shape[1]).to(np.complex128)
         G0 *= alpha*k0*k0
         return G0
+
+    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, n_cpus=1, self_interaction= True):
+        '''
+        Computes the LDOS averaged at a list of measurement points.
+        This computation is a bit less expensive than the actual LDOS one,
+        due to invariance of the trace under permutation and the use of Hadamard products
+        measure_points      - (M,3)  coordinates of points where the LDOS is evaluated
+        k0                  - (1)    frequency of source beam
+        alpha               - (1)    bare static polarizability at given k0
+        radius              - (1)    radius of the scatterers
+        n_cpus              - (1)    number of cpus to multithread the generation of G0 over, defaults to 1
+        self_interaction    - (bool) include or not self-interactions, defaults to True 
+        '''
+
+        Npoints = measure_points.shape[0]
+
+
+        G0 = self.G0(None, k0, alpha, n_cpus=n_cpus)
+        G0.fill_diagonal_(-1)
+        if self_interaction:
+            # Add self-interaction
+            dims = G0.shape[0]
+            volume = 4*onp.pi*(radius**3)/3
+            self_int = (alpha/volume) * np.eye(dims)*((2.0/3.0)*onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
+            G0 += self_int
+        # Invert the matrix 1 - k^2 alpha Green
+        G0 *= -1
+        Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
+
+        # Define the propagators from scatterers to measurement points
+        G0_measure = self.G0(measure_points, k0, alpha, n_cpus=n_cpus)
+        #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
+        # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
+        #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
+        dos_factor = ( np.matmul(G0_measure.t(), G0_measure) * Ainv ).sum()/Npoints
+        dos_factor *= 2.0*k0*alpha
+        dos_factor = np.imag(dos_factor)
+
+        return dos_factor
+
+    def LDOS_measurements(self, measure_points, k0, alpha, radius, n_cpus=1, self_interaction= True):
+        '''
+        Computes the LDOS at a list of measurement points
+        This computation is fairly expensive, the number of measurement points should be 
+        measure_points      - (M,3)  coordinates of points where the LDOS is evaluated
+        k0                  - (1)    frequency of source beam
+        alpha               - (1)    bare static polarizability at given k0
+        radius              - (1)    radius of the scatterers
+        n_cpus              - (1)    number of cpus to multithread the generation of G0 over, defaults to 1
+        self_interaction    - (bool) include or not self-interactions, defaults to True 
+        '''
+
+        G0 = self.G0(None, k0, alpha, n_cpus=n_cpus)
+        G0.fill_diagonal_(-1)
+        if self_interaction:
+            # Add self-interaction
+            dims = G0.shape[0]
+            volume = 4*onp.pi*(radius**3)/3
+            self_int = (alpha/volume) * np.eye(dims)*((2.0/3.0)*onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
+            G0 += self_int
+        # Invert the matrix 1 - k^2 alpha Green
+        G0 *= -1
+        Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
+
+        # Define the propagators from scatterers to measurement points
+        G0_measure = self.G0(measure_points, k0, alpha, n_cpus=n_cpus)
+        # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
+        # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
+        ldos_factor = np.einsum('ij, ji->i',np.matmul(G0_measure, np.tensor(Ainv)), (G0_measure).t() )
+        ldos_factor *= 2.0*k0*alpha
+        ldos_factor = np.imag(ldos_factor)
+
+        return ldos_factor
