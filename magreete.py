@@ -157,7 +157,7 @@ def main(head_directory, n_cpus=1, lattice=None, just_plot = False):
     plot_transmission_flat(k0range, L, thetas, TMtotal, file_name, appended_string='TM')
     plot_transmission_flat(k0range, L, thetas, TEtotal, file_name, appended_string='TE')
 
-    compute_DOS = True
+    compute_DOS = False
 
     if compute_DOS:
         DOSall_TE = []

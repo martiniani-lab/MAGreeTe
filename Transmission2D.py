@@ -9,6 +9,7 @@ from joblib import Parallel, delayed
 
 c = 3e8   #speed of light in vacuum, m/s
 I = onp.identity(2).reshape(1,2,2) #identity matrix
+torchI = np.tensor(I)
 #N = 1000 #number of scatterers
 L = 100e-6 #box side length m
 w = L/5
@@ -32,6 +33,40 @@ class Transmission2D:
     def greensTM(self,r,k0):
         R = onp.linalg.norm(r,axis=-1)
         return np.tensor(0.25j*hankel1(0,R*k0),dtype=np.complex128)
+
+    def torch_hankel1(self,nu, x):
+        '''
+        Torch implementation of hankel1(nu,x), for nu = 0 or 1.
+        Uses the fact that Hankel(nu,z) = J(nu,z) + i Y(nu,z).
+        Note: Y0 and Y1 do not appear in the official PyTorch documentation https://pytorch.org/docs/stable/special.html
+        However, they are actually implemented, https://pytorch.org/cppdocs/api/file_torch_csrc_api_include_torch_special.h.html
+        '''
+
+        if nu == 0:
+            # H0(z) = J0(z) + i Y0(z)
+            return np.special.bessel_j0(x) +1j*np.special.bessel_y0(x)
+        elif nu == 1:
+            # H1(z) = J1(z) + i Y1(z)
+            return np.special.bessel_j1(x) +1j*np.special.bessel_y1(x)
+        else:
+            exit("torch Hankel function only implemented for orders 0 and 1!")
+
+    def torch_greensTE(self, r, k0):
+        '''
+        Torch implementation of the TE Green's function, taking tensors as entries
+        '''
+        R = np.linalg.norm(r,axis=-1)
+        RxR = r[:,:,0:2].reshape(-1,1,2)*r[:,:,0:2].reshape(-1,2,1)
+        RxR /= (R*R).reshape(-1,1,1)
+        R *= k0
+        return 0.25j*((torchI-RxR)*self.torch_hankel1(0,R).reshape(-1,1,1)-(torchI-2*RxR)*(self.torch_hankel1(1,R)/R).reshape(-1,1,1))
+
+    def torch_greensTM(self, r, k0):
+        '''
+        Torch implementation of the TM Green's function, taking tensors as entries
+        '''
+        R = np.linalg.norm(r, axis = -1)
+        return 0.25j*self.torch_hankel1(0,R*k0)
 
     def generate_source(self, points, k0, thetas):
         if self.source == 'beam':
@@ -84,29 +119,42 @@ class Transmission2D:
         EkTE = np.linalg.solve(G0, -E0j.reshape(2*self.N,-1)) 
         return EkTE, EkTM
 
-    def G0_TM(self, points, k0, alpha, n_cpus=1):
+    def G0_TM(self, points, k0, alpha, n_cpus=1, torchG0=True):
         #Green's function
         print('Calculating TM greens function')
-        G0 = Parallel(n_jobs=n_cpus, require='sharedmem')(delayed(self.greensTM)(self.r.reshape(-1,2)-rr,k0) for rr in points)
-        G0 = np.vstack(G0) #shape is (N,N)
+        if torchG0:
+            G0 = self.torch_greensTM(self.r.reshape(-1,1,2) - points.reshape(1,-1,2), k0).t()
+        else:
+            G0 = Parallel(n_jobs=n_cpus, require='sharedmem')(delayed(self.greensTM)(self.r.reshape(-1,2)-rr,k0) for rr in points)
+            G0 = np.vstack(G0) #shape is (N,N)
         #Construct matrix form
         G0 *= alpha*k0*k0
         return G0
 
-    def G0_TE(self, points, k0, alpha, n_cpus=1):
+    def G0_TE(self, points, k0, alpha, n_cpus=1, torchG0=True):
         #Green's function
         if points == None:
             points_ = self.r
         else:
             points_ = points
         print('Calculating TE greens function')
-        G0 = Parallel(n_jobs=n_cpus, require='sharedmem')(delayed(self.greensTE)(self.r.reshape(-1,2)-rr,k0) for rr in points_)
-        G0 = np.stack(G0) #shape is (N,N,2,2)
+        if torchG0:
+            G0 = self.torch_greensTE(self.r.reshape(-1,1,2) - points_.reshape(1,-1,2), k0)
+            print(self.r.reshape(-1,1,2).shape)
+            print(points_.reshape(1,-1,2).shape)
+            G0 = G0.reshape( points_.shape[0],self.r.shape[0],2,2) #shape is (N,N,2,2)
+            print(G0.shape)
+
+        else:
+            G0 = Parallel(n_jobs=n_cpus, require='sharedmem')(delayed(self.greensTE)(self.r.reshape(-1,2)-rr,k0) for rr in points_)
+            G0 = np.stack(G0) #shape is (N,N,2,2)
         #Construct matrix form
         if points == None:
             for idx in range(self.N):
                 G0[idx,idx,:,:] = 0
+        print(G0.shape)
         G0 = np.transpose(G0,1,2).reshape(2*G0.shape[0],2*G0.shape[1]).to(np.complex128)
+        print(G0.shape)
         G0 *= alpha*k0*k0
         return G0
 
