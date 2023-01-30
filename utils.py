@@ -152,3 +152,11 @@ def plot_3d_points(points, file_name):
     ax.scatter(points[:,0], points[:,1], points[:,2])
 
     plt.savefig(file_name+'_3dplot.png')
+
+def plot_2d_points(points, file_name):
+    fig = plt.figure()
+    ax = fig.gca()
+
+    ax.scatter(points[:,0], points[:,1])
+
+    plt.savefig(file_name+'_2dplot.png')

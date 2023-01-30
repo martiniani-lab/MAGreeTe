@@ -93,7 +93,6 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, lattice=None, just_
         if cold_atoms:
             alpharange = alpha_cold_atoms_2d(k0range)
         else:
-            refractive_n = 1.6
             alpharange = onp.ones(len(k0range)) * alpha_small_dielectric_object(refractive_n,volume)
 
         if just_plot:
@@ -183,7 +182,6 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, lattice=None, just_
         if cold_atoms:
             alpharange = alpha_cold_atoms_3d(k0range)
         else:
-            refractive_n = 1.6
             alpharange = onp.ones(len(k0range)) * alpha_small_dielectric_object(refractive_n,volume)
 
         if just_plot:
