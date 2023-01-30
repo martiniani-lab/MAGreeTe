@@ -4,7 +4,6 @@ import torch as np
 import scipy as sp
 from scipy.special import hankel1
 import hickle as hkl
-from joblib import Parallel, delayed
 
 
 c = 3e8   #speed of light in vacuum, m/s
@@ -22,17 +21,6 @@ class Transmission2D:
         self.r = points.reshape(-1,2)
         self.N = self.r.shape[0]
         self.source = source
-
-    def greensTE(self,r,k0):
-        R = onp.linalg.norm(r,axis=-1)
-        RxR = r.numpy()[:,0:2].reshape(-1,1,2)*r.numpy()[:,0:2].reshape(-1,2,1)
-        RxR /= (R*R).reshape(-1,1,1)
-        R *= k0
-        return np.tensor(0.25j*((I-RxR)*hankel1(0,R).reshape(-1,1,1)-(I-2*RxR)*(hankel1(1,R)/R).reshape(-1,1,1)),dtype=np.complex128)
-
-    def greensTM(self,r,k0):
-        R = onp.linalg.norm(r,axis=-1)
-        return np.tensor(0.25j*hankel1(0,R*k0),dtype=np.complex128)
 
     def torch_hankel1(self,nu, x):
         '''
@@ -121,46 +109,31 @@ class Transmission2D:
         EkTE = np.linalg.solve(G0, -E0j.reshape(2*self.N,-1)) 
         return EkTE, EkTM
 
-    def G0_TM(self, points, k0, alpha, n_cpus=1, torchG0=True):
+    def G0_TM(self, points, k0, alpha):
         #Green's function
         print('Calculating TM greens function')
-        if torchG0:
-            G0 = self.torch_greensTM(points.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0)
-        else:
-            G0 = Parallel(n_jobs=n_cpus, require='sharedmem')(delayed(self.greensTM)(self.r.reshape(-1,2)-rr,k0) for rr in points)
-            G0 = np.vstack(G0) #shape is (M,N)
+        G0 = self.torch_greensTM(points.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0)
         #Construct matrix form
         G0 *= alpha*k0*k0
         return G0
 
-    def G0_TE(self, points, k0, alpha, n_cpus=1, torchG0=True):
+    def G0_TE(self, points, k0, alpha):
         #Green's function
         if points == None:
             points_ = self.r
         else:
             points_ = points
         print('Calculating TE greens function')
-        if torchG0:
-            G0 = self.torch_greensTE(points_.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0)
-            print(self.r.reshape(-1,1,2).shape)
-            print(points_.reshape(1,-1,2).shape)
-            #G0 = G0.reshape( points_.shape[0],self.r.shape[0],2,2) #shape is (M,N,2,2)
-            print(G0.shape)
-
-        else:
-            G0 = Parallel(n_jobs=n_cpus, require='sharedmem')(delayed(self.greensTE)(self.r.reshape(-1,2)-rr,k0) for rr in points_)
-            G0 = np.stack(G0) #shape is (N,M,2,2)
+        G0 = self.torch_greensTE(points_.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0)
         #Construct matrix form
         if points == None:
             for idx in range(self.N):
                 G0[idx,idx,:,:] = 0
-        print(G0.shape)
         G0 = np.transpose(G0,1,2).reshape(2*G0.shape[0],2*G0.shape[1]).to(np.complex128)
-        print(G0.shape)
         G0 *= alpha*k0*k0
         return G0
 
-    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, n_cpus=1, self_interaction= True):
+    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True):
         '''
         Computes the LDOS averaged at a list of measurement points, for TM and TE.
         This computation is a bit less expensive than the actual LDOS one,
@@ -176,7 +149,7 @@ class Transmission2D:
         Npoints = measure_points.shape[0]
 
         ### TM Calculation
-        G0 = self.G0_TM(self.r, k0, alpha, n_cpus=n_cpus)
+        G0 = self.G0_TM(self.r, k0, alpha)
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -198,7 +171,7 @@ class Transmission2D:
         dos_factor_TM = np.imag(dos_factor_TM)
 
         ### TE calculation
-        G0 = self.G0_TE(None, k0, alpha, n_cpus=n_cpus)
+        G0 = self.G0_TE(None, k0, alpha)
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -220,7 +193,7 @@ class Transmission2D:
 
         return dos_factor_TE, dos_factor_TM
 
-    def LDOS_measurements(self, measure_points, k0, alpha, radius, n_cpus=1, self_interaction= True):
+    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True):
         '''
         Computes the LDOS at a list of measurement points, for TM and TE.
         This computation is fairly expensive, the number of measurement points should be 
@@ -233,7 +206,7 @@ class Transmission2D:
         '''
 
         ### TM Calculation
-        G0 = self.G0_TM(self.r, k0, alpha, n_cpus=n_cpus)
+        G0 = self.G0_TM(self.r, k0, alpha)
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -246,7 +219,7 @@ class Transmission2D:
         Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0_TM(measure_points, k0, alpha, n_cpus=n_cpus)
+        G0_measure = self.G0_TM(measure_points, k0, alpha)
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
         ldos_factor_TM = np.einsum('ij, ji->i',np.matmul(G0_measure, np.tensor(Ainv)), (G0_measure).t() )
@@ -254,7 +227,7 @@ class Transmission2D:
         ldos_factor_TM = np.imag(ldos_factor_TM)
 
         ### TE calculation
-        G0 = self.G0_TE(None, k0, alpha, n_cpus=n_cpus)
+        G0 = self.G0_TE(None, k0, alpha)
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -266,7 +239,7 @@ class Transmission2D:
         Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0_TE(measure_points, k0, alpha, n_cpus=n_cpus)
+        G0_measure = self.G0_TE(measure_points, k0, alpha)
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
         ldos_factor_TE = np.einsum('ij, ji->i',np.matmul(G0_measure, np.tensor(Ainv)), (G0_measure).t() )

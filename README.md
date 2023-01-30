@@ -8,4 +8,4 @@ This is not a Finite Difference Time Domain algorithm
 
 
 Installation:
-Create a conda environment using MAGreeTe.yml, then install PyTorch 2.0 and joblib using pip
+Create a conda environment using MAGreeTe.yml, then install PyTorch 2.0

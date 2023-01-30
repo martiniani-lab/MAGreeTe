@@ -4,7 +4,6 @@ import torch as np
 import scipy as sp
 from scipy.special import hankel1
 import hickle as hkl
-from joblib import Parallel, delayed
 
 
 c = 3e8   #speed of light in vacuum, m/s
@@ -49,7 +48,7 @@ class Transmission3D:
             pvec = np.stack([np.sin(theta)*np.cos(phi), np.sin(theta)*np.sin(phi), p[:,2]])
         return E0j.reshape(points.shape[0],1,-1)*pvec.reshape(1,3,-1)
  
-    def calc(self, points, Ek, k0, alpha, u, p, beam_waist, n_cpus=1):
+    def calc(self, points, Ek, k0, alpha, u, p, beam_waist):
         '''
         Calculates the EM field at a set of measurement points
 
@@ -134,7 +133,7 @@ class Transmission3D:
         G0 *= alpha*k0*k0
         return G0
 
-    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, n_cpus=1, self_interaction= True):
+    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True):
         '''
         Computes the LDOS averaged at a list of measurement points.
         This computation is a bit less expensive than the actual LDOS one,
@@ -143,14 +142,13 @@ class Transmission3D:
         k0                  - (1)    frequency of source beam
         alpha               - (1)    bare static polarizability at given k0
         radius              - (1)    radius of the scatterers
-        n_cpus              - (1)    number of cpus to multithread the generation of G0 over, defaults to 1
         self_interaction    - (bool) include or not self-interactions, defaults to True 
         '''
 
         Npoints = measure_points.shape[0]
 
 
-        G0 = self.G0(None, k0, alpha, n_cpus=n_cpus)
+        G0 = self.G0(None, k0, alpha)
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -163,7 +161,7 @@ class Transmission3D:
         Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0(measure_points, k0, alpha, n_cpus=n_cpus)
+        G0_measure = self.G0(measure_points, k0, alpha)
         #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
@@ -173,7 +171,7 @@ class Transmission3D:
 
         return dos_factor
 
-    def LDOS_measurements(self, measure_points, k0, alpha, radius, n_cpus=1, self_interaction= True):
+    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True):
         '''
         Computes the LDOS at a list of measurement points
         This computation is fairly expensive, the number of measurement points should be 
@@ -185,7 +183,7 @@ class Transmission3D:
         self_interaction    - (bool) include or not self-interactions, defaults to True 
         '''
 
-        G0 = self.G0(None, k0, alpha, n_cpus=n_cpus)
+        G0 = self.G0(None, k0, alpha)
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -198,7 +196,7 @@ class Transmission3D:
         Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0(measure_points, k0, alpha, n_cpus=n_cpus)
+        G0_measure = self.G0(measure_points, k0, alpha)
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
         ldos_factor = np.einsum('ij, ji->i',np.matmul(G0_measure, np.tensor(Ainv)), (G0_measure).t() )

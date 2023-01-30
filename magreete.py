@@ -51,65 +51,32 @@ def main(head_directory, n_cpus=1, lattice=None, just_plot = False):
     else:
         if ndim==2:
             if lattice == 'square':
-                file_name = 'square'
-
-                i=0
-
                 points = lattices.square()
-                N = points.shape[0]
-                points *= L
-
             elif lattice == 'triangular':
-                file_name = 'triangular'
-
-                i = 0
-
                 points = lattices.triangular()
-                N = points.shape[0]
-                points *= L
-
             elif lattice == 'quasidual':
-                file_name = 'quasidual'
-
-                i = 0
-
                 points = lattices.quasicrystal(mode='quasidual')
-                N = points.shape[0]
-                points *= L 
-            
             else:
                 print("Not a valid lattice!")
                 exit()
+
         elif ndim == 3:
             if lattice == 'cubic':
-                file_name = 'cubic'
-                i=0
-
                 points = lattices.cubic()
-                N = points.shape[0]
-                points *= L
             elif lattice == 'bcc':
-                file_name = 'bcc'
-                i = 0
                 points = lattices.bcc()
-                N = points.shape[0]
-                points *= L
             elif lattice == 'fcc':
-                file_name = 'fcc'
-                i = 0
                 points = lattices.fcc()
-                N = points.shape[0]
-                points *= L
             elif lattice == 'diamond':
-                file_name = 'diamond'
-                i = 0
                 points = lattices.diamond(9)
-                N = points.shape[0]
-                points *= L
             else: 
                 print("Not a valid lattice!")
                 exit()
-        assert ndim == points.shape[1]
+        file_name = lattice
+        i=0
+        N = points.shape[0]
+        points *= L
+    assert ndim == points.shape[1]
     Ntheta = 360
     thetas = onp.arange(Ntheta)/Ntheta*2*np.pi
     if ndim == 2:
