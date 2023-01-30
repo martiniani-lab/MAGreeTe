@@ -9,7 +9,7 @@ from joblib import Parallel, delayed
 
 c = 3e8   #speed of light in vacuum, m/s
 I = onp.identity(2).reshape(1,2,2) #identity matrix
-torchI = np.tensor(I)
+torchI = np.tensor(I).reshape(1,1,2,2)
 #N = 1000 #number of scatterers
 L = 100e-6 #box side length m
 w = L/5
@@ -55,11 +55,13 @@ class Transmission2D:
         '''
         Torch implementation of the TE Green's function, taking tensors as entries
         '''
+        N = r.shape[0]
+        M = r.shape[1]
         R = np.linalg.norm(r,axis=-1)
-        RxR = r[:,:,0:2].reshape(-1,1,2)*r[:,:,0:2].reshape(-1,2,1)
-        RxR /= (R*R).reshape(-1,1,1)
+        RxR = r[:,:,0:2].reshape(N,M,1,2)*r[:,:,0:2].reshape(N,M,2,1)
+        RxR /= (R*R).reshape(N,M,1,1)
         R *= k0
-        return 0.25j*((torchI-RxR)*self.torch_hankel1(0,R).reshape(-1,1,1)-(torchI-2*RxR)*(self.torch_hankel1(1,R)/R).reshape(-1,1,1))
+        return 0.25j*((torchI-RxR)*self.torch_hankel1(0,R).reshape(N,M,1,1)-(torchI-2*RxR)*(self.torch_hankel1(1,R)/R).reshape(N,M,1,1))
 
     def torch_greensTM(self, r, k0):
         '''
@@ -68,7 +70,7 @@ class Transmission2D:
         R = np.linalg.norm(r, axis = -1)
         return 0.25j*self.torch_hankel1(0,R*k0)
 
-    def generate_source(self, points, k0, thetas):
+    def generate_source(self, points, k0, thetas, w):
         if self.source == 'beam':
             print('Calculating Beam Source')
             E0j = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
@@ -83,18 +85,18 @@ class Transmission2D:
                 E0j[:,idx] = np.exp(1j*rrot[:,0]*k0-(rrot[:,1]**2/(w*w*(1+1j*a))))/np.sqrt(1+1j*a)
         return E0j, u
  
-    def calc_EM(self,points, EkTE, EkTM, k0, alpha, thetas, n_cpus=1):
+    def calc_EM(self,points, EkTE, EkTM, k0, alpha, thetas, beam_waist, n_cpus=1):
         points = np.tensor(points)
-        E0j, u = self.generate_source(points, k0, thetas)
+        E0j, u = self.generate_source(points, k0, thetas, beam_waist)
         EkTM_ = np.matmul(self.G0_TM(points, k0, alpha, n_cpus=n_cpus), EkTM) + E0j
         E0j = E0j.reshape(points.shape[0],1,len(thetas))*u
         EkTE_ = np.matmul(self.G0_TE(points, k0, alpha, n_cpus=n_cpus), EkTE).reshape(points.shape[0],2,-1) + E0j 
         return EkTE_, EkTM_
    
-    def run_EM(self, k0, alpha, thetas, radius, n_cpus=1, self_interaction=True):
+    def run_EM(self, k0, alpha, thetas, radius, beam_waist, n_cpus=1, self_interaction=True):
 
         ### TM calculation
-        E0j, u = self.generate_source(self.r, k0, thetas)
+        E0j, u = self.generate_source(self.r, k0, thetas, beam_waist)
         G0 = self.G0_TM(self.r, k0, alpha, n_cpus=n_cpus)
         G0.fill_diagonal_(-1)
         if self_interaction:
@@ -123,10 +125,10 @@ class Transmission2D:
         #Green's function
         print('Calculating TM greens function')
         if torchG0:
-            G0 = self.torch_greensTM(self.r.reshape(-1,1,2) - points.reshape(1,-1,2), k0).t()
+            G0 = self.torch_greensTM(points.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0)
         else:
             G0 = Parallel(n_jobs=n_cpus, require='sharedmem')(delayed(self.greensTM)(self.r.reshape(-1,2)-rr,k0) for rr in points)
-            G0 = np.vstack(G0) #shape is (N,N)
+            G0 = np.vstack(G0) #shape is (M,N)
         #Construct matrix form
         G0 *= alpha*k0*k0
         return G0
@@ -139,15 +141,15 @@ class Transmission2D:
             points_ = points
         print('Calculating TE greens function')
         if torchG0:
-            G0 = self.torch_greensTE(self.r.reshape(-1,1,2) - points_.reshape(1,-1,2), k0)
+            G0 = self.torch_greensTE(points_.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0)
             print(self.r.reshape(-1,1,2).shape)
             print(points_.reshape(1,-1,2).shape)
-            G0 = G0.reshape( points_.shape[0],self.r.shape[0],2,2) #shape is (N,N,2,2)
+            #G0 = G0.reshape( points_.shape[0],self.r.shape[0],2,2) #shape is (M,N,2,2)
             print(G0.shape)
 
         else:
             G0 = Parallel(n_jobs=n_cpus, require='sharedmem')(delayed(self.greensTE)(self.r.reshape(-1,2)-rr,k0) for rr in points_)
-            G0 = np.stack(G0) #shape is (N,N,2,2)
+            G0 = np.stack(G0) #shape is (N,M,2,2)
         #Construct matrix form
         if points == None:
             for idx in range(self.N):

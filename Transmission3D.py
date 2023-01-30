@@ -20,14 +20,16 @@ class Transmission3D:
         self.r = points.reshape(-1,3)
         self.N = self.r.shape[0]
         self.source = source
-
+    
     def greens(self,r,k0):
-        R = np.linalg.norm(r,axis=-1)
-        RxR = r.reshape(-1,1,3)*r.reshape(-1,3,1)
+        N = r.shape[0]
+        M = r.shape[1]
+        R = np.linalg.norm(r,axis=-1).reshape(N,M,1,1)
+        RxR = r.reshape(N,M,1,3)*r.reshape(N,M,3,1)
         RxR /= R*R
         return (I-RxR-(I-3*RxR)*(1/(1j*k0*R)+(k0*R)**-2))*np.exp(1j*k0*R)/(4*onp.pi*R)
 
-    def generate_source(self, points, k0, u, p):
+    def generate_source(self, points, k0, u, p, w):
         '''
         Generates the EM field of a source at a set of points
 
@@ -45,9 +47,9 @@ class Transmission3D:
             phi = np.arctan2(p[:,1], p[:,0]) #arctan(y/x)
             theta = np.arccos(p[:,2]) #arccos(z/r), r=1 for unit vector
             pvec = np.stack([np.sin(theta)*np.cos(phi), np.sin(theta)*np.sin(phi), p[:,2]])
-        return E0j.reshape(points.shape[0],1,-1)*pvec.reshape(1,3,1)
+        return E0j.reshape(points.shape[0],1,-1)*pvec.reshape(1,3,-1)
  
-    def calc(self, points, Ek, k0, alpha, u, p, n_cpus=1):
+    def calc(self, points, Ek, k0, alpha, u, p, beam_waist, n_cpus=1):
         '''
         Calculates the EM field at a set of measurement points
 
@@ -57,25 +59,26 @@ class Transmission3D:
         alpha  - (1)        bare static polarizability at given k0
         u      - (Ndirs, 3) propagation directions for the source
         p      - (Ndirs, 3) polarization directions for the source
+        beam_waist - (1)    beam waist
         n_cpus - (1)        number of cpus to multithread the generation of G0 over, defaults to 1
         '''
         points = np.tensor(points)
         
         # ensure u and p are all unit vectors
-        u = np.tensor(u)/np.linalg.norm(u,axis=-1)
-        p = np.tensor(p)/np.linalg.norm(p,axis=-1)
+        u /= np.linalg.norm(u,axis=-1).reshape(-1,1)
+        p /= np.linalg.norm(p,axis=-1).reshape(-1,1)
         
         # check polarization is orthogonal to propagation
         assert np.sum(np.absolute(np.sum(u*p,axis=-1))) == 0
 
         # generate source field for measurement points
-        E0j = self.generate_source(points, k0, u, p) #(M,3,Ndirs)
+        E0j = self.generate_source(points, k0, u, p, beam_waist) #(M,3,Ndirs)
         
         # calculate Ek field at all measurement points
         Ek = np.matmul(self.G0(points, k0, alpha, n_cpus), Ek).reshape(points.shape[0],3,-1) + E0j 
         return Ek
    
-    def run(self, k0, alpha, u, p, radius, n_cpus=1, self_interaction=True):
+    def run(self, k0, alpha, u, p, radius, beam_waist, n_cpus=1, self_interaction=True):
         '''
         Solves the EM field at each scatterer
 
@@ -88,7 +91,7 @@ class Transmission3D:
         '''
 
         # generate source field for scatterer positions
-        E0j = self.generate_source(self.r, k0, u, p) #(N,3,Ndirs)
+        E0j = self.generate_source(self.r, k0, u, p, beam_waist) #(N,3,Ndirs)
         
         # calculate Ek field at each scatterer position
         G0 = self.G0(None, k0, alpha, n_cpus)
@@ -119,8 +122,7 @@ class Transmission3D:
             points_ = points
         print('Calculating greens tensor')
         # populate Green's tensor
-        G0 = Parallel(n_jobs=n_cpus, require='sharedmem')(delayed(self.greens)(self.r.reshape(-1,3)-rr,k0) for rr in points_)
-        G0 = np.stack(G0) #shape is (N,N,3,3)
+        G0 = self.greens(points_.reshape(-1,1,3)-self.r.reshape(1,-1,3),k0) #shape is (M,N,3,3)
 
         # replace NaN entries resulting from divergence (r-r'=0)
         if points == None:

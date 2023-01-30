@@ -8,3 +8,4 @@ dependencies:
   - matplotlib>=2.2.2
   - h5py<3
   - hickle==3.4.5
+  - cmasher>=1.6

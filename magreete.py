@@ -9,8 +9,9 @@ import colorsys
 import hickle as hkl
 import sys
 import os
-from utils import alpha_cold_atoms_2d, alpha_small_dielectric_object, plot_transmission_angularbeam, plot_transmission_flat, uniform_unit_disk_picking
+from utils import alpha_cold_atoms_2d, alpha_small_dielectric_object, plot_transmission_angularbeam, plot_transmission_flat, uniform_unit_disk_picking, plot_3d_points
 from Transmission2D import Transmission2D
+from Transmission3D import Transmission3D
 import lattices
 
 
@@ -28,23 +29,13 @@ def main(head_directory, n_cpus=1, lattice=None, just_plot = False):
     N = 4096
     size_ratio = 1.0
     a = 0.0
-    k = 32
-    ndim = 2
+    k = 16#32
+    ndim = 3
+    w = 0.2*L
 
-    if ndim == 2:
-        volume = L*L*phi/N
-        radius = onp.sqrt(volume/onp.pi )
-    else:
-        volume = L*L*L*phi/N
-        radius = onp.cbrt(volume * 3.0 / (4.0 * onp.pi))
-
-    k0range = onp.arange(40,81)*64/128*2*onp.pi/L
-    cold_atoms = False
-    if cold_atoms:
-        alpharange = alpha_cold_atoms_2d(k0range)
-    else:
-        refractive_n = 1.6
-        alpharange = onp.ones(len(k0range)) * alpha_small_dielectric_object(refractive_n,volume)
+    #k0range = onp.arange(40,81)*64/128*2*onp.pi/L
+    k0range = onp.arange(10,41)*64/128*2*onp.pi/L
+    #k0range = onp.arange(5,61)*2*2*onp.pi/L
 
     if lattice == None:
         dname = head_directory+'HPY'+str(ndim)+'D/phi'+str(phi)+'/a'+str(a)+'/'
@@ -97,16 +88,49 @@ def main(head_directory, n_cpus=1, lattice=None, just_plot = False):
                 points = lattices.cubic()
                 N = points.shape[0]
                 points *= L
+            elif lattice == 'bcc':
+                file_name = 'bcc'
+                i = 0
+                points = lattices.bcc()
+                N = points.shape[0]
+                points *= L
+            elif lattice == 'fcc':
+                file_name = 'fcc'
+                i = 0
+                points = lattices.fcc()
+                N = points.shape[0]
+                points *= L
+            elif lattice == 'diamond':
+                file_name = 'diamond'
+                i = 0
+                points = lattices.diamond(9)
+                N = points.shape[0]
+                points *= L
             else: 
                 print("Not a valid lattice!")
                 exit()
-
-
+        assert ndim == points.shape[1]
     Ntheta = 360
     thetas = onp.arange(Ntheta)/Ntheta*2*np.pi
-    meas_points = 2*L*onp.vstack([onp.cos(thetas),onp.sin(thetas)]).T
+    if ndim == 2:
+        volume = L*L*phi/N
+        radius = onp.sqrt(volume/onp.pi )
+        meas_points = 2*L*onp.vstack([onp.cos(thetas),onp.sin(thetas)]).T
+    else:
+        volume = L*L*L*phi/N
+        radius = onp.cbrt(volume * 3.0 / (4.0 * onp.pi))
+        meas_points = 2*L*onp.vstack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
+        plot_3d_points(points,file_name)
 
-    if just_plot:
+    cold_atoms = False
+    if cold_atoms:
+        alpharange = alpha_cold_atoms_2d(k0range)
+    else:
+        refractive_n = 1.6
+        alpharange = onp.ones(len(k0range)) * alpha_small_dielectric_object(refractive_n,volume)
+
+
+    if just_plot and ndim==2:
 
         ETEall = []
         ETMall = []
@@ -123,7 +147,7 @@ def main(head_directory, n_cpus=1, lattice=None, just_plot = False):
             alpha = onp.complex128(alpha)
             solver = Transmission2D(points)
 
-            EkTE, EkTM = solver.calc_EM(meas_points, EjTE, EjTM, k0, alpha, thetas, n_cpus=n_cpus)
+            EkTE, EkTM = solver.calc_EM(meas_points, EjTE, EjTM, k0, alpha, thetas, w, n_cpus=n_cpus)
             EkTE = np.linalg.norm(EkTE,axis=1)
             ETEall.append(EkTE.numpy())
             ETMall.append(EkTM.numpy())
@@ -131,18 +155,42 @@ def main(head_directory, n_cpus=1, lattice=None, just_plot = False):
         ETMall = onp.array(ETMall)
         TEtotal = onp.absolute(ETEall)**2
         TMtotal = onp.absolute(ETMall)**2
+    elif just_plot and ndim==3:
+        Eall = []
+        u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
+        u = np.tensor(u)
+        print(points.shape)
+        p = np.zeros(u.shape)
+        p[:,2] = 1
+        for k0, alpha in zip(k0range,alpharange):
+            
+            k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+            Ej, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(i)+'.hkl')
+            Ej = np.tensor(Ej, dtype=np.complex128)
+            points = np.tensor(points, dtype=np.complex128)
+            thetas = onp.float64(thetas)
+            alpha, k0 = params
+            k0 = onp.float64(k0)
+            alpha = onp.complex128(alpha)
+            solver = Transmission3D(points)
 
-    else:
+            Ek = solver.calc(meas_points, Ej, k0, alpha, u, p, w, n_cpus=n_cpus)
+            Ek = np.linalg.norm(Ek,axis=1)
+            Eall.append(Ek.numpy())
+        Eall = onp.array(Eall)
+        Etotal = onp.absolute(Eall)**2
+
+    elif ndim == 2:
         solver = Transmission2D(points)
         ETEall = []
         ETMall = []
         for k0, alpha in zip(k0range,alpharange):
-            EjTE, EjTM = solver.run_EM(k0, alpha, thetas, radius, n_cpus=n_cpus, self_interaction=not cold_atoms)
+            EjTE, EjTM = solver.run_EM(k0, alpha, thetas, radius, w, n_cpus=n_cpus, self_interaction=not cold_atoms)
             k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
             params = [alpha, k0]
             hkl.dump([onp.array(EjTE), onp.array(EjTM), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(i)+'.hkl')
 
-            EkTE, EkTM = solver.calc_EM(meas_points, EjTE, EjTM, k0, alpha, thetas, n_cpus=n_cpus)
+            EkTE, EkTM = solver.calc_EM(meas_points, EjTE, EjTM, k0, alpha, thetas, w, n_cpus=n_cpus)
             EkTE = np.linalg.norm(EkTE,axis=1)
             ETEall.append(EkTE.numpy())
             ETMall.append(EkTM.numpy())
@@ -152,36 +200,58 @@ def main(head_directory, n_cpus=1, lattice=None, just_plot = False):
         TEtotal = onp.absolute(ETEall)**2
         TMtotal = onp.absolute(ETMall)**2
 
-    plot_transmission_angularbeam(k0range, L, thetas, TMtotal, file_name, appended_string='TM')
-    plot_transmission_angularbeam(k0range, L, thetas, TEtotal, file_name, appended_string='TE')
-    plot_transmission_flat(k0range, L, thetas, TMtotal, file_name, appended_string='TM')
-    plot_transmission_flat(k0range, L, thetas, TEtotal, file_name, appended_string='TE')
+        plot_transmission_angularbeam(k0range, L, thetas, TMtotal, file_name, appended_string='TM')
+        plot_transmission_angularbeam(k0range, L, thetas, TEtotal, file_name, appended_string='TE')
+        plot_transmission_flat(k0range, L, thetas, TMtotal, file_name, appended_string='TM')
+        plot_transmission_flat(k0range, L, thetas, TEtotal, file_name, appended_string='TE')
 
-    compute_DOS = False
+        compute_DOS = False
 
-    if compute_DOS:
-        DOSall_TE = []
-        DOSall_TM = []
-        k0_range = []
+        if compute_DOS:
+            DOSall_TE = []
+            DOSall_TM = []
+            k0_range = []
 
-        M = 2 * N
-        measurement_points = uniform_unit_disk_picking(M)
-        measurement_points *= L/2
+            M = 2 * N
+            measurement_points = uniform_unit_disk_picking(M)
+            measurement_points *= L/2
 
+            for k0, alpha in zip(k0range,alpharange):
+                dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, n_cpus=n_cpus)
+                DOSall_TE.append(dos_TE.numpy())
+                DOSall_TM.append(dos_TM.numpy())
+
+                k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                k0_range.append(k0_)
+
+                onp.savetxt(file_name+'_temp_dos_TE.csv',[k0_range,DOSall_TE])
+                onp.savetxt(file_name+'_temp_dos_TM.csv',[k0_range,DOSall_TM])
+
+            onp.savetxt(file_name+'_dos_TE.csv',[k0_range,DOSall_TE])
+            onp.savetxt(file_name+'_dos_TM.csv',[k0_range,DOSall_TM])
+
+    elif ndim == 3:
+        solver = Transmission3D(points)
+        u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
+        u = np.tensor(u)
+        print(points.shape)
+        p = np.zeros(u.shape)
+        p[:,2] = 1
+        Eall = []
         for k0, alpha in zip(k0range,alpharange):
-            dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, n_cpus=n_cpus)
-            DOSall_TE.append(dos_TE.numpy())
-            DOSall_TM.append(dos_TM.numpy())
-
+            Ej = solver.run(k0, alpha, u, p, radius, w, n_cpus=n_cpus)
             k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-            k0_range.append(k0_)
+            params = [alpha, k0]
+            hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(i)+'.hkl')
 
-            onp.savetxt(file_name+'_temp_dos_TE.csv',[k0_range,DOSall_TE])
-            onp.savetxt(file_name+'_temp_dos_TM.csv',[k0_range,DOSall_TM])
-
-        onp.savetxt(file_name+'_dos_TE.csv',[k0_range,DOSall_TE])
-        onp.savetxt(file_name+'_dos_TM.csv',[k0_range,DOSall_TM])
-
+            Ek = solver.calc(meas_points, Ej, k0, alpha, u, p, w, n_cpus=n_cpus)
+            Ek = np.linalg.norm(Ek,axis=1)
+            Eall.append(Ek.numpy())
+        Eall = onp.array(Eall)
+        Etotal = onp.absolute(Eall)**2
+    
+        plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name) 
+        plot_transmission_flat(k0range, L, thetas, Etotal, file_name) 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Run a full solving and plotting routine of MAGreeTe")
@@ -194,7 +264,7 @@ if __name__ == '__main__':
     n_cpus = 28
     np.set_num_threads(n_cpus)
     np.device("cpu")
-    main(head_directory, n_cpus, lattice='square', just_plot=True)
+    main(head_directory, n_cpus, lattice='cubic', just_plot=False)
     sys.exit()
 
 
