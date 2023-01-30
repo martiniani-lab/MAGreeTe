@@ -9,7 +9,7 @@ import colorsys
 import hickle as hkl
 import sys
 import os
-from utils import alpha_cold_atoms_2d, alpha_cold_atoms_3d, alpha_small_dielectric_object, plot_transmission_angularbeam, plot_transmission_flat, uniform_unit_disk_picking, plot_3d_points
+from utils import alpha_cold_atoms_2d, alpha_cold_atoms_3d, alpha_small_dielectric_object, plot_transmission_angularbeam, plot_transmission_flat, uniform_unit_disk_picking, uniform_unit_ball_picking, plot_3d_points
 from Transmission2D import Transmission2D
 from Transmission3D import Transmission3D
 import lattices
@@ -17,9 +17,8 @@ import lattices
 
 import argparse
 
-L = 100e-6 #box side length m
 
-def main(head_directory, ndim,  lattice=None, just_plot = False, compute_DOS=False, cold_atoms=False):
+def main(head_directory, ndim,  lattice=None, just_plot = False, compute_DOS=False, cold_atoms=False, L = 1):
     '''
     Simple front-end for MAGreeTe
     '''
@@ -230,6 +229,26 @@ def main(head_directory, ndim,  lattice=None, just_plot = False, compute_DOS=Fal
         plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name) 
         plot_transmission_flat(k0range, L, thetas, Etotal, file_name) 
 
+        if compute_DOS:
+            DOSall = []
+            k0_range = []
+
+            # Expensive computation in 3d
+            M = 1
+            measurement_points = uniform_unit_ball_picking(M, ndim)
+            measurement_points *= L/2
+
+            for k0, alpha in zip(k0range,alpharange):
+                dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius)
+                DOSall.append(dos.numpy())
+
+                k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                k0_range.append(k0_)
+
+                onp.savetxt(file_name+'_temp_dos.csv',[k0_range,DOSall])
+
+            onp.savetxt(file_name+'_dos.csv',[k0_range,DOSall])
+
 
 if __name__ == '__main__':
 
@@ -245,6 +264,7 @@ if __name__ == '__main__':
         default=False", default=False)
     parser.add_argument("-dos","--compute_DOS", action='store_true', help="Compute the mean DOS of the medium  \
         default=False", default=False)
+    parser.add_argument("--boxsize", type=float, help="Set physical units for the box size: the results are dimensionless so that default=1m", default = 1)
 
     args = parser.parse_args()
 
@@ -254,12 +274,11 @@ if __name__ == '__main__':
     just_plot=args.just_plot
     lattice = args.lattice
     compute_DOS=args.compute_DOS
-
-    print(args)
+    boxsize=args.boxsize
 
     np.set_num_threads(n_cpus)
     np.device("cpu")
-    main(head_directory, ndim, lattice=lattice, just_plot=just_plot, compute_DOS=compute_DOS)
+    main(head_directory, ndim, lattice=lattice, just_plot=just_plot, compute_DOS=compute_DOS, L=boxsize)
     sys.exit()
 
 

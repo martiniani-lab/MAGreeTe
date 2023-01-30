@@ -6,12 +6,8 @@ from scipy.special import hankel1
 import hickle as hkl
 
 
-c = 3e8   #speed of light in vacuum, m/s
-I = onp.identity(2).reshape(1,2,2) #identity matrix
-torchI = np.tensor(I).reshape(1,1,2,2)
+I = np.tensor(onp.identity(2)).reshape(1,1,2,2) #identity matrix
 #N = 1000 #number of scatterers
-L = 100e-6 #box side length m
-w = L/5
 
 
 class Transmission2D:
@@ -49,7 +45,7 @@ class Transmission2D:
         RxR = r[:,:,0:2].reshape(N,M,1,2)*r[:,:,0:2].reshape(N,M,2,1)
         RxR /= (R*R).reshape(N,M,1,1)
         R *= k0
-        return 0.25j*((torchI-RxR)*self.torch_hankel1(0,R).reshape(N,M,1,1)-(torchI-2*RxR)*(self.torch_hankel1(1,R)/R).reshape(N,M,1,1))
+        return 0.25j*((I-RxR)*self.torch_hankel1(0,R).reshape(N,M,1,1)-(I-2*RxR)*(self.torch_hankel1(1,R)/R).reshape(N,M,1,1))
 
     def torch_greensTM(self, r, k0):
         '''
@@ -60,7 +56,8 @@ class Transmission2D:
 
     def generate_source(self, points, k0, thetas, w):
         if self.source == 'beam':
-            print('Calculating Beam Source')
+            k0_ = onp.round(k0/(2.0*onp.pi))
+            print('Calculating Beam Source at k0L/2pi = '+str(k0_))
             E0j = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
             u = np.zeros((2,len(thetas)))
             for idx in range(len(thetas)):
@@ -111,7 +108,8 @@ class Transmission2D:
 
     def G0_TM(self, points, k0, alpha):
         #Green's function
-        print('Calculating TM greens function')
+        k0_ = onp.round(k0/(2.0*onp.pi))
+        print('Calculating TM greens function at k0L/2pi = '+str(k0_))
         G0 = self.torch_greensTM(points.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0)
         #Construct matrix form
         G0 *= alpha*k0*k0
@@ -123,7 +121,8 @@ class Transmission2D:
             points_ = self.r
         else:
             points_ = points
-        print('Calculating TE greens function')
+        k0_ = onp.round(k0/(2.0*onp.pi))
+        print('Calculating TE greens function at k0L/2pi = '+str(k0_))
         G0 = self.torch_greensTE(points_.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0)
         #Construct matrix form
         if points == None:

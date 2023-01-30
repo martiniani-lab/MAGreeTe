@@ -74,11 +74,11 @@ def uniform_unit_ball_picking(n_points, dim):
     exps = np.empty((n_points, 1))
     exps.exponential_()
     exps = np.sqrt(exps)
-    proxies =  np.cat((normals, exps),0)
+    proxies =  np.cat((normals, exps),1)
     
     points = normals/(np.linalg.norm(proxies, axis=-1)).reshape(-1,1,1)
 
-    return points.t()
+    return points
 
 
 def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root, appended_string=''):

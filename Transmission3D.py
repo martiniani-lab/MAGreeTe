@@ -6,7 +6,6 @@ from scipy.special import hankel1
 import hickle as hkl
 
 
-c = 3e8   #speed of light in vacuum, m/s
 I = np.tensor(onp.identity(3)).reshape(1,3,3) #identity matrix
 #N = 1000 #number of scatterers
 
@@ -38,7 +37,8 @@ class Transmission3D:
         p      - (Ndirs, 3) polarization directions for the source
         '''
         if self.source == 'beam':
-            print('Calculating Beam Source')
+            k0_ = onp.round(k0/(2.0*onp.pi))
+            print('Calculating Beam Source at k0L/2pi = '+str(k0_))
             rpara = np.matmul(points,u.T)
             rperp = np.linalg.norm(points.reshape(-1,3,1) - rpara.reshape(points.shape[0],1,u.shape[0])*u.T.reshape(1,3,-1),axis=1)
             a = 2*rperp/(w*w*k0)
@@ -116,7 +116,8 @@ class Transmission3D:
             points_ = self.r
         else:
             points_ = points
-        print('Calculating greens tensor')
+        k0_ = onp.round(k0/(2.0*onp.pi))
+        print('Calculating TE greens function at k0L/2pi = '+str(k0_))
         # populate Green's tensor
         G0 = self.greens(points_.reshape(-1,1,3)-self.r.reshape(1,-1,3),k0) #shape is (M,N,3,3)
 
