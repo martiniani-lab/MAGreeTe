@@ -18,7 +18,7 @@ import lattices
 import argparse
 
 
-def main(head_directory, ndim,  lattice=None, just_plot = False, compute_DOS=False, dospoints=1, cold_atoms=False, L = 1):
+def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, lattice=None, just_plot = False, compute_DOS=False, dospoints=1, cold_atoms=False, L = 1):
     '''
     Simple front-end for MAGreeTe
     '''
@@ -50,8 +50,14 @@ def main(head_directory, ndim,  lattice=None, just_plot = False, compute_DOS=Fal
                 points = lattices.square()
             elif lattice == 'triangular':
                 points = lattices.triangular()
+            elif lattice == 'honeycomb':
+                points = lattices.honeycomb()
+            elif lattice == 'quasicrystal':
+                points = lattices.quasicrystal(mode='quasicrystal')
             elif lattice == 'quasidual':
                 points = lattices.quasicrystal(mode='quasidual')
+            elif lattice == 'quasivoro':
+                points = lattices.quasicrystal(mode='quasivoro')
             else:
                 print("Not a valid lattice!")
                 exit()
@@ -255,8 +261,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Run a full solving and plotting routine of MAGreeTe")
     parser.add_argument("head_directory", type=str, help="parent directory containing all configurations")
     parser.add_argument("ndim", type=int, help="Dimensionality of the problem at hand")
-    parser.add_argument("-n","--n_cpus", type=int, help="Number of cpus to use for computation\
+    parser.add_argument("--n_cpus", type=int, help="Number of cpus to use for computation\
         default = os.cpu_count", default=os.cpu_count())
+    parser.add_argument("-n", "--refractive_n", type=complex, help="Complex refractive index of the dielectric material \
+        default = 1.65 - 0.025j", default = 1.6 - 0.025j)
     parser.add_argument("-l", "--lattice", type=str, help="Use a simple lattice in lieu of datapoints as entry. \
         Options are 'square', 'triangular', 'honeycomb', 'quasicrystal', 'quasidual', 'quasivoro' in 2d, and 'cubic', 'fcc', 'bcc', 'diamond' in 3d. \
         default=None", default=None)
@@ -273,6 +281,7 @@ if __name__ == '__main__':
     head_directory = args.head_directory
     ndim = args.ndim
     n_cpus=args.n_cpus
+    refractive_n = args.refractive_n
     just_plot=args.just_plot
     lattice = args.lattice
     compute_DOS=args.compute_DOS
@@ -281,7 +290,7 @@ if __name__ == '__main__':
 
     np.set_num_threads(n_cpus)
     np.device("cpu")
-    main(head_directory, ndim, lattice=lattice, just_plot=just_plot, compute_DOS=compute_DOS, dospoints=dospoints, L=boxsize)
+    main(head_directory, ndim, refractive_n = refractive_n, lattice=lattice, just_plot=just_plot, compute_DOS=compute_DOS, dospoints=dospoints, L=boxsize)
     sys.exit()
 
 

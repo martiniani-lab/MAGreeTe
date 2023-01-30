@@ -12,29 +12,31 @@ import cmasher as cmr # https://github.com/1313e/CMasher
 
 c = 3e8   #speed of light in vacuum, m/s
 
-def alpha_cold_atoms_2d(k0range, omega0 = 3e15, Gamma = 5e16):
+def alpha_cold_atoms_2d(k0range, omega0 = 3e15, Gamma = 5e16, Lfactor = 1e-4):
     '''
     Typical polarizability of cold atoms, using an elastically bound electron model for the dielectric constant, in 2d space.
     Arguments:
     k0range: array of k values, in rad/m
     omega0: bare resonance pulsation, in rad/s
     Gamma: bare linewidth, in rad/s
+    Lfactor: conversion factor for lengths, the values above being given for L = 100 µm
     '''
 
-    return -2*Gamma/(omega0*(k0range*k0range-omega0*omega0/(c*c)+0.5j*Gamma*k0range*k0range/omega0))
+    return (-2*Gamma/(omega0*(k0range*k0range-omega0*omega0/(c*c)+0.5j*Gamma*k0range*k0range/omega0)))/Lfactor**2
 
-def alpha_cold_atoms_3d(k0range, omega0 = 3e15, Gamma = 5e16):
+def alpha_cold_atoms_3d(k0range, omega0 = 3e15, Gamma = 5e16, Lfactor = 1e-4):
     '''
     Typical polarizability of cold atoms, using an elastically bound electron model for the dielectric constant, in 3d space.
     Arguments:
     k0range: array of k values, in rad/m
     omega0: bare resonance pulsation, in rad/s
     Gamma: bare linewidth, in rad/s
+    Lfactor: conversion factor for lengths, the values above being given for L = 100 µm
     '''
 
     omegarange = k0range * c
     omega0sq = omega0*omega0
-    return -4*onp.pi*(c**3)*Gamma/(omega0sq*(omegarange*omegarange-omega0sq+1j*Gamma*omegarange*omegarange*omegarange/omega0sq))
+    return (-4*onp.pi*(c**3)*Gamma/(omega0sq*(omegarange*omegarange-omega0sq+1j*Gamma*omegarange*omegarange*omegarange/omega0sq)))/Lfactor**3
 
 def alpha_small_dielectric_object(refractive_n, volume):
     '''
