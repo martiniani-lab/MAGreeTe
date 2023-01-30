@@ -59,7 +59,6 @@ class Transmission3D:
         u      - (Ndirs, 3) propagation directions for the source
         p      - (Ndirs, 3) polarization directions for the source
         beam_waist - (1)    beam waist
-        n_cpus - (1)        number of cpus to multithread the generation of G0 over, defaults to 1
         '''
         points = np.tensor(points)
         
@@ -74,10 +73,10 @@ class Transmission3D:
         E0j = self.generate_source(points, k0, u, p, beam_waist) #(M,3,Ndirs)
         
         # calculate Ek field at all measurement points
-        Ek = np.matmul(self.G0(points, k0, alpha, n_cpus), Ek).reshape(points.shape[0],3,-1) + E0j 
+        Ek = np.matmul(self.G0(points, k0, alpha), Ek).reshape(points.shape[0],3,-1) + E0j 
         return Ek
    
-    def run(self, k0, alpha, u, p, radius, beam_waist, n_cpus=1, self_interaction=True):
+    def run(self, k0, alpha, u, p, radius, beam_waist, self_interaction=True):
         '''
         Solves the EM field at each scatterer
 
@@ -85,7 +84,6 @@ class Transmission3D:
         alpha               - (1)           bare static polarizability at given k0
         u                   - (Ndirs, 3)    propagation directions for the source
         p                   - (Ndirs, 3)    polarization directions for the source
-        n_cpus              - (1)           number of cpus to multithread the generation of G0 over, defaults to 1
         self_interaction    - (bool)        include or not self-interactions, defaults to True 
         '''
 
@@ -93,7 +91,7 @@ class Transmission3D:
         E0j = self.generate_source(self.r, k0, u, p, beam_waist) #(N,3,Ndirs)
         
         # calculate Ek field at each scatterer position
-        G0 = self.G0(None, k0, alpha, n_cpus)
+        G0 = self.G0(None, k0, alpha)
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -104,14 +102,13 @@ class Transmission3D:
         Ek = np.linalg.solve(G0, -E0j.reshape(3*self.N,-1)) 
         return Ek
 
-    def G0(self, points, k0, alpha, n_cpus=1):
+    def G0(self, points, k0, alpha):
         '''
         Generate the Green's tensor for a set of positions
 
         points - (N,3)      set of point positions, None indicates the saved point pattern
         k0     - (1)        frequency being measured
         alpha  - (1)        bare static polarizability at given k0
-        n_cpus - (1)        number of cpus to multithread the generation of G0 over, defaults to 1
         '''
 
         # check if None
@@ -179,7 +176,6 @@ class Transmission3D:
         k0                  - (1)    frequency of source beam
         alpha               - (1)    bare static polarizability at given k0
         radius              - (1)    radius of the scatterers
-        n_cpus              - (1)    number of cpus to multithread the generation of G0 over, defaults to 1
         self_interaction    - (bool) include or not self-interactions, defaults to True 
         '''
 

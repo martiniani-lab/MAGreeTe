@@ -73,19 +73,19 @@ class Transmission2D:
                 E0j[:,idx] = np.exp(1j*rrot[:,0]*k0-(rrot[:,1]**2/(w*w*(1+1j*a))))/np.sqrt(1+1j*a)
         return E0j, u
  
-    def calc_EM(self,points, EkTE, EkTM, k0, alpha, thetas, beam_waist, n_cpus=1):
+    def calc_EM(self,points, EkTE, EkTM, k0, alpha, thetas, beam_waist):
         points = np.tensor(points)
         E0j, u = self.generate_source(points, k0, thetas, beam_waist)
-        EkTM_ = np.matmul(self.G0_TM(points, k0, alpha, n_cpus=n_cpus), EkTM) + E0j
+        EkTM_ = np.matmul(self.G0_TM(points, k0, alpha, ), EkTM) + E0j
         E0j = E0j.reshape(points.shape[0],1,len(thetas))*u
-        EkTE_ = np.matmul(self.G0_TE(points, k0, alpha, n_cpus=n_cpus), EkTE).reshape(points.shape[0],2,-1) + E0j 
+        EkTE_ = np.matmul(self.G0_TE(points, k0, alpha), EkTE).reshape(points.shape[0],2,-1) + E0j 
         return EkTE_, EkTM_
    
-    def run_EM(self, k0, alpha, thetas, radius, beam_waist, n_cpus=1, self_interaction=True):
+    def run_EM(self, k0, alpha, thetas, radius, beam_waist, self_interaction=True):
 
         ### TM calculation
         E0j, u = self.generate_source(self.r, k0, thetas, beam_waist)
-        G0 = self.G0_TM(self.r, k0, alpha, n_cpus=n_cpus)
+        G0 = self.G0_TM(self.r, k0, alpha)
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -98,7 +98,7 @@ class Transmission2D:
         
         ### TE calculation
         E0j = E0j.reshape(self.N,1,len(thetas))*u
-        G0 = self.G0_TE(None, k0, alpha, n_cpus=n_cpus)
+        G0 = self.G0_TE(None, k0, alpha)
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -142,7 +142,6 @@ class Transmission2D:
         k0                  - (1)    frequency of source beam
         alpha               - (1)    bare static polarizability at given k0
         radius              - (1)    radius of the scatterers
-        n_cpus              - (1)    number of cpus to multithread the generation of G0 over, defaults to 1
         self_interaction    - (bool) include or not self-interactions, defaults to True 
         '''
 
@@ -162,7 +161,7 @@ class Transmission2D:
         Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0_TM(measure_points, k0, alpha, n_cpus=n_cpus)
+        G0_measure = self.G0_TM(measure_points, k0, alpha)
         #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
@@ -183,7 +182,7 @@ class Transmission2D:
         Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0_TE(measure_points, k0, alpha, n_cpus=n_cpus)
+        G0_measure = self.G0_TE(measure_points, k0, alpha)
         #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
@@ -201,7 +200,6 @@ class Transmission2D:
         k0                  - (1)    frequency of source beam
         alpha               - (1)    bare static polarizability at given k0
         radius              - (1)    radius of the scatterers
-        n_cpus              - (1)    number of cpus to multithread the generation of G0 over, defaults to 1
         self_interaction    - (bool) include or not self-interactions, defaults to True 
         '''
 
