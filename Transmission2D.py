@@ -65,7 +65,7 @@ class Transmission2D:
                 cost, sint = onp.cos(-theta),onp.sin(-theta)
                 u[:,idx] = np.tensor([sint, cost])
                 rot = np.tensor([[cost,-sint],[sint,cost]])
-                rrot = np.matmul(rot,np.tensor(points.T)).T #(rparallel, rperp)
+                rrot = np.matmul(rot,points.T).T #(rparallel, rperp)
                 a = 2*rrot[:,1]/(w*w*k0)
                 E0j[:,idx] = np.exp(1j*rrot[:,0]*k0-(rrot[:,1]**2/(w*w*(1+1j*a))))/np.sqrt(1+1j*a)
         return E0j, u

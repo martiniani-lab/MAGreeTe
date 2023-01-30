@@ -196,7 +196,7 @@ class Transmission3D:
         G0_measure = self.G0(measure_points, k0, alpha)
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
-        ldos_factor = np.einsum('ij, ji->i',np.matmul(G0_measure, np.tensor(Ainv)), (G0_measure).t() )
+        ldos_factor = np.einsum('ij, ji->i',np.matmul(G0_measure, Ainv), (G0_measure).t() )
         ldos_factor *= 2.0*k0*alpha
         ldos_factor = np.imag(ldos_factor)
 

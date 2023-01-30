@@ -18,7 +18,7 @@ import lattices
 import argparse
 
 
-def main(head_directory, ndim,  lattice=None, just_plot = False, compute_DOS=False, cold_atoms=False, L = 1):
+def main(head_directory, ndim,  lattice=None, just_plot = False, compute_DOS=False, dospoints=1, cold_atoms=False, L = 1):
     '''
     Simple front-end for MAGreeTe
     '''
@@ -148,7 +148,7 @@ def main(head_directory, ndim,  lattice=None, just_plot = False, compute_DOS=Fal
             DOSall_TM = []
             k0_range = []
 
-            M = 2 * N
+            M = dospoints
             measurement_points = uniform_unit_disk_picking(M)
             measurement_points *= L/2
 
@@ -234,7 +234,7 @@ def main(head_directory, ndim,  lattice=None, just_plot = False, compute_DOS=Fal
             k0_range = []
 
             # Expensive computation in 3d
-            M = 1
+            M = dospoints
             measurement_points = uniform_unit_ball_picking(M, ndim)
             measurement_points *= L/2
 
@@ -264,6 +264,8 @@ if __name__ == '__main__':
         default=False", default=False)
     parser.add_argument("-dos","--compute_DOS", action='store_true', help="Compute the mean DOS of the medium  \
         default=False", default=False)
+    parser.add_argument("--dospoints",type=int, help="Number of points to use for the mean DOS computation \
+        default = 1000", default=1000)
     parser.add_argument("--boxsize", type=float, help="Set physical units for the box size: the results are dimensionless so that default=1m", default = 1)
 
     args = parser.parse_args()
@@ -274,11 +276,12 @@ if __name__ == '__main__':
     just_plot=args.just_plot
     lattice = args.lattice
     compute_DOS=args.compute_DOS
+    dospoints=args.dospoints
     boxsize=args.boxsize
 
     np.set_num_threads(n_cpus)
     np.device("cpu")
-    main(head_directory, ndim, lattice=lattice, just_plot=just_plot, compute_DOS=compute_DOS, L=boxsize)
+    main(head_directory, ndim, lattice=lattice, just_plot=just_plot, compute_DOS=compute_DOS, dospoints=dospoints, L=boxsize)
     sys.exit()
 
 
