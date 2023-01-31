@@ -7,7 +7,6 @@ import hickle as hkl
 
 
 I = np.tensor(onp.identity(2)).reshape(1,1,2,2) #identity matrix
-#N = 1000 #number of scatterers
 
 
 class Transmission2D:
@@ -76,6 +75,10 @@ class Transmission2D:
         EkTM_ = np.matmul(self.G0_TM(points, k0, alpha,print_statement='calc'), EkTM) + E0j
         E0j = E0j.reshape(points.shape[0],1,len(thetas))*u
         EkTE_ = np.matmul(self.G0_TE(points, k0, alpha, print_statement='calc'), EkTE).reshape(points.shape[0],2,-1) + E0j 
+        # Take care of cases in which measurement points are exactly scatterer positions
+        for j in np.argwhere(np.isnan(EkTM_[:,0])):
+            EkTM_[j] = EkTM[np.nonzero(np.prod(self.r-points[j]==0,axis=-1))]
+            EkTE_[j] = EkTE[np.nonzero(np.prod(self.r-points[j]==0,axis=-1))]
         return EkTE_, EkTM_
    
     def run_EM(self, k0, alpha, thetas, radius, beam_waist, self_interaction=True):
@@ -204,8 +207,10 @@ class Transmission2D:
         self_interaction    - (bool) include or not self-interactions, defaults to True 
         '''
 
+        M = measure_points.shape[0]
+
         ### TM Calculation
-        G0 = self.G0_TM(self.r, k0, alpha)
+        G0 = self.G0_TM(self.r, k0, alpha, print_statement='LDOS inverse')
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -218,15 +223,15 @@ class Transmission2D:
         Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0_TM(measure_points, k0, alpha)
+        G0_measure = self.G0_TM(measure_points, k0, alpha, print_statement='LDOS measure')
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
-        ldos_factor_TM = np.einsum('ij, ji->i',np.matmul(G0_measure, np.tensor(Ainv)), (G0_measure).t() )
+        ldos_factor_TM = np.einsum('ij, ji->i',np.matmul(G0_measure, Ainv), (G0_measure).t() )
         ldos_factor_TM *= 4.0 * k0*k0*alpha / onp.pi
         ldos_factor_TM = np.imag(ldos_factor_TM)
 
         ### TE calculation
-        G0 = self.G0_TE(None, k0, alpha)
+        G0 = self.G0_TE(None, k0, alpha, print_statement='LDOS inverse')
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -238,11 +243,13 @@ class Transmission2D:
         Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0_TE(measure_points, k0, alpha)
+        G0_measure = self.G0_TE(measure_points, k0, alpha, print_statement='LDOS measure')
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
-        ldos_factor_TE = np.einsum('ij, ji->i',np.matmul(G0_measure, np.tensor(Ainv)), (G0_measure).t() )
+        ldos_factor_TE = np.einsum('ij, ji->i',np.matmul(G0_measure, Ainv), (G0_measure).t() )
         ldos_factor_TE *= 4.0 * k0*k0*alpha / onp.pi
         ldos_factor_TE = np.imag(ldos_factor_TE)
+        ldos_factor_TE = ldos_factor_TE.reshape(M,2,-1)
+        ldos_factor_TE = np.sum(ldos_factor_TE, 1)
 
         return ldos_factor_TE, ldos_factor_TM

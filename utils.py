@@ -160,3 +160,12 @@ def plot_2d_points(points, file_name):
     ax.scatter(points[:,0], points[:,1])
 
     plt.savefig(file_name+'_2dplot.png')
+
+def plot_LDOS_2D(ldos_change,k0_,ngridx,ngridy,file_name,my_dpi=1, appended_string=''):
+
+    fig = plt.figure(figsize=(ngridx/my_dpi,ngridy/my_dpi), dpi=my_dpi)
+    ax = plt.gca()
+    pc=ax.imshow(ldos_change.numpy().reshape(ngridy,ngridx),cmap=cmr.iceburn, vmin=-1.0, vmax=1.0)
+    ax.tick_params(left = False, right = False , labelleft = False , labelbottom = False, bottom = False)
+    plt.savefig(file_name+'_k0_'+str(k0_)+'_ldos_capped'+appended_string+'.png', bbox_inches='tight', pad_inches=0., dpi=my_dpi)
+    plt.close()

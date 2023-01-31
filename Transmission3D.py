@@ -73,8 +73,12 @@ class Transmission3D:
         E0j = self.generate_source(points, k0, u, p, beam_waist, print_statement='calc') #(M,3,Ndirs)
         
         # calculate Ek field at all measurement points
-        Ek = np.matmul(self.G0(points, k0, alpha, print_statement='calc'), Ek).reshape(points.shape[0],3,-1) + E0j 
-        return Ek
+        Ek_ = np.matmul(self.G0(points, k0, alpha, print_statement='calc'), Ek).reshape(points.shape[0],3,-1) + E0j 
+
+        # Take care of cases in which measurement points are exactly scatterer positions
+        for j in np.argwhere(np.isnan(Ek_[:,0])):
+            Ek_[j] = Ek[np.nonzero(np.prod(self.r-points[j]==0,axis=-1))]
+        return Ek_
    
     def run(self, k0, alpha, u, p, radius, beam_waist, self_interaction=True):
         '''
@@ -183,7 +187,9 @@ class Transmission3D:
         self_interaction    - (bool) include or not self-interactions, defaults to True 
         '''
 
-        G0 = self.G0(None, k0, alpha)
+        M = measure_points.shape[0]
+
+        G0 = self.G0(None, k0, alpha, print_statement='LDOS inverse')
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -196,11 +202,13 @@ class Transmission3D:
         Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0(measure_points, k0, alpha)
+        G0_measure = self.G0(measure_points, k0, alpha, print_statement='LDOS measure')
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
         ldos_factor = np.einsum('ij, ji->i',np.matmul(G0_measure, Ainv), (G0_measure).t() )
         ldos_factor *= 2.0*k0*alpha
         ldos_factor = np.imag(ldos_factor)
+        ldos_factor = ldos_factor.reshape(M,3,-1)
+        ldos_factor = np.sum(ldos_factor, 1)
 
         return ldos_factor

@@ -9,7 +9,7 @@ import colorsys
 import hickle as hkl
 import sys
 import os
-from utils import alpha_cold_atoms_2d, alpha_cold_atoms_3d, alpha_small_dielectric_object, plot_transmission_angularbeam, plot_transmission_flat, uniform_unit_disk_picking, uniform_unit_ball_picking, plot_3d_points
+from utils import alpha_cold_atoms_2d, alpha_cold_atoms_3d, alpha_small_dielectric_object, plot_transmission_angularbeam, plot_transmission_flat, uniform_unit_disk_picking, uniform_unit_ball_picking, plot_3d_points, plot_LDOS_2D
 from Transmission2D import Transmission2D
 from Transmission3D import Transmission3D
 import lattices
@@ -18,7 +18,7 @@ import lattices
 import argparse
 
 
-def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, lattice=None, just_plot = False, compute_DOS=False, dospoints=1, cold_atoms=False, L = 1):
+def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, lattice=None, just_plot = False, compute_DOS=False, dospoints=1, compute_LDOS=False, gridsize=(301,301), batch_size = 101*101, cold_atoms=False, L = 1):
     '''
     Simple front-end for MAGreeTe
     '''
@@ -171,6 +171,41 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, lattice=None, just_
             onp.savetxt(file_name+'_dos_TE.csv',[k0_range,DOSall_TE])
             onp.savetxt(file_name+'_dos_TM.csv',[k0_range,DOSall_TM])
 
+        if compute_LDOS:
+            # Expensive computation
+            ngridx = gridsize[0]
+            ngridy = gridsize[1]
+            xyratio = ngridx/ngridy
+            window_width = 1.2
+            x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx),onp.linspace(0,1,ngridy))
+            measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel()]).T-0.5)*L*window_width)
+
+            batches = np.split(measurement_points, batch_size)
+            n_batches = len(batches)
+
+            print("Computing the LDOS at "+str(gridsize)+" points in "+str(n_batches)+" batches of "+str(batch_size))
+
+            for k0, alpha in zip(k0range,alpharange):
+
+                outputs_TE = []
+                outputs_TM = []
+                k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+
+                for batch in range(0, n_batches):
+                    print("Batch "+str(batch+1))
+                    batch_points = batches[batch]
+                    ldos_TE, ldos_TM = solver.LDOS_measurements(batch_points, k0, alpha, radius)
+
+                    outputs_TE.append(ldos_TE)
+                    outputs_TM.append(ldos_TM)
+
+                ldos_TE = np.cat(outputs_TE)
+                ldos_TM = np.cat(outputs_TM)
+
+                plot_LDOS_2D(ldos_TE,k0_,ngridx,ngridy,file_name, appended_string='TE')
+                plot_LDOS_2D(ldos_TM,k0_,ngridx,ngridy,file_name, appended_string='TM')
+
+
     elif ndim==3:
 
         k0range = onp.arange(10,41)*64/128*2*onp.pi/L
@@ -272,6 +307,10 @@ if __name__ == '__main__':
         default=False", default=False)
     parser.add_argument("--dospoints",type=int, help="Number of points to use for the mean DOS computation \
         default = 1000", default=1000)
+    parser.add_argument("-ldos","--compute_LDOS", action='store_true', help="Compute an LDOS map  \
+        default=False", default=False)
+    parser.add_argument("-g","--gridsize",nargs=2,type=int, help="Number of pixels to use in the sidelength of output images \
+        default = (301,301)", default=(301,301))
     parser.add_argument("--boxsize", type=float, help="Set physical units for the box size: the results are dimensionless so that default=1m", default = 1)
 
     args = parser.parse_args()
@@ -283,12 +322,14 @@ if __name__ == '__main__':
     just_plot=args.just_plot
     lattice = args.lattice
     compute_DOS=args.compute_DOS
+    compute_LDOS=args.compute_LDOS
+    gridsize=tuple(args.gridsize)
     dospoints=args.dospoints
     boxsize=args.boxsize
 
     np.set_num_threads(n_cpus)
     np.device("cpu")
-    main(head_directory, ndim, refractive_n = refractive_n, lattice=lattice, just_plot=just_plot, compute_DOS=compute_DOS, dospoints=dospoints, L=boxsize)
+    main(head_directory, ndim, refractive_n = refractive_n, lattice=lattice, just_plot=just_plot, compute_DOS=compute_DOS, dospoints=dospoints, compute_LDOS=compute_LDOS, gridsize=gridsize, L=boxsize)
     sys.exit()
 
 
