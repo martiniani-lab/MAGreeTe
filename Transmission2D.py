@@ -54,10 +54,10 @@ class Transmission2D:
         R = np.linalg.norm(r, axis = -1)
         return 0.25j*self.torch_hankel1(0,R*k0)
 
-    def generate_source(self, points, k0, thetas, w):
+    def generate_source(self, points, k0, thetas, w, print_statement=''):
         if self.source == 'beam':
-            k0_ = onp.round(k0/(2.0*onp.pi))
-            print('Calculating Beam Source at k0L/2pi = '+str(k0_))
+            k0_ = onp.round(k0/(2.0*onp.pi),1)
+            print('Calculating Beam Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
             E0j = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
             u = np.zeros((2,len(thetas)))
             for idx in range(len(thetas)):
@@ -72,17 +72,17 @@ class Transmission2D:
  
     def calc_EM(self,points, EkTE, EkTM, k0, alpha, thetas, beam_waist):
         points = np.tensor(points)
-        E0j, u = self.generate_source(points, k0, thetas, beam_waist)
-        EkTM_ = np.matmul(self.G0_TM(points, k0, alpha, ), EkTM) + E0j
+        E0j, u = self.generate_source(points, k0, thetas, beam_waist, print_statement='calc')
+        EkTM_ = np.matmul(self.G0_TM(points, k0, alpha,print_statement='calc'), EkTM) + E0j
         E0j = E0j.reshape(points.shape[0],1,len(thetas))*u
-        EkTE_ = np.matmul(self.G0_TE(points, k0, alpha), EkTE).reshape(points.shape[0],2,-1) + E0j 
+        EkTE_ = np.matmul(self.G0_TE(points, k0, alpha, print_statement='calc'), EkTE).reshape(points.shape[0],2,-1) + E0j 
         return EkTE_, EkTM_
    
     def run_EM(self, k0, alpha, thetas, radius, beam_waist, self_interaction=True):
 
         ### TM calculation
-        E0j, u = self.generate_source(self.r, k0, thetas, beam_waist)
-        G0 = self.G0_TM(self.r, k0, alpha)
+        E0j, u = self.generate_source(self.r, k0, thetas, beam_waist, print_statement='run')
+        G0 = self.G0_TM(self.r, k0, alpha, print_statement='run')
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -95,7 +95,7 @@ class Transmission2D:
         
         ### TE calculation
         E0j = E0j.reshape(self.N,1,len(thetas))*u
-        G0 = self.G0_TE(None, k0, alpha)
+        G0 = self.G0_TE(None, k0, alpha, print_statement='run')
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -106,23 +106,23 @@ class Transmission2D:
         EkTE = np.linalg.solve(G0, -E0j.reshape(2*self.N,-1)) 
         return EkTE, EkTM
 
-    def G0_TM(self, points, k0, alpha):
+    def G0_TM(self, points, k0, alpha, print_statement=''):
         #Green's function
-        k0_ = onp.round(k0/(2.0*onp.pi))
-        print('Calculating TM greens function at k0L/2pi = '+str(k0_))
+        k0_ = onp.round(k0/(2.0*onp.pi),1)
+        print("Calculating TM Green's function at k0L/2pi = "+str(k0_)+' ('+print_statement+')')
         G0 = self.torch_greensTM(points.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0)
         #Construct matrix form
         G0 *= alpha*k0*k0
         return G0
 
-    def G0_TE(self, points, k0, alpha):
+    def G0_TE(self, points, k0, alpha, print_statement=''):
         #Green's function
         if points == None:
             points_ = self.r
         else:
             points_ = points
-        k0_ = onp.round(k0/(2.0*onp.pi))
-        print('Calculating TE greens function at k0L/2pi = '+str(k0_))
+        k0_ = onp.round(k0/(2.0*onp.pi),1)
+        print("Calculating TE Green's function at k0L/2pi = "+str(k0_)+' ('+print_statement+')')
         G0 = self.torch_greensTE(points_.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0)
         #Construct matrix form
         if points == None:
@@ -145,9 +145,11 @@ class Transmission2D:
         '''
 
         Npoints = measure_points.shape[0]
+        k0_ = onp.round(k0/(2.0*onp.pi),1)
+        print("Computing mean DOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
 
         ### TM Calculation
-        G0 = self.G0_TM(self.r, k0, alpha)
+        G0 = self.G0_TM(self.r, k0, alpha, print_statement='DOS inverse')
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -160,7 +162,7 @@ class Transmission2D:
         Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0_TM(measure_points, k0, alpha)
+        G0_measure = self.G0_TM(measure_points, k0, alpha, print_statement='DOS measure')
         #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
@@ -169,7 +171,7 @@ class Transmission2D:
         dos_factor_TM = np.imag(dos_factor_TM)
 
         ### TE calculation
-        G0 = self.G0_TE(None, k0, alpha)
+        G0 = self.G0_TE(None, k0, alpha, print_statement='DOS inverse')
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -181,7 +183,7 @@ class Transmission2D:
         Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0_TE(measure_points, k0, alpha)
+        G0_measure = self.G0_TE(measure_points, k0, alpha, print_statement='DOS measure')
         #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,

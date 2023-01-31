@@ -27,7 +27,7 @@ class Transmission3D:
         RxR /= R*R
         return (I-RxR-(I-3*RxR)*(1/(1j*k0*R)+(k0*R)**-2))*np.exp(1j*k0*R)/(4*onp.pi*R)
 
-    def generate_source(self, points, k0, u, p, w):
+    def generate_source(self, points, k0, u, p, w, print_statement = ''):
         '''
         Generates the EM field of a source at a set of points
 
@@ -37,8 +37,8 @@ class Transmission3D:
         p      - (Ndirs, 3) polarization directions for the source
         '''
         if self.source == 'beam':
-            k0_ = onp.round(k0/(2.0*onp.pi))
-            print('Calculating Beam Source at k0L/2pi = '+str(k0_))
+            k0_ = onp.round(k0/(2.0*onp.pi),1)
+            print('Calculating Beam Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
             rpara = np.matmul(points,u.T)
             rperp = np.linalg.norm(points.reshape(-1,3,1) - rpara.reshape(points.shape[0],1,u.shape[0])*u.T.reshape(1,3,-1),axis=1)
             a = 2*rperp/(w*w*k0)
@@ -70,10 +70,10 @@ class Transmission3D:
         assert np.sum(np.absolute(np.sum(u*p,axis=-1))) == 0
 
         # generate source field for measurement points
-        E0j = self.generate_source(points, k0, u, p, beam_waist) #(M,3,Ndirs)
+        E0j = self.generate_source(points, k0, u, p, beam_waist, print_statement='calc') #(M,3,Ndirs)
         
         # calculate Ek field at all measurement points
-        Ek = np.matmul(self.G0(points, k0, alpha), Ek).reshape(points.shape[0],3,-1) + E0j 
+        Ek = np.matmul(self.G0(points, k0, alpha, print_statement='calc'), Ek).reshape(points.shape[0],3,-1) + E0j 
         return Ek
    
     def run(self, k0, alpha, u, p, radius, beam_waist, self_interaction=True):
@@ -88,10 +88,10 @@ class Transmission3D:
         '''
 
         # generate source field for scatterer positions
-        E0j = self.generate_source(self.r, k0, u, p, beam_waist) #(N,3,Ndirs)
+        E0j = self.generate_source(self.r, k0, u, p, beam_waist, print_statement='run') #(N,3,Ndirs)
         
         # calculate Ek field at each scatterer position
-        G0 = self.G0(None, k0, alpha)
+        G0 = self.G0(None, k0, alpha, print_statement='run')
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -102,13 +102,14 @@ class Transmission3D:
         Ek = np.linalg.solve(G0, -E0j.reshape(3*self.N,-1)) 
         return Ek
 
-    def G0(self, points, k0, alpha):
+    def G0(self, points, k0, alpha, print_statement=''):
         '''
         Generate the Green's tensor for a set of positions
 
-        points - (N,3)      set of point positions, None indicates the saved point pattern
-        k0     - (1)        frequency being measured
-        alpha  - (1)        bare static polarizability at given k0
+        points          - (N,3)      set of point positions, None indicates the saved point pattern
+        k0              - (1)        frequency being measured
+        alpha           - (1)        bare static polarizability at given k0
+        print_statement - str        disambiguating string used when printing (default = empty)
         '''
 
         # check if None
@@ -116,8 +117,8 @@ class Transmission3D:
             points_ = self.r
         else:
             points_ = points
-        k0_ = onp.round(k0/(2.0*onp.pi))
-        print('Calculating TE greens function at k0L/2pi = '+str(k0_))
+        k0_ = onp.round(k0/(2.0*onp.pi),1)
+        print("Calculating Green's function at k0L/2pi = "+str(k0_)+' ('+print_statement+')')
         # populate Green's tensor
         G0 = self.greens(points_.reshape(-1,1,3)-self.r.reshape(1,-1,3),k0) #shape is (M,N,3,3)
 
@@ -144,9 +145,11 @@ class Transmission3D:
         '''
 
         Npoints = measure_points.shape[0]
+        k0_ = onp.round(k0/(2.0*onp.pi),1)
+        print("Computing mean DOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
 
 
-        G0 = self.G0(None, k0, alpha)
+        G0 = self.G0(None, k0, alpha, print_statement='DOS inverse')
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -159,7 +162,7 @@ class Transmission3D:
         Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0(measure_points, k0, alpha)
+        G0_measure = self.G0(measure_points, k0, alpha, print_statement='DOS measure')
         #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
