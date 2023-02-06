@@ -199,8 +199,8 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, lattice=None, just_
                     outputs_TE.append(ldos_TE)
                     outputs_TM.append(ldos_TM)
 
-                    onp.savetxt(file_name+'_temp_ldos_'+str(k0_)+'_TE.csv',np.cat(outputs_TE).numpy())
-                    onp.savetxt(file_name+'_temp_ldos_'+str(k0_)+'_TM.csv',np.cat(outputs_TM).numpy())
+                #    onp.savetxt(file_name+'_temp_ldos_'+str(k0_)+'_TE.csv',np.cat(outputs_TE).numpy())
+                #    onp.savetxt(file_name+'_temp_ldos_'+str(k0_)+'_TM.csv',np.cat(outputs_TM).numpy())
 
                 ldos_TE = np.cat(outputs_TE)
                 ldos_TM = np.cat(outputs_TM)
