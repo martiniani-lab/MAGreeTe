@@ -85,7 +85,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, lattice=None, just_
 
     if ndim==2:
 
-        k0range = onp.arange(40,81)*64/128*2*onp.pi/L
+        k0range = onp.arange(49,81)*64/128*2*onp.pi/L
         volume = L*L*phi/N
         radius = onp.sqrt(volume/onp.pi )
         meas_points = 2*L*onp.vstack([onp.cos(thetas),onp.sin(thetas)]).T
@@ -198,6 +198,9 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, lattice=None, just_
 
                     outputs_TE.append(ldos_TE)
                     outputs_TM.append(ldos_TM)
+
+                    onp.savetxt(file_name+'_temp_ldos_'+str(k0_)+'_TE.csv',np.cat(outputs_TE).numpy())
+                    onp.savetxt(file_name+'_temp_ldos_'+str(k0_)+'_TM.csv',np.cat(outputs_TM).numpy())
 
                 ldos_TE = np.cat(outputs_TE)
                 ldos_TM = np.cat(outputs_TM)

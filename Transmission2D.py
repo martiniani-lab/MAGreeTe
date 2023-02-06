@@ -139,7 +139,9 @@ class Transmission2D:
         '''
         Computes the LDOS averaged at a list of measurement points, for TM and TE.
         This computation is a bit less expensive than the actual LDOS one,
-        due to invariance of the trace under permutation and the use of Hadamard products
+        due to invariance of the trace under permutation and the use of Hadamard products.
+        NB: This form of the calculation is only valid in the lossless case, alpha real.
+        Imaginary parts of alpha lead to diverging parts of the DOS close to scatterers, and will be discarded.
         measure_points      - (M,3)  coordinates of points where the LDOS is evaluated
         k0                  - (1)    frequency of source beam
         alpha               - (1)    bare static polarizability at given k0
@@ -170,7 +172,10 @@ class Transmission2D:
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
         dos_factor_TM = ( np.matmul(G0_measure.t(), G0_measure) * Ainv ).sum()/Npoints
-        dos_factor_TM *= 4.0 * k0*k0*alpha / onp.pi # For prefactor in systems invariant along z, see https://www.sciencedirect.com/science/article/pii/S1569441007000387
+
+        # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
+        alpha_ = onp.real(alpha)
+        dos_factor_TM *= 4.0 * k0*k0*alpha_ / onp.pi # For prefactor in systems invariant along z, see https://www.sciencedirect.com/science/article/pii/S1569441007000387
         dos_factor_TM = np.imag(dos_factor_TM)
 
         ### TE calculation
@@ -191,7 +196,9 @@ class Transmission2D:
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
         dos_factor_TE = ( np.matmul(G0_measure.t(), G0_measure) * Ainv ).sum()/Npoints
-        dos_factor_TE *= 4.0 * k0*k0* alpha / onp.pi
+        # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
+        alpha_ = onp.real(alpha)
+        dos_factor_TE *= 4.0 * k0*k0* alpha_ / onp.pi
         dos_factor_TE = np.imag(dos_factor_TE)
 
         return dos_factor_TE, dos_factor_TM
@@ -199,7 +206,9 @@ class Transmission2D:
     def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True):
         '''
         Computes the LDOS at a list of measurement points, for TM and TE.
-        This computation is fairly expensive, the number of measurement points should be 
+        This computation is fairly expensive, the number of measurement points should be small to avoid saturating resources.
+        NB: This form of the calculation is only valid in the lossless case, alpha real.
+        Imaginary parts of alpha lead to diverging parts of the DOS close to scatterers, and will be discarded.
         measure_points      - (M,3)  coordinates of points where the LDOS is evaluated
         k0                  - (1)    frequency of source beam
         alpha               - (1)    bare static polarizability at given k0
@@ -227,7 +236,9 @@ class Transmission2D:
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
         ldos_factor_TM = np.einsum('ij, ji->i',np.matmul(G0_measure, Ainv), (G0_measure).t() )
-        ldos_factor_TM *= 4.0 * k0*k0*alpha / onp.pi
+        # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
+        alpha_ = onp.real(alpha)
+        ldos_factor_TM *= 4.0 * k0*k0*alpha_ / onp.pi
         ldos_factor_TM = np.imag(ldos_factor_TM)
 
         ### TE calculation
@@ -247,7 +258,9 @@ class Transmission2D:
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
         ldos_factor_TE = np.einsum('ij, ji->i',np.matmul(G0_measure, Ainv), (G0_measure).t() )
-        ldos_factor_TE *= 4.0 * k0*k0*alpha / onp.pi
+        # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
+        alpha_ = onp.real(alpha)
+        ldos_factor_TE *= 4.0 * k0*k0*alpha_ / onp.pi
         ldos_factor_TE = np.imag(ldos_factor_TE)
         ldos_factor_TE = ldos_factor_TE.reshape(M,2,-1)
         ldos_factor_TE = np.sum(ldos_factor_TE, 1)

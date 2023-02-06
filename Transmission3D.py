@@ -141,6 +141,8 @@ class Transmission3D:
         Computes the LDOS averaged at a list of measurement points.
         This computation is a bit less expensive than the actual LDOS one,
         due to invariance of the trace under permutation and the use of Hadamard products
+        NB: This form of the calculation is only valid in the lossless case, alpha real.
+        Imaginary parts of alpha lead to diverging parts of the DOS close to scatterers, and will be discarded.
         measure_points      - (M,3)  coordinates of points where the LDOS is evaluated
         k0                  - (1)    frequency of source beam
         alpha               - (1)    bare static polarizability at given k0
@@ -171,7 +173,9 @@ class Transmission3D:
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
         dos_factor = ( np.matmul(G0_measure.t(), G0_measure) * Ainv ).sum()/Npoints
-        dos_factor *= 2.0*k0*alpha
+        # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
+        alpha_ = onp.real(alpha)
+        dos_factor *= 2.0*k0*alpha_
         dos_factor = np.imag(dos_factor)
 
         return dos_factor
@@ -179,7 +183,9 @@ class Transmission3D:
     def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True):
         '''
         Computes the LDOS at a list of measurement points
-        This computation is fairly expensive, the number of measurement points should be 
+        This computation is fairly expensive, the number of measurement points should be small to avoid saturating resources
+        NB: This form of the calculation is only valid in the lossless case, alpha real.
+        Imaginary parts of alpha lead to diverging parts of the DOS close to scatterers, and will be discarded.
         measure_points      - (M,3)  coordinates of points where the LDOS is evaluated
         k0                  - (1)    frequency of source beam
         alpha               - (1)    bare static polarizability at given k0
@@ -206,7 +212,9 @@ class Transmission3D:
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
         ldos_factor = np.einsum('ij, ji->i',np.matmul(G0_measure, Ainv), (G0_measure).t() )
-        ldos_factor *= 2.0*k0*alpha
+        # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
+        alpha_ = onp.real(alpha)
+        ldos_factor *= 2.0*k0*alpha_
         ldos_factor = np.imag(ldos_factor)
         ldos_factor = ldos_factor.reshape(M,3,-1)
         ldos_factor = np.sum(ldos_factor, 1)
