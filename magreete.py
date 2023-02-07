@@ -18,7 +18,7 @@ import lattices
 import argparse
 
 
-def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, lattice=None, just_plot = False, compute_DOS=False, dospoints=1, compute_LDOS=False, gridsize=(301,301), batch_size = 101*101, cold_atoms=False, L = 1):
+def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None, lattice=None, just_plot = False, compute_DOS=False, dospoints=1, compute_LDOS=False, gridsize=(301,301), batch_size = 101*101, cold_atoms=False, L = 1):
     '''
     Simple front-end for MAGreeTe
     '''
@@ -85,7 +85,15 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, lattice=None, just_
 
     if ndim==2:
 
-        k0range = onp.arange(49,81)*64/128*2*onp.pi/L
+        if k0range_args == None:
+            k0range = onp.arange(40,81)*64/128*2*onp.pi/L
+        else:
+            if len(k0range_args)==1:
+                k0range = onp.array(k0range_args[0])* 2*onp.pi/L
+            elif len(k0range_args)==2:
+                k0range = onp.arange(k0range_args[0],k0range_args[1]+1,1)* 2*onp.pi/L
+            else:
+                k0range = onp.arange(k0range_args[0],k0range_args[1]+k0range_args[2],k0range_args[2])* 2*onp.pi/L
         volume = L*L*phi/N
         radius = onp.sqrt(volume/onp.pi )
         meas_points = 2*L*onp.vstack([onp.cos(thetas),onp.sin(thetas)]).T
@@ -211,7 +219,15 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, lattice=None, just_
 
     elif ndim==3:
 
-        k0range = onp.arange(10,41)*64/128*2*onp.pi/L
+        if k0range_args == None:
+            k0range = onp.arange(10,41)*64/128*2*onp.pi/L
+        else: 
+            if len(k0range_args)==1:
+                k0range = onp.array(k0range_args[0])* 2*onp.pi/L
+            elif len(k0range_args)==2:
+                k0range = onp.arange(k0range_args[0],k0range_args[1]+1,1)* 2*onp.pi/L
+            else:
+                k0range = onp.arange(k0range_args[0],k0range_args[1]+k0range_args[2],k0range_args[2])* 2*onp.pi/L
         volume = L*L*L*phi/N
         radius = onp.cbrt(volume * 3.0 / (4.0 * onp.pi))
         meas_points = 2*L*onp.vstack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
@@ -301,6 +317,8 @@ if __name__ == '__main__':
         default = os.cpu_count", default=os.cpu_count())
     parser.add_argument("-n", "--refractive_n", type=complex, help="Complex refractive index of the dielectric material \
         default = 1.65 - 0.025j", default = 1.6 - 0.025j)
+    parser.add_argument("-k", "--k0range", nargs='+', type=float, help = "Values of k0 to span, in units of 2pi/L. Can be a single-value argument, a k_min and a k_max (with default step 1), or k_min, k_max, and step\
+        default=(20,40,0.5) in 2d, (10,40,0.5) in 3d", default=None)
     parser.add_argument("-l", "--lattice", type=str, help="Use a simple lattice in lieu of datapoints as entry. \
         Options are 'square', 'triangular', 'honeycomb', 'quasicrystal', 'quasidual', 'quasivoro' in 2d, and 'cubic', 'fcc', 'bcc', 'diamond' in 3d. \
         default=None", default=None)
@@ -322,6 +340,9 @@ if __name__ == '__main__':
     ndim = args.ndim
     n_cpus=args.n_cpus
     refractive_n = args.refractive_n
+    k0range_args = args.k0range
+    if k0range_args != None:
+        k0range_args = tuple(k0range_args)
     just_plot=args.just_plot
     lattice = args.lattice
     compute_DOS=args.compute_DOS
@@ -332,7 +353,7 @@ if __name__ == '__main__':
 
     np.set_num_threads(n_cpus)
     np.device("cpu")
-    main(head_directory, ndim, refractive_n = refractive_n, lattice=lattice, just_plot=just_plot, compute_DOS=compute_DOS, dospoints=dospoints, compute_LDOS=compute_LDOS, gridsize=gridsize, L=boxsize)
+    main(head_directory, ndim, refractive_n = refractive_n, k0range_args = k0range_args, lattice=lattice, just_plot=just_plot, compute_DOS=compute_DOS, dospoints=dospoints, compute_LDOS=compute_LDOS, gridsize=gridsize, L=boxsize)
     sys.exit()
 
 
