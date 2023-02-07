@@ -10,11 +10,7 @@ import hickle as hkl
 import pandas as pd
 import sys
 import os
-<<<<<<< Updated upstream
-from utils import alpha_cold_atoms_2d, alpha_cold_atoms_3d, alpha_small_dielectric_object, plot_transmission_angularbeam, plot_transmission_flat, uniform_unit_disk_picking, uniform_unit_ball_picking, plot_3d_points, plot_LDOS_2D, trymakedir
-=======
-from utils import alpha_cold_atoms_2d, alpha_cold_atoms_3d, alpha_small_dielectric_object, plot_transmission_angularbeam, plot_transmission_linear, plot_transmission_flat, uniform_unit_disk_picking, uniform_unit_ball_picking, plot_3d_points, plot_2d_field
->>>>>>> Stashed changes
+from utils import * 
 from Transmission2D import Transmission2D
 from Transmission3D import Transmission3D
 import lattices
@@ -35,16 +31,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
     a = 0.0
     k = 32
     w = 0.2*L
-<<<<<<< Updated upstream
-
-    if cold_atoms:
-        output_directory = output_directory+"cold_atoms"
-    else:
-        output_directory = output_directory+"refractive_n_"+str(refractive_n)
-    trymakedir(output_directory)
-=======
     source = 'beam'
->>>>>>> Stashed changes
 
     if lattice == None:
         dname = head_directory+'HPY'+str(ndim)+'D/phi'+str(phi)+'/a'+str(a)+'/'
@@ -101,8 +88,6 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
     file_name = output_directory+"/"+file_name
 
     if ndim==2:
-<<<<<<< Updated upstream
-
         if k0range_args == None:
             k0range = onp.arange(40,81)*64/128*2*onp.pi/L
         else:
@@ -112,11 +97,6 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
                 k0range = onp.arange(k0range_args[0],k0range_args[1]+1,1)* 2*onp.pi/L
             else:
                 k0range = onp.arange(k0range_args[0],k0range_args[1]+k0range_args[2],k0range_args[2])* 2*onp.pi/L
-=======
-        phi=0.1
-        k0range = onp.arange(40,81)*64/128*2*onp.pi/L
-        #k0range = k0range[[8,16,24]]
->>>>>>> Stashed changes
         volume = L*L*phi/N
         radius = onp.sqrt(volume/onp.pi )
         meas_points = 2*L*onp.vstack([onp.cos(thetas),onp.sin(thetas)]).T
@@ -266,8 +246,6 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
 
 
     elif ndim==3:
-
-<<<<<<< Updated upstream
         if k0range_args == None:
             k0range = onp.arange(10,41)*64/128*2*onp.pi/L
         else: 
@@ -277,10 +255,6 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
                 k0range = onp.arange(k0range_args[0],k0range_args[1]+1,1)* 2*onp.pi/L
             else:
                 k0range = onp.arange(k0range_args[0],k0range_args[1]+k0range_args[2],k0range_args[2])* 2*onp.pi/L
-=======
-        k0range = onp.arange(10,41)*64/128*2*onp.pi/L
-        #k0range = k0range[[8,16,24]]
->>>>>>> Stashed changes
         volume = L*L*L*phi/N
         radius = onp.cbrt(volume * 3.0 / (4.0 * onp.pi))
         meas_points = np.tensor(2*L*onp.vstack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T)
