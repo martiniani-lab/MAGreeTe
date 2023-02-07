@@ -266,3 +266,62 @@ class Transmission2D:
         ldos_factor_TE = np.sum(ldos_factor_TE, 1)
 
         return ldos_factor_TE, ldos_factor_TM
+
+    def compute_eigenvalues_and_scatterer_LDOS(self, k0, alpha, radius, file_name, self_interaction= True, write_eigenvalues=True):
+        '''
+        Computes the eigenvalues of the Green's matrix, and the corresponding LDOS at scatterers, for TM and TE.
+        This computation is way less expensive than the other LDOS, due to simple dependence on the eigenvalues
+        measure_points      - (M,3)  coordinates of points where the LDOS is evaluated
+        k0                  - (1)    frequency of source beam
+        alpha               - (1)    bare static polarizability at given k0
+        radius              - (1)    radius of the scatterers
+        self_interaction    - (bool) include or not self-interactions, defaults to True 
+        '''
+
+        Npoints = self.r.shape[0]
+        print(self.r.shape)
+        k0_ = onp.round(k0/(2.0*onp.pi),1)
+        print("Computing spectrum and scatterer LDOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
+
+        ### TM Calculation
+        G0 = self.G0_TM(self.r, k0, alpha, print_statement='DOS eigvals')
+        G0.fill_diagonal_(-1)
+        if self_interaction:
+            # Add self-interaction
+            volume = onp.pi*radius*radius
+            dims = G0.shape[0]
+            self_int_TM = alpha*k0*k0*np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+            G0 += self_int_TM
+        # Compute the spectrum of the matrix 1 - k^2 alpha Green here
+        G0 *= -1
+        lambdas = np.linalg.eigvals(G0)
+
+        if write_eigenvalues:
+            onp.savetxt(file_name+'_lambdas_'+str(k0_)+'_TM.csv', onp.stack([np.real(lambdas).numpy(), np.imag(lambdas).numpy()]).T)
+
+        # Compute the trace part here
+        dos_factor_TM = ((1 - lambdas)**2 / lambdas).sum()/Npoints
+        dos_factor_TM *= 4.0 / (onp.pi * k0**2 * alpha) # For prefactor in systems invariant along z, see https://www.sciencedirect.com/science/article/pii/S1569441007000387
+        dos_factor_TM = np.imag(dos_factor_TM)
+
+        ### TE calculation
+        G0 = self.G0_TE(None, k0, alpha, print_statement='DOS eigvals')
+        G0.fill_diagonal_(-1)
+        if self_interaction:
+            # Add self-interaction
+            dims = G0.shape[0]
+            self_int_TE = alpha*k0*k0*np.eye(dims) * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+            G0 += self_int_TE
+        # Compute the spectrum of the matrix 1 - k^2 alpha Green here
+        G0 *= -1
+        lambdas = np.linalg.eigvals(G0)
+
+        if write_eigenvalues:
+            onp.savetxt(file_name+'_lambdas_'+str(k0_)+'_TE.csv', onp.stack([np.real(lambdas).numpy(), np.imag(lambdas).numpy()]).T)
+
+        # Compute the trace part here
+        dos_factor_TE = ((1 - lambdas)**2 / lambdas).sum()/Npoints
+        dos_factor_TE *= 4.0 / (onp.pi * k0**2 * alpha) # For prefactor in systems invariant along z, see https://www.sciencedirect.com/science/article/pii/S1569441007000387
+        dos_factor_TE = np.imag(dos_factor_TE)
+
+        return dos_factor_TE, dos_factor_TM

@@ -40,8 +40,9 @@ def triangular(Nx=71,Ny=41,cut=True,disp=0):
     grid[::2,:,1] += 0.5
     r = grid.reshape(-1,2)
     #r += onp.random.random(2)
-    r /= np.sqrt(Nx*Ny)
+    r /= onp.sqrt(Nx*Ny)
     r -= 0.5
+    r = r.type(np.double)
     if disp != 0:
         r = add_displacement(r,dr=disp)
     if cut:

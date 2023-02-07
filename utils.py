@@ -1,6 +1,7 @@
 import numpy as onp
 import torch as np
 import scipy as sp
+import os
 
 import matplotlib
 matplotlib.use('Agg')
@@ -169,3 +170,18 @@ def plot_LDOS_2D(ldos_change,k0_,ngridx,ngridy,file_name,my_dpi=1, appended_stri
     ax.tick_params(left = False, right = False , labelleft = False , labelbottom = False, bottom = False)
     plt.savefig(file_name+'_k0_'+str(k0_)+'_ldos_capped'+appended_string+'.png', bbox_inches='tight', pad_inches=0., dpi=my_dpi)
     plt.close()
+
+def trymakedir(path):
+    """this function deals with common race conditions"""
+    while True:
+        if not os.path.exists(path):
+            try:
+                os.makedirs(path)
+                break
+            except OSError as e:
+                if e.errno != 17:
+                    raise
+                # time.sleep might help here
+                pass
+        else:
+            break

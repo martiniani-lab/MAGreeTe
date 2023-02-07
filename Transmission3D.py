@@ -220,3 +220,41 @@ class Transmission3D:
         ldos_factor = np.sum(ldos_factor, 1)
 
         return ldos_factor
+
+def compute_eigenvalues_and_scatterer_LDOS(self, k0, alpha, radius, file_name, self_interaction= True, write_eigenvalues=True):
+        '''
+        Computes the eigenvalues of the Green's matrix, and the corresponding LDOS at scatterers.
+        This computation is way less expensive than the other LDOS, due to simple dependence on the eigenvalues
+        measure_points      - (M,3)  coordinates of points where the LDOS is evaluated
+        k0                  - (1)    frequency of source beam
+        alpha               - (1)    bare static polarizability at given k0
+        radius              - (1)    radius of the scatterers
+        self_interaction    - (bool) include or not self-interactions, defaults to True 
+        '''
+
+        Npoints = self.r.shape[0]
+        print(self.r.shape)
+        k0_ = onp.round(k0/(2.0*onp.pi),1)
+        print("Computing spectrum and scatterer LDOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
+
+        G0 = self.G0(None, k0, alpha, print_statement='DOS eigvals')
+        G0.fill_diagonal_(-1)
+        if self_interaction:
+            # Add self-interaction
+            dims = G0.shape[0]
+            volume = 4*onp.pi*(radius**3)/3
+            self_int = (alpha/volume) * np.eye(dims)*((2.0/3.0)*onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
+            G0 += self_int
+        # Invert the matrix 1 - k^2 alpha Green
+        G0 *= -1
+        lambdas = np.linalg.eigvals(G0)
+
+        if write_eigenvalues:
+            onp.savetxt(file_name+'_lambdas_'+str(k0_)+'.csv', onp.stack([np.real(lambdas).numpy(), np.imag(lambdas).numpy()]).T)
+
+        # Compute the trace part here
+        dos_factor= ((1 - lambdas)**2 / lambdas).sum()/Npoints
+        dos_factor *= 2.0 / (k0**3 * alpha)
+        dos_factor = np.imag(dos_factor)
+
+        return dos_factor
