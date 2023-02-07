@@ -19,9 +19,21 @@ class Transmission3D:
         self.N = self.r.shape[0]
         self.source = source
     
-    def greens(self,r,k0):
+    def greens(self,r,k0,periodic = 'yz'):
         N = r.shape[0]
         M = r.shape[1]
+        if 'x' in periodic:
+            r[:,:,0] += 0.5
+            r[:,:,0] %= 1
+            r[:,:,0] -= 0.5
+        if 'y' in periodic:
+            r[:,:,1] += 0.5
+            r[:,:,1] %= 1
+            r[:,:,1] -= 0.5
+        if 'z' in periodic:
+            r[:,:,2] += 0.5
+            r[:,:,2] %= 1
+            r[:,:,2] -= 0.5
         R = np.linalg.norm(r,axis=-1).reshape(N,M,1,1)
         RxR = r.reshape(N,M,1,3)*r.reshape(N,M,3,1)
         RxR /= R*R
@@ -46,6 +58,15 @@ class Transmission3D:
             phi = np.arctan2(p[:,1], p[:,0]) #arctan(y/x)
             theta = np.arccos(p[:,2]) #arccos(z/r), r=1 for unit vector
             pvec = np.stack([np.sin(theta)*np.cos(phi), np.sin(theta)*np.sin(phi), p[:,2]])
+        elif self.source == 'plane':
+            k0_ = onp.round(k0/(2.0*onp.pi),1)
+            print('Calculating Plane Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
+            rpara = np.matmul(points,u.T)
+            E0j = np.exp(1j*rpara*k0)
+            phi = np.arctan2(p[:,1], p[:,0]) #arctan(y/x)
+            theta = np.arccos(p[:,2]) #arccos(z/r), r=1 for unit vector
+            pvec = np.stack([np.sin(theta)*np.cos(phi), np.sin(theta)*np.sin(phi), p[:,2]])
+        
         return E0j.reshape(points.shape[0],1,-1)*pvec.reshape(1,3,-1)
  
     def calc(self, points, Ek, k0, alpha, u, p, beam_waist):

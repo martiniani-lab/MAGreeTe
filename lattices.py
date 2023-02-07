@@ -15,22 +15,23 @@ def add_displacement(r, dr=1e-6):
         disp = (onp.random.random(r.shape)-0.5)*dr
     return r + np.tensor(disp)
 
-def square(Nside=65,cut=True, disp=0):
+def square(Nside=65,centered=True,disp=0):
     N = Nside*Nside
     x = np.arange(Nside)
     grid = np.zeros((Nside,Nside,2),dtype=np.double)
     grid[:,:,0] = x.reshape(-1,1)
     grid[:,:,1] = x.reshape(1,-1)
     r = grid.reshape(-1,2)
-    r /= Nside-1
+    if centered:
+        r /= Nside-1
+    else:
+        r /= Nside
     r -= 0.5
     if disp != 0:
         r = add_displacement(r,dr=disp)
-    if cut:
-        return cut_circle(r)
     return r
 
-def triangular(Nx=71,Ny=41,cut=True,disp=0):
+def triangular(Nx=71,Ny=41,disp=0):
     N = Nx*Ny
     x = np.arange(-Nx,Nx+1,dtype=np.double)*onp.sqrt(3)/2
     y = np.arange(-Ny,Ny+1,dtype=np.double)
@@ -45,11 +46,9 @@ def triangular(Nx=71,Ny=41,cut=True,disp=0):
     r = r.type(np.double)
     if disp != 0:
         r = add_displacement(r,dr=disp)
-    if cut:
-        return cut_circle(r)
     return r
 
-def honeycomb(Nx=71,Ny=41,cut=True,disp=0):
+def honeycomb(Nx=71,Ny=41,disp=0):
     x = np.arange(Nx)*onp.sqrt(3)/2
     y = np.arange(Ny)*1.5
     grid = np.zeros((x.shape[0],y.shape[0],2),dtype=np.double)
@@ -63,12 +62,10 @@ def honeycomb(Nx=71,Ny=41,cut=True,disp=0):
     r -= 0.5
     if disp != 0:
         r = add_displacement(r,dr=disp)
-    if cut:
-        return cut_circle(r)
     return r
 
 
-def quasicrystal(nspan=46, ndirs=5, mode=None,cut=True,disp=0):
+def quasicrystal(nspan=46, ndirs=5, mode=None,disp=0):
     N = 4096
     if mode != None:
         nspan=33
@@ -131,11 +128,9 @@ def quasicrystal(nspan=46, ndirs=5, mode=None,cut=True,disp=0):
     r = np.tensor(r)
     if disp != 0:
         r = add_displacement(r,dr=disp)
-    if cut:
-        return cut_circle(r)
     return r
 
-def cubic(Nside=17,cut=True,disp=0,normalize=True):
+def cubic(Nside=17,centered=True,disp=0,normalize=True):
     x = np.arange(Nside)
     grid = np.zeros((Nside,Nside,Nside,3),dtype=np.double)
     grid[:,:,:,0] = x.reshape(-1,1,1)
@@ -143,46 +138,41 @@ def cubic(Nside=17,cut=True,disp=0,normalize=True):
     grid[:,:,:,2] = x.reshape(1,1,-1)
     r = grid.reshape(-1,3)
     if normalize:
-        r /= Nside-1
+        if centered:
+            r /= Nside-1
+        else:
+            r /= Nside
         r -= 0.5
     if disp != 0:
         r = add_displacement(r,dr=disp)
-    if cut:
-        return cut_circle(r)
     return r
 
-def bcc(Nside=17,cut=True,disp=0,normalize=True):
-    r = cubic(Nside,cut=False, normalize=False)
+def bcc(Nside=17,disp=0,normalize=True):
+    r = cubic(Nside, normalize=False)
     r = np.cat((r,r+np.tensor([0.5,0.5,0.5]).reshape(1,3)),0)
     if normalize:
         r /= Nside-1
         r -= 0.5
     if disp != 0:
         r = add_displacement(r,dr=disp)
-    if cut:
-        return cut_circle(r)
     return r
 
-def fcc(Nside=17,cut=True,disp=0,normalize=True):
-    r = cubic(Nside,cut=False,normalize=False)
+def fcc(Nside=17,disp=0,normalize=True):
+    r = cubic(Nside,normalize=False)
     r = np.cat((r,r+np.tensor([0.5,0.5,0]).reshape(1,3),r+np.tensor([0.5,0,0.5]).reshape(1,3),r+np.tensor([0,0.5,0.5]).reshape(1,3)),0)
     if normalize:
         r /= Nside-1
         r -= 0.5
     if disp != 0:
         r = add_displacement(r,dr=disp)
-    if cut:
-        return cut_circle(r)
     return r
 
-def diamond(Nside=17,cut=True, disp=0, normalize=True):
-    r = fcc(Nside,cut=False,normalize=False)
+def diamond(Nside=17,disp=0, normalize=True):
+    r = fcc(Nside,normalize=False)
     r = np.cat((r,r+np.tensor([0.25,0.25,0.25]).reshape(1,3)),0)
     if normalize:
         r /= Nside-1
         r -= 0.5
     if disp != 0:
         r = add_displacement(r,dr=disp)
-    if cut:
-        return cut_circle(r)
     return r

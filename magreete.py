@@ -7,9 +7,14 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as clr
 import colorsys
 import hickle as hkl
+import pandas as pd
 import sys
 import os
+<<<<<<< Updated upstream
 from utils import alpha_cold_atoms_2d, alpha_cold_atoms_3d, alpha_small_dielectric_object, plot_transmission_angularbeam, plot_transmission_flat, uniform_unit_disk_picking, uniform_unit_ball_picking, plot_3d_points, plot_LDOS_2D, trymakedir
+=======
+from utils import alpha_cold_atoms_2d, alpha_cold_atoms_3d, alpha_small_dielectric_object, plot_transmission_angularbeam, plot_transmission_linear, plot_transmission_flat, uniform_unit_disk_picking, uniform_unit_ball_picking, plot_3d_points, plot_2d_field
+>>>>>>> Stashed changes
 from Transmission2D import Transmission2D
 from Transmission3D import Transmission3D
 import lattices
@@ -24,18 +29,22 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
     '''
 
     #Todo: clean up this main to have explicit 2d or 3d cases, just make main callable from the outside
-    phi = 0.1
+    phi = 0.6
     N = 4096
     size_ratio = 1.0
     a = 0.0
-    k = 16#32
+    k = 32
     w = 0.2*L
+<<<<<<< Updated upstream
 
     if cold_atoms:
         output_directory = output_directory+"cold_atoms"
     else:
         output_directory = output_directory+"refractive_n_"+str(refractive_n)
     trymakedir(output_directory)
+=======
+    source = 'beam'
+>>>>>>> Stashed changes
 
     if lattice == None:
         dname = head_directory+'HPY'+str(ndim)+'D/phi'+str(phi)+'/a'+str(a)+'/'
@@ -52,7 +61,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
 
         if ndim==2:
             if lattice == 'square':
-                points = lattices.square()
+                points = lattices.square(64,centered=False)
             elif lattice == 'triangular':
                 points = lattices.triangular()
             elif lattice == 'honeycomb':
@@ -69,7 +78,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
 
         elif ndim == 3:
             if lattice == 'cubic':
-                points = lattices.cubic()
+                points = lattices.cubic(12, centered=False)
             elif lattice == 'bcc':
                 points = lattices.bcc()
             elif lattice == 'fcc':
@@ -81,16 +90,18 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
                 exit()
         file_name = lattice
         i=0
+        points = lattices.cut_circle(points)
         N = points.shape[0]
         points *= L
     assert ndim == points.shape[1]
 
-    Ntheta = 360
+    Ntheta = 1
     thetas = onp.arange(Ntheta)/Ntheta*2*np.pi
 
     file_name = output_directory+"/"+file_name
 
     if ndim==2:
+<<<<<<< Updated upstream
 
         if k0range_args == None:
             k0range = onp.arange(40,81)*64/128*2*onp.pi/L
@@ -101,9 +112,17 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
                 k0range = onp.arange(k0range_args[0],k0range_args[1]+1,1)* 2*onp.pi/L
             else:
                 k0range = onp.arange(k0range_args[0],k0range_args[1]+k0range_args[2],k0range_args[2])* 2*onp.pi/L
+=======
+        phi=0.1
+        k0range = onp.arange(40,81)*64/128*2*onp.pi/L
+        #k0range = k0range[[8,16,24]]
+>>>>>>> Stashed changes
         volume = L*L*phi/N
         radius = onp.sqrt(volume/onp.pi )
         meas_points = 2*L*onp.vstack([onp.cos(thetas),onp.sin(thetas)]).T
+        ngrid=201
+        x,y = onp.meshgrid(onp.linspace(0,1,ngrid),onp.linspace(0,1,ngrid))
+        meas_points = np.tensor(onp.vstack([x.ravel(),y.ravel()]).T-0.5)*L*2
 
         if cold_atoms:
             alpharange = alpha_cold_atoms_2d(k0range)
@@ -125,7 +144,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
                 alpha, k0 = params
                 k0 = onp.float64(k0)
                 alpha = onp.complex128(alpha)
-                solver = Transmission2D(points)
+                solver = Transmission2D(points,source=source)
 
                 EkTE, EkTM = solver.calc_EM(meas_points, EjTE, EjTM, k0, alpha, thetas, w)
                 EkTE = np.linalg.norm(EkTE,axis=1)
@@ -139,7 +158,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
             
 
         else: 
-            solver = Transmission2D(points)
+            solver = Transmission2D(points, source=source)
             ETEall = []
             ETMall = []
             for k0, alpha in zip(k0range,alpharange):
@@ -157,11 +176,14 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
 
             TEtotal = onp.absolute(ETEall)**2
             TMtotal = onp.absolute(ETMall)**2
-
-        plot_transmission_angularbeam(k0range, L, thetas, TMtotal, file_name, appended_string='TM')
-        plot_transmission_angularbeam(k0range, L, thetas, TEtotal, file_name, appended_string='TE')
-        plot_transmission_flat(k0range, L, thetas, TMtotal, file_name, appended_string='TM')
-        plot_transmission_flat(k0range, L, thetas, TEtotal, file_name, appended_string='TE')
+        for ki in range(len(k0range)):
+            k0_ = onp.round(k0range[ki]*L/(2*onp.pi))
+            plot_2d_field(TMtotal[ki,:,0], ngrid, file_name, appended_string='_k0_'+str(k0_)+'TM')
+            plot_2d_field(TEtotal[ki,:,0], ngrid, file_name, appended_string='_k0_'+str(k0_)+'TE')
+        #plot_transmission_angularbeam(k0range, L, thetas, TMtotal, file_name, appended_string='TM')
+        #plot_transmission_angularbeam(k0range, L, thetas, TEtotal, file_name, appended_string='TE')
+        #plot_transmission_flat(k0range, L, thetas, TMtotal, file_name, appended_string='TM')
+        #plot_transmission_flat(k0range, L, thetas, TEtotal, file_name, appended_string='TE')
 
         if compute_SDOS:
             DOSall_TE = []
@@ -245,6 +267,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
 
     elif ndim==3:
 
+<<<<<<< Updated upstream
         if k0range_args == None:
             k0range = onp.arange(10,41)*64/128*2*onp.pi/L
         else: 
@@ -254,11 +277,21 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
                 k0range = onp.arange(k0range_args[0],k0range_args[1]+1,1)* 2*onp.pi/L
             else:
                 k0range = onp.arange(k0range_args[0],k0range_args[1]+k0range_args[2],k0range_args[2])* 2*onp.pi/L
+=======
+        k0range = onp.arange(10,41)*64/128*2*onp.pi/L
+        #k0range = k0range[[8,16,24]]
+>>>>>>> Stashed changes
         volume = L*L*L*phi/N
         radius = onp.cbrt(volume * 3.0 / (4.0 * onp.pi))
-        meas_points = 2*L*onp.vstack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
+        meas_points = np.tensor(2*L*onp.vstack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T)
         plot_3d_points(points,file_name)
-
+        ngrid=201
+        xspan = onp.linspace(-4.5,100.5,ngrid)
+        yspan = onp.linspace(-0.5,0.5,11)
+        x,y = onp.meshgrid(xspan,yspan)
+        meas_points = np.tensor(onp.vstack([x.ravel(),y.ravel(),onp.zeros(x.ravel().shape)]).T)*L
+        print(meas_points.shape)
+        #meas_points = np.tensor(onp.vstack([x.ravel(),y.ravel(),onp.zeros(x.ravel().shape)]).T-0.5)*L*8
         if cold_atoms:
             alpharange = alpha_cold_atoms_3d(k0range)
         else:
@@ -276,12 +309,12 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
                 k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                 Ej, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(i)+'.hkl')
                 Ej = np.tensor(Ej, dtype=np.complex128)
-                points = np.tensor(points, dtype=np.complex128)
+                points = np.tensor(points, dtype=np.float64)
                 thetas = onp.float64(thetas)
                 alpha, k0 = params
                 k0 = onp.float64(k0)
                 alpha = onp.complex128(alpha)
-                solver = Transmission3D(points)
+                solver = Transmission3D(points,source=source)
 
                 Ek = solver.calc(meas_points, Ej, k0, alpha, u, p, w)
                 Ek = np.linalg.norm(Ek,axis=1)
@@ -291,12 +324,17 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
         
         else: 
 
-            solver = Transmission3D(points)
+            solver = Transmission3D(points,source=source)
             u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
             u = np.tensor(u)
             print(points.shape)
-            p = np.zeros(u.shape)
+            p = np.zeros(u.shape,dtype=np.float64)
             p[:,2] = 1
+            cost, sint = onp.cos(2),onp.sin(2)
+            #rot = np.tensor([[1,0,0],[0,cost,-sint],[0,sint,cost]],dtype=np.float64)
+            #u = np.matmul(u,rot)
+            #p = np.matmul(p,rot)
+            #meas_points = np.matmul(meas_points,rot)
             Eall = []
             for k0, alpha in zip(k0range,alpharange):
                 Ej = solver.run(k0, alpha, u, p, radius, w)
@@ -310,8 +348,13 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
             Eall = onp.array(Eall)
             Etotal = onp.absolute(Eall)**2
     
-        plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name) 
-        plot_transmission_flat(k0range, L, thetas, Etotal, file_name) 
+        #for ki in range(len(k0range)):
+        #    k0_ = onp.round(k0range[ki]*L/(2*onp.pi),1)
+        #    plot_2d_field(Etotal[ki,:,0], ngrid, file_name, appended_string='_k0_'+str(k0_),vmin=1e-1)
+        Etotal = onp.mean(Etotal.reshape(Etotal.shape[0],11,ngrid,1),axis=1)
+        plot_transmission_linear(k0range,L,xspan,Etotal,file_name)
+        #plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name) 
+        #plot_transmission_flat(k0range, L, thetas, Etotal, file_name) 
 
         if compute_SDOS:
             DOSall = []

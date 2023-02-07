@@ -34,22 +34,39 @@ class Transmission2D:
         else:
             exit("torch Hankel function only implemented for orders 0 and 1!")
 
-    def torch_greensTE(self, r, k0):
+    def torch_greensTE(self, r, k0,periodic = ''):
         '''
         Torch implementation of the TE Green's function, taking tensors as entries
         '''
         N = r.shape[0]
         M = r.shape[1]
+        if periodic == 'y':
+            r[:,:,1] += 0.5
+            r[:,:,1] %= 1
+            r[:,:,1] -= 0.5
+        elif periodic == 'x':
+            r[:,:,0] += 0.5
+            r[:,:,0] %= 1
+            r[:,:,0] -= 0.5
+            
         R = np.linalg.norm(r,axis=-1)
         RxR = r[:,:,0:2].reshape(N,M,1,2)*r[:,:,0:2].reshape(N,M,2,1)
         RxR /= (R*R).reshape(N,M,1,1)
         R *= k0
         return 0.25j*((I-RxR)*self.torch_hankel1(0,R).reshape(N,M,1,1)-(I-2*RxR)*(self.torch_hankel1(1,R)/R).reshape(N,M,1,1))
 
-    def torch_greensTM(self, r, k0):
+    def torch_greensTM(self, r, k0, periodic=''):
         '''
         Torch implementation of the TM Green's function, taking tensors as entries
         '''
+        if periodic == 'y':
+            r[:,:,1] += 0.5
+            r[:,:,1] %= 1
+            r[:,:,1] -= 0.5
+        elif periodic == 'x':
+            r[:,:,0] += 0.5
+            r[:,:,0] %= 1
+            r[:,:,0] -= 0.5
         R = np.linalg.norm(r, axis = -1)
         return 0.25j*self.torch_hankel1(0,R*k0)
 
@@ -67,6 +84,18 @@ class Transmission2D:
                 rrot = np.matmul(rot,points.T).T #(rparallel, rperp)
                 a = 2*rrot[:,1]/(w*w*k0)
                 E0j[:,idx] = np.exp(1j*rrot[:,0]*k0-(rrot[:,1]**2/(w*w*(1+1j*a))))/np.sqrt(1+1j*a)
+        elif self.source == 'plane':
+            k0_ = onp.round(k0/(2.0*onp.pi),1)
+            print('Calculating Plane Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
+            E0j = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
+            u = np.zeros((2,len(thetas)))
+            for idx in range(len(thetas)):
+                theta = thetas[idx]
+                cost, sint = onp.cos(-theta),onp.sin(-theta)
+                u[:,idx] = np.tensor([sint, cost])
+                rot = np.tensor([[cost,-sint],[sint,cost]])
+                rrot = np.matmul(rot,points.T).T #(rparallel, rperp)
+                E0j[:,idx] = np.exp(1j*rrot[:,0]*k0)
         return E0j, u
  
     def calc_EM(self,points, EkTE, EkTM, k0, alpha, thetas, beam_waist):

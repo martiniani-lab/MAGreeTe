@@ -128,6 +128,30 @@ def plot_transmission_flat(k0range, L, thetas, intensity, file_name_root, append
     plt.savefig(file_name_root+'_transmission_beam_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
     plt.close()
 
+def plot_transmission_linear(k0range, L,x, intensity, file_name_root,cmap='viridis', appended_string=''):
+    '''
+    Plots one a flattened version of the frequency-angle transmission plot given 
+    k0range: list of wave vector moduli, in rad/m
+    L: system sidelength, in m
+    thetas: list of angles used for the orientation of the laser, in radians
+    intensity: the relevant field intensity
+    file_name_root: prepended to the name of the file
+    appended_string: possible postfix for the name of the file, e.g. "TM" or "TE"
+    '''
+    freqs = onp.real(k0range*L/(2*onp.pi))
+    fig = plt.figure()
+    ax = fig.gca()
+    colors = onp.linspace(0,1,len(k0range))
+    cmap = plt.get_cmap(cmap)
+    for k in range(len(k0range)):
+        print(freqs[k])
+        ax.plot(x,intensity[k,:,0],c=cmap(colors[k]))
+    ax.set_xlabel(r'$x$')
+    ax.set_ylabel('Intensity')
+    ax.set_yscale('log')
+    plt.savefig(file_name_root+'_transmission_linear_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
+    plt.close()
+
 def plot_singlebeam_angular_frequency_plot(k0range, L, thetas, intensity, file_name_root, appended_string=''):
     '''
     Plots specific intensity for a single beam, in a radial frequency-angle plot 
@@ -144,6 +168,15 @@ def plot_singlebeam_angular_frequency_plot(k0range, L, thetas, intensity, file_n
     pc = ax.pcolormesh(thetas,freqs,total_,norm=clr.LogNorm(vmin=total_.min(),vmax=total_.max()), cmap=cmr.ember)
     fig.colorbar(pc)
     plt.savefig(file_name_root+'_transmission_angular'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
+    plt.close()
+
+def plot_2d_field(intensity, ngrid, file_name_root, cmap=cmr.ember,logscale = True, vmin=1e-3, vmax=1e0,appended_string=''):
+    fig = plt.figure()
+    ax = plt.gca()
+    if logscale:
+        pc = ax.imshow(intensity.reshape(ngrid,ngrid),cmap=cmap,norm=clr.LogNorm(vmin=vmin,vmax=vmax))
+    fig.colorbar(pc)
+    plt.savefig(file_name_root+'_intensity'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
     plt.close()
 
 def plot_3d_points(points, file_name):

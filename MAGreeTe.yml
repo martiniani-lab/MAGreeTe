@@ -9,3 +9,4 @@ dependencies:
   - h5py<3
   - hickle==3.4.5
   - cmasher>=1.6
+  - pandas>=1.3
