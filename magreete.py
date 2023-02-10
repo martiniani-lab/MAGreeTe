@@ -202,8 +202,8 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
                 onp.savetxt(file_name+'_temp_dos_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
                 onp.savetxt(file_name+'_temp_dos_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
 
-            onp.savetxt(file_name+'_dos_TE.csv',[k0_range,DOSall_TE].T)
-            onp.savetxt(file_name+'_dos_TM.csv',[k0_range,DOSall_TM].T)
+            onp.savetxt(file_name+'_dos_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
+            onp.savetxt(file_name+'_dos_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
 
         if compute_LDOS:
             # Expensive computation

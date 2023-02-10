@@ -204,7 +204,7 @@ class Transmission2D:
 
         # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
         alpha_ = onp.real(alpha)
-        dos_factor_TM *= 4.0 * k0*k0*alpha_ / onp.pi # For prefactor in systems invariant along z, see https://www.sciencedirect.com/science/article/pii/S1569441007000387
+        dos_factor_TM *= 4.0 * k0*k0*alpha_ # For prefactor in systems invariant along z, see https://www.sciencedirect.com/science/article/pii/S1569441007000387
         dos_factor_TM = np.imag(dos_factor_TM)
 
         ### TE calculation
@@ -227,7 +227,7 @@ class Transmission2D:
         dos_factor_TE = ( np.matmul(G0_measure.t(), G0_measure) * Ainv ).sum()/Npoints
         # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
         alpha_ = onp.real(alpha)
-        dos_factor_TE *= 4.0 * k0*k0* alpha_ / onp.pi
+        dos_factor_TE *= 4.0 * k0*k0* alpha_
         dos_factor_TE = np.imag(dos_factor_TE)
 
         return dos_factor_TE, dos_factor_TM
@@ -267,7 +267,7 @@ class Transmission2D:
         ldos_factor_TM = np.einsum('ij, ji->i',np.matmul(G0_measure, Ainv), (G0_measure).t() )
         # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
         alpha_ = onp.real(alpha)
-        ldos_factor_TM *= 4.0 * k0*k0*alpha_ / onp.pi
+        ldos_factor_TM *= 4.0 * k0*k0*alpha_
         ldos_factor_TM = np.imag(ldos_factor_TM)
 
         ### TE calculation
@@ -289,7 +289,7 @@ class Transmission2D:
         ldos_factor_TE = np.einsum('ij, ji->i',np.matmul(G0_measure, Ainv), (G0_measure).t() )
         # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
         alpha_ = onp.real(alpha)
-        ldos_factor_TE *= 4.0 * k0*k0*alpha_ / onp.pi
+        ldos_factor_TE *= 4.0 * k0*k0*alpha_
         ldos_factor_TE = np.imag(ldos_factor_TE)
         ldos_factor_TE = ldos_factor_TE.reshape(M,2,-1)
         ldos_factor_TE = np.sum(ldos_factor_TE, 1)
@@ -330,7 +330,7 @@ class Transmission2D:
 
         # Compute the trace part here
         dos_factor_TM = ((1 - lambdas)**2 / lambdas).sum()/Npoints
-        dos_factor_TM *= 4.0 / (onp.pi * k0**2 * alpha) # For prefactor in systems invariant along z, see https://www.sciencedirect.com/science/article/pii/S1569441007000387
+        dos_factor_TM *= 4.0 / ( k0**2 * alpha) # For prefactor in systems invariant along z, see https://www.sciencedirect.com/science/article/pii/S1569441007000387
         dos_factor_TM = np.imag(dos_factor_TM)
 
         ### TE calculation
@@ -350,7 +350,7 @@ class Transmission2D:
 
         # Compute the trace part here
         dos_factor_TE = ((1 - lambdas)**2 / lambdas).sum()/Npoints
-        dos_factor_TE *= 4.0 / (onp.pi * k0**2 * alpha) # For prefactor in systems invariant along z, see https://www.sciencedirect.com/science/article/pii/S1569441007000387
+        dos_factor_TE *= 4.0 / ( k0**2 * alpha) # For prefactor in systems invariant along z, see https://www.sciencedirect.com/science/article/pii/S1569441007000387
         dos_factor_TE = np.imag(dos_factor_TE)
 
         return dos_factor_TE, dos_factor_TM
