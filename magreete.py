@@ -82,6 +82,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
                 exit()
         file_name = lattice
         i=0
+        points = lattices.cut_circle(points)
         N = points.shape[0]
         points *= L
     assert ndim == points.shape[1]
