@@ -197,7 +197,7 @@ class Transmission3D:
         dos_factor = ( np.matmul(G0_measure.t(), G0_measure) * Ainv ).sum()/Npoints
         # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
         alpha_ = onp.real(alpha)
-        dos_factor *= 2.0*k0*alpha_
+        dos_factor *= 2.0*onp.pi*k0*alpha_
         dos_factor = np.imag(dos_factor)
 
         return dos_factor
@@ -236,7 +236,7 @@ class Transmission3D:
         ldos_factor = np.einsum('ij, ji->i',np.matmul(G0_measure, Ainv), (G0_measure).t() )
         # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
         alpha_ = onp.real(alpha)
-        ldos_factor *= 2.0*k0*alpha_
+        ldos_factor *= 2.0*onp.pi*k0*alpha_
         ldos_factor = np.imag(ldos_factor)
         ldos_factor = ldos_factor.reshape(M,3,-1)
         ldos_factor = np.sum(ldos_factor, 1)
@@ -276,7 +276,7 @@ class Transmission3D:
 
             # Compute the trace part here
             dos_factor= ((1 - lambdas)**2 / lambdas).sum()/Npoints
-            dos_factor *= 2.0 / (k0**3 * alpha)
+            dos_factor *= 2.0 * onp.pi / (k0**3 * alpha)
             dos_factor = np.imag(dos_factor)
 
             return dos_factor
