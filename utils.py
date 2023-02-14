@@ -188,10 +188,10 @@ def plot_3d_points(points, file_name):
     plt.savefig(file_name+'_3dplot.png')
 
 def plot_2d_points(points, file_name):
-    fig = plt.figure()
+    fig = plt.figure(figsize=(10,10),dpi=300)
     ax = fig.gca()
 
-    ax.scatter(points[:,0], points[:,1])
+    ax.scatter(points[:,0], points[:,1], s = 2)
 
     plt.savefig(file_name+'_2dplot.png')
 
