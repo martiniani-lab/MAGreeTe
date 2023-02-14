@@ -257,6 +257,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
         volume = L*L*L*phi/N
         radius = onp.cbrt(volume * 3.0 / (4.0 * onp.pi))
         meas_points = 2*L*onp.vstack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
+        print(meas_points.shape)
         plot_3d_points(points,file_name)
 
         if cold_atoms:
