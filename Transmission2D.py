@@ -125,8 +125,18 @@ class Transmission2D:
         EkTE_ = np.matmul(self.G0_TE(points, k0, alpha, print_statement='calc', regularize=regularize, radius=radius), EkTE).reshape(points.shape[0],2,-1) + E0j 
         # Take care of cases in which measurement points are exactly scatterer positions
         for j in np.argwhere(np.isnan(EkTM_[:,0])):
-            EkTM_[j] = EkTM[np.nonzero(np.prod(self.r-points[j]==0,axis=-1))]
-            EkTE_[j] = EkTE[np.nonzero(np.prod(self.r-points[j]==0,axis=-1))]
+            if regularize:
+                # If overlap, will just return the closest one
+                possible_idx = np.nonzero(np.linalg.norm(self.r-points[j], axis = -1) <= radius)
+                if possible_idx.shape[0] > 1:
+                    idx = np.argmin(np.linalg.norm(self.r-points[j], axis = -1))
+                else:
+                    idx = possible_idx
+                EkTM_[j] = EkTM[idx]
+                EkTE_[j] = EkTE[idx]
+            else:
+                EkTM_[j] = EkTM[np.nonzero(np.prod(self.r-points[j]==0,axis=-1))]
+                EkTE_[j] = EkTE[np.nonzero(np.prod(self.r-points[j]==0,axis=-1))]
         return EkTE_, EkTM_
    
     def run_EM(self, k0, alpha, thetas, radius, beam_waist, self_interaction=True):

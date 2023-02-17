@@ -104,8 +104,17 @@ class Transmission3D:
 
         # Take care of cases in which measurement points are exactly scatterer positions
         for j in np.argwhere(np.isnan(Ek_[:,0,0])):
-            idx = np.nonzero(np.prod(self.r-points[j]==0,axis=-1))
-            Ek_[j] = Ek.reshape(points.shape[0],3,-1)[idx]
+            if regularize:
+                # If overlap, will just return the closest one
+                possible_idx = np.nonzero(np.linalg.norm(self.r-points[j],axis=-1) <= radius)
+                if possible_idx.shape[0] > 1:
+                    idx = np.argmin(np.linalg.norm(self.r-points[j], axis = -1))
+                else:
+                    idx = possible_idx
+                Ek_[j] = Ek.reshape(points.shape[0],3,-1)[idx]
+            else:
+                idx = np.nonzero(np.prod(self.r-points[j]==0,axis=-1))
+                Ek_[j] = Ek.reshape(points.shape[0],3,-1)[idx]
         return Ek_
    
     def run(self, k0, alpha, u, p, radius, beam_waist, self_interaction=True):
