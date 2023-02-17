@@ -139,11 +139,14 @@ class Transmission2D:
         regularize - bool       bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
         radius     - (1)        considered scatterer radius, only used for regularization 
         '''
+
         points = np.tensor(points)
         E0j, u = self.generate_source(points, k0, thetas, beam_waist, print_statement='calc')
+
         EkTM_ = np.matmul(self.G0_TM(points, k0, alpha,print_statement='calc', regularize=regularize, radius=radius), EkTM) + E0j
         E0j = E0j.reshape(points.shape[0],1,len(thetas))*u
         EkTE_ = np.matmul(self.G0_TE(points, k0, alpha, print_statement='calc', regularize=regularize, radius=radius), EkTE).reshape(points.shape[0],2,-1) + E0j 
+
         # Take care of cases in which measurement points are exactly scatterer positions
         for j in np.argwhere(np.isnan(EkTM_[:,0])):
             if regularize:
@@ -224,7 +227,7 @@ class Transmission2D:
         G0 *= alpha*k0*k0
         return G0
 
-    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False):
+    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, file_name, self_interaction= True, regularize = False, write_eigenvalues = True):
         '''
         Computes the LDOS averaged at a list of measurement points, for TM and TE.
         This computation is a bit less expensive than the actual LDOS one,
@@ -257,6 +260,15 @@ class Transmission2D:
 
         # Define the propagators from scatterers to measurement points
         G0_measure = self.G0_TM(measure_points, k0, alpha, print_statement='DOS measure', regularize=regularize, radius=radius)
+        # Check for measurement points falling exactly on scatterers
+        for j in np.argwhere(np.isnan(G0_measure)):
+            point_idx = j[0]
+            scatter_idx = j[1]
+            G0_measure[point_idx][scatter_idx] = 1
+            if self_interaction:
+                volume = onp.pi*radius*radius
+                self_int_TM = alpha*k0*k0 * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+                G0_measure[point_idx][scatter_idx] -= self_int_TM
         #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
@@ -281,6 +293,15 @@ class Transmission2D:
 
         # Define the propagators from scatterers to measurement points
         G0_measure = self.G0_TE(measure_points, k0, alpha, print_statement='DOS measure', regularize=regularize, radius=radius)
+        # Check for measurement points falling exactly on scatterers
+        for j in np.argwhere(np.isnan(G0_measure)):
+            point_idx = j[0]
+            scatter_idx = j[1]
+            G0_measure[point_idx][scatter_idx] = 1
+            if self_interaction:
+                volume = onp.pi*radius*radius
+                self_int_TE = alpha*k0*k0 * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+                G0_measure[point_idx][scatter_idx] -= self_int_TE
         #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
@@ -322,6 +343,15 @@ class Transmission2D:
 
         # Define the propagators from scatterers to measurement points
         G0_measure = self.G0_TM(measure_points, k0, alpha, print_statement='LDOS measure', regularize=regularize, radius=radius)
+        # Check for measurement points falling exactly on scatterers
+        for j in np.argwhere(np.isnan(G0_measure)):
+            point_idx = j[0]
+            scatter_idx = j[1]
+            G0_measure[point_idx][scatter_idx] = 1
+            if self_interaction:
+                volume = onp.pi*radius*radius
+                self_int_TM = alpha*k0*k0 * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+                G0_measure[point_idx][scatter_idx] -= self_int_TM
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
         ldos_factor_TM = np.einsum('ij, ji->i',np.matmul(G0_measure, Ainv), (G0_measure).t() )
@@ -344,6 +374,15 @@ class Transmission2D:
 
         # Define the propagators from scatterers to measurement points
         G0_measure = self.G0_TE(measure_points, k0, alpha, print_statement='LDOS measure', regularize=regularize, radius=radius)
+        # Check for measurement points falling exactly on scatterers
+        for j in np.argwhere(np.isnan(G0_measure)):
+            point_idx = j[0]
+            scatter_idx = j[1]
+            G0_measure[point_idx][scatter_idx] = 1
+            if self_interaction:
+                volume = onp.pi*radius*radius
+                self_int_TE = alpha*k0*k0 * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+                G0_measure[point_idx][scatter_idx] -= self_int_TE
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
         ldos_factor_TE = np.einsum('ij, ji->i',np.matmul(G0_measure, Ainv), (G0_measure).t() )

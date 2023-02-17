@@ -220,6 +220,15 @@ class Transmission3D:
 
         # Define the propagators from scatterers to measurement points
         G0_measure = self.G0(measure_points, k0, alpha, print_statement='DOS measure', regularize=regularize, radius = radius)
+        # Check for measurement points falling exactly on scatterers
+        for j in np.argwhere(np.isnan(G0_measure)):
+            point_idx = j[0]
+            scatter_idx = j[1]
+            G0_measure[point_idx][scatter_idx] = 1
+            if self_interaction:
+                volume = 4*onp.pi*(radius**3)/3
+                self_int = (alpha/volume) * ((2.0/3.0)*onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
+                G0_measure[point_idx][scatter_idx] -= self_int
         #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
@@ -261,6 +270,15 @@ class Transmission3D:
 
         # Define the propagators from scatterers to measurement points
         G0_measure = self.G0(measure_points, k0, alpha, print_statement='LDOS measure', regularize=regularize, radius=radius)
+        # Check for measurement points falling exactly on scatterers
+        for j in np.argwhere(np.isnan(G0_measure)):
+            point_idx = j[0]
+            scatter_idx = j[1]
+            G0_measure[point_idx][scatter_idx] = 1
+            if self_interaction:
+                volume = 4*onp.pi*(radius**3)/3
+                self_int = (alpha/volume) * ((2.0/3.0)*onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
+                G0_measure[point_idx][scatter_idx] -= self_int
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
         ldos_factor = np.einsum('ij, ji->i',np.matmul(G0_measure, Ainv), (G0_measure).t() )

@@ -9,7 +9,7 @@ import colorsys
 import hickle as hkl
 import sys
 import os
-from utils import *
+import utils
 from Transmission2D import Transmission2D
 from Transmission3D import Transmission3D
 import lattices
@@ -41,7 +41,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j,
         output_directory = output_directory+"refractive_n_"+str(refractive_n)
     if regularize:
         output_directory = output_directory+"_reg"
-    trymakedir(output_directory)
+    utils.trymakedir(output_directory)
 
     if lattice == None:
         dname = head_directory+'HPY'+str(ndim)+'D/phi'+str(phi)+'/a'+str(a)+'/'
@@ -102,7 +102,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j,
             k0range = onp.arange(40,81)*64/128*2*onp.pi/L
         else:
             if len(k0range_args)==1:
-                k0range = onp.array(k0range_args[0])* 2*onp.pi/L
+                k0range = onp.array([k0range_args[0]])* 2*onp.pi/L
             elif len(k0range_args)==2:
                 k0range = onp.arange(k0range_args[0],k0range_args[1]+1,1)* 2*onp.pi/L
             else:
@@ -112,9 +112,9 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j,
         meas_points = 2*L*onp.vstack([onp.cos(thetas),onp.sin(thetas)]).T
 
         if cold_atoms:
-            alpharange = alpha_cold_atoms_2d(k0range)
+            alpharange = utils.alpha_cold_atoms_2d(k0range)
         else:
-            alpharange = onp.ones(len(k0range)) * alpha_small_dielectric_object(refractive_n,volume)
+            alpharange = onp.ones(len(k0range)) * utils.alpha_small_dielectric_object(refractive_n,volume)
 
         if just_plot:
 
@@ -164,10 +164,10 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j,
             TEtotal = onp.absolute(ETEall)**2
             TMtotal = onp.absolute(ETMall)**2
 
-        plot_transmission_angularbeam(k0range, L, thetas, TMtotal, file_name, appended_string='TM')
-        plot_transmission_angularbeam(k0range, L, thetas, TEtotal, file_name, appended_string='TE')
-        plot_transmission_flat(k0range, L, thetas, TMtotal, file_name, appended_string='TM')
-        plot_transmission_flat(k0range, L, thetas, TEtotal, file_name, appended_string='TE')
+        utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal, file_name, appended_string='TM')
+        utils.plot_transmission_angularbeam(k0range, L, thetas, TEtotal, file_name, appended_string='TE')
+        utils.plot_transmission_flat(k0range, L, thetas, TMtotal, file_name, appended_string='TM')
+        utils.plot_transmission_flat(k0range, L, thetas, TEtotal, file_name, appended_string='TE')
 
         if compute_SDOS:
             DOSall_TE = []
@@ -194,11 +194,13 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j,
             k0_range = []
 
             M = dospoints
-            measurement_points = uniform_unit_disk_picking(M)
+            measurement_points = utils.uniform_unit_disk_picking(M)
             measurement_points *= L/2
 
+            utils.plot_2d_points(measurement_points, file_name+'_measurement')
+
             for k0, alpha in zip(k0range,alpharange):
-                dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize=regularize)
+                dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, file_name, regularize=regularize)
                 DOSall_TE.append(dos_TE.numpy())
                 DOSall_TM.append(dos_TM.numpy())
 
@@ -245,8 +247,8 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j,
                 ldos_TE = np.cat(outputs_TE)
                 ldos_TM = np.cat(outputs_TM)
 
-                plot_LDOS_2D(ldos_TE,k0_,ngridx,ngridy,file_name, appended_string='TE')
-                plot_LDOS_2D(ldos_TM,k0_,ngridx,ngridy,file_name, appended_string='TM')
+                utils.plot_LDOS_2D(ldos_TE,k0_,ngridx,ngridy,file_name, appended_string='TE')
+                utils.plot_LDOS_2D(ldos_TM,k0_,ngridx,ngridy,file_name, appended_string='TM')
 
 
     elif ndim==3:
@@ -254,7 +256,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j,
             k0range = onp.arange(10,41)*64/128*2*onp.pi/L
         else: 
             if len(k0range_args)==1:
-                k0range = onp.array(k0range_args[0])* 2*onp.pi/L
+                k0range = onp.array([k0range_args[0]])* 2*onp.pi/L
             elif len(k0range_args)==2:
                 k0range = onp.arange(k0range_args[0],k0range_args[1]+1,1)* 2*onp.pi/L
             else:
@@ -263,12 +265,12 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j,
         radius = onp.cbrt(volume * 3.0 / (4.0 * onp.pi))
         meas_points = 2*L*onp.vstack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
         print(meas_points.shape)
-        plot_3d_points(points,file_name)
+        utils.plot_3d_points(points,file_name)
 
         if cold_atoms:
-            alpharange = alpha_cold_atoms_3d(k0range)
+            alpharange = utils.alpha_cold_atoms_3d(k0range)
         else:
-            alpharange = onp.ones(len(k0range)) * alpha_small_dielectric_object(refractive_n,volume)
+            alpharange = onp.ones(len(k0range)) * utils.alpha_small_dielectric_object(refractive_n,volume)
 
         if just_plot:
             Eall = []
@@ -316,8 +318,8 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j,
             Eall = onp.array(Eall)
             Etotal = onp.absolute(Eall)**2
     
-        plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name) 
-        plot_transmission_flat(k0range, L, thetas, Etotal, file_name) 
+        utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name) 
+        utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name) 
 
         if compute_SDOS:
             DOSall = []
@@ -340,11 +342,13 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j,
 
             # Expensive computation in 3d
             M = dospoints
-            measurement_points = uniform_unit_ball_picking(M, ndim)
+            measurement_points = utils.uniform_unit_ball_picking(M, ndim)
             measurement_points *= L/2
 
+            utils.plot_3d_points(measurement_points, file_name+'_measurement')
+
             for k0, alpha in zip(k0range,alpharange):
-                dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize=regularize)
+                dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, file_name, regularize=regularize)
                 DOSall.append(dos.numpy())
 
                 k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
@@ -362,14 +366,13 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j,
             ngridy = gridsize[1]
             xyratio = ngridx/ngridy
             window_width = 1.2
-            x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx),onp.linspace(0,1,ngridy))
-            z   = 0.5*onp.ones(len(x))
+            x,y,z = onp.meshgrid(onp.linspace(0,xyratio,ngridx),onp.linspace(0,1,ngridy), [0.5])
             measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T-0.5)*L*window_width)
 
             batches = np.split(measurement_points, batch_size)
             n_batches = len(batches)
 
-            print("Computing the LDOS at "+str(gridsize)+" points in "+str(n_batches)+" batches of "+str(batch_size))
+            print("Computing the LDOS at "+str(measurement_points.shape)+" points in "+str(n_batches)+" batches of "+str(batch_size))
 
             for k0, alpha in zip(k0range,alpharange):
 
@@ -388,7 +391,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j,
 
                 ldos = np.cat(outputs)
 
-                plot_LDOS_2D(ldos,k0_,ngridx,ngridy,file_name, appended_string='z=0')
+                utils.plot_LDOS_2D(ldos,k0_,ngridx,ngridy,file_name, appended_string='z=0')
 
 
 if __name__ == '__main__':

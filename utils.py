@@ -14,37 +14,37 @@ import cmasher as cmr # https://github.com/1313e/CMasher
 c = 3e8   #speed of light in vacuum, m/s
 
 def alpha_cold_atoms_2d(k0range, omega0 = 3e15, Gamma = 5e16, Lfactor = 1e-4):
-    '''
+    """
     Typical polarizability of cold atoms, using an elastically bound electron model for the dielectric constant, in 2d space.
     Arguments:
     k0range: array of k values, in rad/m
     omega0: bare resonance pulsation, in rad/s
     Gamma: bare linewidth, in rad/s
     Lfactor: conversion factor for lengths, the values above being given for L = 100 µm
-    '''
+    """
 
     return (-2*Gamma/(omega0*(k0range*k0range-omega0*omega0/(c*c)+0.5j*Gamma*k0range*k0range/omega0)))/Lfactor**2
 
 def alpha_cold_atoms_3d(k0range, omega0 = 3e15, Gamma = 5e16, Lfactor = 1e-4):
-    '''
+    """
     Typical polarizability of cold atoms, using an elastically bound electron model for the dielectric constant, in 3d space.
     Arguments:
     k0range: array of k values, in rad/m
     omega0: bare resonance pulsation, in rad/s
     Gamma: bare linewidth, in rad/s
     Lfactor: conversion factor for lengths, the values above being given for L = 100 µm
-    '''
+    """
 
     omegarange = k0range * c
     omega0sq = omega0*omega0
     return (-4*onp.pi*(c**3)*Gamma/(omega0sq*(omegarange*omegarange-omega0sq+1j*Gamma*omegarange*omegarange*omegarange/omega0sq)))/Lfactor**3
 
 def alpha_small_dielectric_object(refractive_n, volume):
-    '''
+    """
     Bare static polarizability of a small dielectric object
     refractive_n: refractive index of the rods, can be complex
     volume: volume of the ball, in m^d
-    '''
+    """
     
     # Define the dielectric constant from the refractive index
     epsilon = refractive_n**2
@@ -53,9 +53,9 @@ def alpha_small_dielectric_object(refractive_n, volume):
     return volume*delta_epsilon
 
 def uniform_unit_disk_picking(n_points):
-    '''
+    """
     Generates an (N,2) tensor of n_points random points with a flat distribution inside the unit disk
-    '''
+    """
     
     U1 = onp.random.uniform(size = n_points)
     U2 = onp.random.uniform(size = n_points)
@@ -68,24 +68,25 @@ def uniform_unit_disk_picking(n_points):
 
 
 def uniform_unit_ball_picking(n_points, dim):
-    '''
+    """
     Generates an (N,dim) tensor of n_points random points with a flat distribution inside the unit dim-ball
     https://mathworld.wolfram.com/BallPointPicking.html
-    '''
+    """
 
-    normals = np.normal(0,1, size=(n_points, dim))
+    normals = np.normal(0,1, size = (n_points, dim))
     exps = np.empty((n_points, 1))
     exps.exponential_()
     exps = np.sqrt(exps)
     proxies =  np.cat((normals, exps),1)
     
-    points = normals/(np.linalg.norm(proxies, axis=-1)).reshape(-1,1,1)
+    points = normals/(np.linalg.norm(proxies, axis=-1)).reshape(n_points,1)
+
 
     return points
 
 
 def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root, appended_string=''):
-    '''
+    """
     Plots one a radial version of the frequency-angle transmission plot given 
     k0range: list of wave vector moduli, in rad/m
     L: system sidelength, in m
@@ -93,7 +94,7 @@ def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,
     intensity: the relevant field intensity
     file_name_root: prepended to the name of the file
     appended_string: possible postfix for the name of the file, e.g. "TM" or "TE"
-    '''
+    """
     freqs = onp.real(k0range*L/(2*onp.pi))
     total_ = onp.sum(intensity*onp.diag(onp.ones(intensity.shape[-1])),axis=1)
     fig, ax = plt.subplots(subplot_kw={'projection':'polar'})
@@ -107,7 +108,7 @@ def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,
     plt.close()
 
 def plot_transmission_flat(k0range, L, thetas, intensity, file_name_root, appended_string=''):
-    '''
+    """
     Plots one a flattened version of the frequency-angle transmission plot given 
     k0range: list of wave vector moduli, in rad/m
     L: system sidelength, in m
@@ -115,7 +116,7 @@ def plot_transmission_flat(k0range, L, thetas, intensity, file_name_root, append
     intensity: the relevant field intensity
     file_name_root: prepended to the name of the file
     appended_string: possible postfix for the name of the file, e.g. "TM" or "TE"
-    '''
+    """
     freqs = onp.real(k0range*L/(2*onp.pi))
     total_ = onp.sum(intensity*onp.diag(onp.ones(intensity.shape[-1])),axis=1)
     fig = plt.figure()
@@ -129,7 +130,7 @@ def plot_transmission_flat(k0range, L, thetas, intensity, file_name_root, append
     plt.close()
 
 def plot_transmission_linear(k0range, L,x, intensity, file_name_root,cmap='viridis', appended_string=''):
-    '''
+    """
     Plots one a flattened version of the frequency-angle transmission plot given 
     k0range: list of wave vector moduli, in rad/m
     L: system sidelength, in m
@@ -137,7 +138,7 @@ def plot_transmission_linear(k0range, L,x, intensity, file_name_root,cmap='virid
     intensity: the relevant field intensity
     file_name_root: prepended to the name of the file
     appended_string: possible postfix for the name of the file, e.g. "TM" or "TE"
-    '''
+    """
     freqs = onp.real(k0range*L/(2*onp.pi))
     fig = plt.figure()
     ax = fig.gca()
@@ -153,7 +154,7 @@ def plot_transmission_linear(k0range, L,x, intensity, file_name_root,cmap='virid
     plt.close()
 
 def plot_singlebeam_angular_frequency_plot(k0range, L, thetas, intensity, file_name_root, appended_string=''):
-    '''
+    """
     Plots specific intensity for a single beam, in a radial frequency-angle plot 
     k0range: list of wave vector moduli, in rad/m
     L: system sidelength, in m
@@ -161,7 +162,7 @@ def plot_singlebeam_angular_frequency_plot(k0range, L, thetas, intensity, file_n
     intensity: the relevant field intensity
     file_name_root: prepended to the name of the file
     appended_string: possible postfix for the name of the file, e.g. "TM" or "TE"
-    '''
+    """
     fig, ax = plt.subplots(subplot_kw={'projection':'polar'})
     freqs = onp.real(k0range*L/(2*onp.pi))
     total_ = intensity[:,:,0]
