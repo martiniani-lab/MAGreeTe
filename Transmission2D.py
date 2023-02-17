@@ -34,10 +34,15 @@ class Transmission2D:
         else:
             exit("torch Hankel function only implemented for orders 0 and 1!")
 
-    def torch_greensTE(self, r, k0,periodic = ''):
+    def torch_greensTE(self, r, k0,periodic = '', regularize = False, radius = 0.0):
         '''
         Torch implementation of the TE Green's function, taking tensors as entries
+        r          - (M,2)      distances to propagate over
+        k0         - (1)        wave-vector of source beam in vacuum
+        periodic   - str        change boundary conditions: '' = free, ('x', 'y', 'xy') = choices of possible periodic directions
+        regularize - bool       bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
         '''
+
         N = r.shape[0]
         M = r.shape[1]
         if periodic == 'y':
@@ -53,12 +58,22 @@ class Transmission2D:
         RxR = r[:,:,0:2].reshape(N,M,1,2)*r[:,:,0:2].reshape(N,M,2,1)
         RxR /= (R*R).reshape(N,M,1,1)
         R *= k0
+
+        if regularize:
+            R = np.where(R < radius, 0.0, R)
+
         return 0.25j*((I-RxR)*self.torch_hankel1(0,R).reshape(N,M,1,1)-(I-2*RxR)*(self.torch_hankel1(1,R)/R).reshape(N,M,1,1))
 
-    def torch_greensTM(self, r, k0, periodic=''):
+    def torch_greensTM(self, r, k0, periodic='', regularize = False, radius = 0.0):
         '''
         Torch implementation of the TM Green's function, taking tensors as entries
+        r          - (M,2)      distances to propagate over
+        k0         - (1)        wave-vector of source beam in vacuum
+        periodic   - str        change boundary conditions: '' = free, ('x', 'y', 'xy') = choices of possible periodic directions
+        regularize - bool       bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
+        radius     - (1)        considered scatterer radius, only used for regularization
         '''
+
         if periodic == 'y':
             r[:,:,1] += 0.5
             r[:,:,1] %= 1
@@ -68,6 +83,10 @@ class Transmission2D:
             r[:,:,0] %= 1
             r[:,:,0] -= 0.5
         R = np.linalg.norm(r, axis = -1)
+
+        if regularize:
+            R = np.where(R < radius, 0.0, R)
+
         return 0.25j*self.torch_hankel1(0,R*k0)
 
     def generate_source(self, points, k0, thetas, w, print_statement=''):
@@ -98,12 +117,12 @@ class Transmission2D:
                 E0j[:,idx] = np.exp(1j*rrot[:,0]*k0)
         return E0j, u
  
-    def calc_EM(self,points, EkTE, EkTM, k0, alpha, thetas, beam_waist):
+    def calc_EM(self,points, EkTE, EkTM, k0, alpha, thetas, beam_waist, regularize = False, radius = 0.0):
         points = np.tensor(points)
         E0j, u = self.generate_source(points, k0, thetas, beam_waist, print_statement='calc')
-        EkTM_ = np.matmul(self.G0_TM(points, k0, alpha,print_statement='calc'), EkTM) + E0j
+        EkTM_ = np.matmul(self.G0_TM(points, k0, alpha,print_statement='calc', regularize=regularize, radius=radius), EkTM) + E0j
         E0j = E0j.reshape(points.shape[0],1,len(thetas))*u
-        EkTE_ = np.matmul(self.G0_TE(points, k0, alpha, print_statement='calc'), EkTE).reshape(points.shape[0],2,-1) + E0j 
+        EkTE_ = np.matmul(self.G0_TE(points, k0, alpha, print_statement='calc', regularize=regularize, radius=radius), EkTE).reshape(points.shape[0],2,-1) + E0j 
         # Take care of cases in which measurement points are exactly scatterer positions
         for j in np.argwhere(np.isnan(EkTM_[:,0])):
             EkTM_[j] = EkTM[np.nonzero(np.prod(self.r-points[j]==0,axis=-1))]
@@ -138,16 +157,16 @@ class Transmission2D:
         EkTE = np.linalg.solve(G0, -E0j.reshape(2*self.N,-1)) 
         return EkTE, EkTM
 
-    def G0_TM(self, points, k0, alpha, print_statement=''):
+    def G0_TM(self, points, k0, alpha, print_statement='', regularize = False, radius=0.0):
         #Green's function
         k0_ = onp.round(k0/(2.0*onp.pi),1)
         print("Calculating TM Green's function at k0L/2pi = "+str(k0_)+' ('+print_statement+')')
-        G0 = self.torch_greensTM(points.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0)
+        G0 = self.torch_greensTM(points.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0, regularize=regularize, radius=radius)
         #Construct matrix form
         G0 *= alpha*k0*k0
         return G0
 
-    def G0_TE(self, points, k0, alpha, print_statement=''):
+    def G0_TE(self, points, k0, alpha, print_statement='', regularize = False, radius = 0.0):
         #Green's function
         if points == None:
             points_ = self.r
@@ -155,7 +174,7 @@ class Transmission2D:
             points_ = points
         k0_ = onp.round(k0/(2.0*onp.pi),1)
         print("Calculating TE Green's function at k0L/2pi = "+str(k0_)+' ('+print_statement+')')
-        G0 = self.torch_greensTE(points_.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0)
+        G0 = self.torch_greensTE(points_.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0, regularize=regularize, radius=radius)
         #Construct matrix form
         if points == None:
             for idx in range(self.N):
@@ -164,7 +183,7 @@ class Transmission2D:
         G0 *= alpha*k0*k0
         return G0
 
-    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True):
+    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False):
         '''
         Computes the LDOS averaged at a list of measurement points, for TM and TE.
         This computation is a bit less expensive than the actual LDOS one,
@@ -196,7 +215,7 @@ class Transmission2D:
         Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0_TM(measure_points, k0, alpha, print_statement='DOS measure')
+        G0_measure = self.G0_TM(measure_points, k0, alpha, print_statement='DOS measure', regularize=regularize, radius=radius)
         #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
@@ -220,7 +239,7 @@ class Transmission2D:
         Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0_TE(measure_points, k0, alpha, print_statement='DOS measure')
+        G0_measure = self.G0_TE(measure_points, k0, alpha, print_statement='DOS measure', regularize=regularize, radius=radius)
         #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
@@ -232,7 +251,7 @@ class Transmission2D:
 
         return dos_factor_TE, dos_factor_TM
 
-    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True):
+    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False):
         '''
         Computes the LDOS at a list of measurement points, for TM and TE.
         This computation is fairly expensive, the number of measurement points should be small to avoid saturating resources.
@@ -261,7 +280,7 @@ class Transmission2D:
         Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0_TM(measure_points, k0, alpha, print_statement='LDOS measure')
+        G0_measure = self.G0_TM(measure_points, k0, alpha, print_statement='LDOS measure', regularize=regularize, radius=radius)
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
         ldos_factor_TM = np.einsum('ij, ji->i',np.matmul(G0_measure, Ainv), (G0_measure).t() )
@@ -283,7 +302,7 @@ class Transmission2D:
         Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0_TE(measure_points, k0, alpha, print_statement='LDOS measure')
+        G0_measure = self.G0_TE(measure_points, k0, alpha, print_statement='LDOS measure', regularize=regularize, radius=radius)
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
         ldos_factor_TE = np.einsum('ij, ji->i',np.matmul(G0_measure, Ainv), (G0_measure).t() )

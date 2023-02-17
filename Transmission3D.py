@@ -19,7 +19,7 @@ class Transmission3D:
         self.N = self.r.shape[0]
         self.source = source
     
-    def greens(self,r,k0,periodic = ''):
+    def greens(self,r,k0,periodic = '', regularize = False, radius=0.0):
         N = r.shape[0]
         M = r.shape[1]
         if 'x' in periodic:
@@ -37,6 +37,10 @@ class Transmission3D:
         R = np.linalg.norm(r,axis=-1).reshape(N,M,1,1)
         RxR = r.reshape(N,M,1,3)*r.reshape(N,M,3,1)
         RxR /= R*R
+
+        if regularize:
+            R = np.where(R < radius, 0.0, R)
+
         return (I-RxR-(I-3*RxR)*(1/(1j*k0*R)+(k0*R)**-2))*np.exp(1j*k0*R)/(4*onp.pi*R)
 
     def generate_source(self, points, k0, u, p, w, print_statement = ''):
@@ -69,7 +73,7 @@ class Transmission3D:
         
         return E0j.reshape(points.shape[0],1,-1)*pvec.reshape(1,3,-1)
  
-    def calc(self, points, Ek, k0, alpha, u, p, beam_waist):
+    def calc(self, points, Ek, k0, alpha, u, p, beam_waist, regularize = False, radius=0.0):
         '''
         Calculates the EM field at a set of measurement points
 
@@ -80,6 +84,8 @@ class Transmission3D:
         u      - (Ndirs, 3) propagation directions for the source
         p      - (Ndirs, 3) polarization directions for the source
         beam_waist - (1)    beam waist
+        regularize - bool       bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
+        radius     - (1)        considered scatterer radius, only used for regularization 
         '''
         points = np.tensor(points)
         
@@ -94,7 +100,7 @@ class Transmission3D:
         E0j = self.generate_source(points, k0, u, p, beam_waist, print_statement='calc') #(M,3,Ndirs)
         
         # calculate Ek field at all measurement points
-        Ek_ = np.matmul(self.G0(points, k0, alpha, print_statement='calc'), Ek).reshape(points.shape[0],3,-1) + E0j 
+        Ek_ = np.matmul(self.G0(points, k0, alpha, print_statement='calc', regularize=regularize, radius=radius), Ek).reshape(points.shape[0],3,-1) + E0j 
 
         # Take care of cases in which measurement points are exactly scatterer positions
         for j in np.argwhere(np.isnan(Ek_[:,0,0])):
@@ -128,7 +134,7 @@ class Transmission3D:
         Ek = np.linalg.solve(G0, -E0j.reshape(3*self.N,-1)) 
         return Ek
 
-    def G0(self, points, k0, alpha, print_statement=''):
+    def G0(self, points, k0, alpha, print_statement='', regularize = False, radius = 0.0):
         '''
         Generate the Green's tensor for a set of positions
 
@@ -136,6 +142,8 @@ class Transmission3D:
         k0              - (1)        frequency being measured
         alpha           - (1)        bare static polarizability at given k0
         print_statement - str        disambiguating string used when printing (default = empty)
+        regularize - bool       bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
+        radius     - (1)        considered scatterer radius, only used for regularization
         '''
 
         # check if None
@@ -146,7 +154,7 @@ class Transmission3D:
         k0_ = onp.round(k0/(2.0*onp.pi),1)
         print("Calculating Green's function at k0L/2pi = "+str(k0_)+' ('+print_statement+')')
         # populate Green's tensor
-        G0 = self.greens(points_.reshape(-1,1,3)-self.r.reshape(1,-1,3),k0) #shape is (M,N,3,3)
+        G0 = self.greens(points_.reshape(-1,1,3)-self.r.reshape(1,-1,3), k0, regularize=regularize, radius=radius) #shape is (M,N,3,3)
 
         # replace NaN entries resulting from divergence (r-r'=0)
         if points == None:
@@ -158,7 +166,7 @@ class Transmission3D:
         G0 *= alpha*k0*k0
         return G0
 
-    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True):
+    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False):
         '''
         Computes the LDOS averaged at a list of measurement points.
         This computation is a bit less expensive than the actual LDOS one,
@@ -170,6 +178,7 @@ class Transmission3D:
         alpha               - (1)    bare static polarizability at given k0
         radius              - (1)    radius of the scatterers
         self_interaction    - (bool) include or not self-interactions, defaults to True 
+        regularize - bool       bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
         '''
 
         Npoints = measure_points.shape[0]
@@ -190,7 +199,7 @@ class Transmission3D:
         Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0(measure_points, k0, alpha, print_statement='DOS measure')
+        G0_measure = self.G0(measure_points, k0, alpha, print_statement='DOS measure', regularize=regularize, radius = radius)
         #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
@@ -202,7 +211,7 @@ class Transmission3D:
 
         return dos_factor
 
-    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True):
+    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False):
         '''
         Computes the LDOS at a list of measurement points
         This computation is fairly expensive, the number of measurement points should be small to avoid saturating resources
@@ -212,7 +221,8 @@ class Transmission3D:
         k0                  - (1)    frequency of source beam
         alpha               - (1)    bare static polarizability at given k0
         radius              - (1)    radius of the scatterers
-        self_interaction    - (bool) include or not self-interactions, defaults to True 
+        self_interaction    - (bool) include or not self-interactions, defaults to True
+        regularize          - bool   bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
         '''
 
         M = measure_points.shape[0]
@@ -230,7 +240,7 @@ class Transmission3D:
         Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0(measure_points, k0, alpha, print_statement='LDOS measure')
+        G0_measure = self.G0(measure_points, k0, alpha, print_statement='LDOS measure', regularize=regularize, radius=radius)
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
         ldos_factor = np.einsum('ij, ji->i',np.matmul(G0_measure, Ainv), (G0_measure).t() )

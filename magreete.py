@@ -18,7 +18,10 @@ import lattices
 import argparse
 
 
-def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None, lattice=None, just_plot = False, compute_DOS=False, dospoints=1, compute_SDOS=False, write_eigenvalues=True, compute_LDOS=False, gridsize=(301,301), batch_size = 101*101, cold_atoms=False, L = 1, output_directory=""):
+def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, 
+        k0range_args = None, lattice=None, just_plot = False, regularize = True,
+        compute_DOS=False, dospoints=1, compute_SDOS=False, write_eigenvalues=True, compute_LDOS=False, gridsize=(301,301), batch_size = 101*101,
+        cold_atoms=False, L = 1, output_directory=""):
     '''
     Simple front-end for MAGreeTe
     '''
@@ -36,6 +39,8 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
         output_directory = output_directory+"cold_atoms"
     else:
         output_directory = output_directory+"refractive_n_"+str(refractive_n)
+    if regularize:
+        output_directory = output_directory+"_reg"
     trymakedir(output_directory)
 
     if lattice == None:
@@ -128,7 +133,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
                 alpha = onp.complex128(alpha)
                 solver = Transmission2D(points)
 
-                EkTE, EkTM = solver.calc_EM(meas_points, EjTE, EjTM, k0, alpha, thetas, w)
+                EkTE, EkTM = solver.calc_EM(meas_points, EjTE, EjTM, k0, alpha, thetas, w, regularize=regularize, radius=radius)
                 EkTE = np.linalg.norm(EkTE,axis=1)
                 ETEall.append(EkTE.numpy())
                 ETMall.append(EkTM.numpy())
@@ -149,7 +154,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
                 params = [alpha, k0]
                 hkl.dump([onp.array(EjTE), onp.array(EjTM), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(i)+'.hkl')
 
-                EkTE, EkTM = solver.calc_EM(meas_points, EjTE, EjTM, k0, alpha, thetas, w)
+                EkTE, EkTM = solver.calc_EM(meas_points, EjTE, EjTM, k0, alpha, thetas, w, regularize = regularize, radius=radius)
                 EkTE = np.linalg.norm(EkTE,axis=1)
                 ETEall.append(EkTE.numpy())
                 ETMall.append(EkTM.numpy())
@@ -193,7 +198,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
             measurement_points *= L/2
 
             for k0, alpha in zip(k0range,alpharange):
-                dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius)
+                dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize=regularize)
                 DOSall_TE.append(dos_TE.numpy())
                 DOSall_TM.append(dos_TM.numpy())
 
@@ -229,7 +234,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
                 for batch in range(0, n_batches):
                     print("Batch "+str(batch+1))
                     batch_points = batches[batch]
-                    ldos_TE, ldos_TM = solver.LDOS_measurements(batch_points, k0, alpha, radius)
+                    ldos_TE, ldos_TM = solver.LDOS_measurements(batch_points, k0, alpha, radius, regularize=regularize)
 
                     outputs_TE.append(ldos_TE)
                     outputs_TM.append(ldos_TM)
@@ -284,7 +289,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
                 alpha = onp.complex128(alpha)
                 solver = Transmission3D(points)
 
-                Ek = solver.calc(meas_points, Ej, k0, alpha, u, p, w)
+                Ek = solver.calc(meas_points, Ej, k0, alpha, u, p, w, regularize=regularize, radius = radius)
                 Ek = np.linalg.norm(Ek,axis=1)
                 Eall.append(Ek.numpy())
             Eall = onp.array(Eall)
@@ -305,7 +310,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
                 params = [alpha, k0]
                 hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(i)+'.hkl')
 
-                Ek = solver.calc(meas_points, Ej, k0, alpha, u, p, w)
+                Ek = solver.calc(meas_points, Ej, k0, alpha, u, p, w, regularize = regularize, radius=radius)
                 Ek = np.linalg.norm(Ek,axis=1)
                 Eall.append(Ek.numpy())
             Eall = onp.array(Eall)
@@ -339,7 +344,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, k0range_args = None
             measurement_points *= L/2
 
             for k0, alpha in zip(k0range,alpharange):
-                dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius)
+                dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize=regularize)
                 DOSall.append(dos.numpy())
 
                 k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
@@ -366,6 +371,8 @@ if __name__ == '__main__':
         default=None", default=None)
     parser.add_argument("-p","--just_plot", action='store_true', help="Bypass the calculation and just produce plots\
         default=False", default=False)
+    parser.add_argument("-r", "--regularize", action='store_true', help="Regularize the fields and DOS inside of scatterers\
+        default=False", default=False)
     parser.add_argument("-dos","--compute_DOS", action='store_true', help="Compute the mean DOS of the medium  \
         default=False", default=False)
     parser.add_argument("--dospoints",type=int, help="Number of points to use for the mean DOS computation \
@@ -384,28 +391,29 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    head_directory = args.head_directory
-    ndim = args.ndim
-    n_cpus=args.n_cpus
-    refractive_n = args.refractive_n
-    k0range_args = args.k0range
-    if k0range_args != None:
-        k0range_args = tuple(k0range_args)
-    just_plot=args.just_plot
-    lattice = args.lattice
-    compute_DOS = args.compute_DOS
-    compute_SDOS = args.compute_SDOS
-    write_eigenvalues = args.write_eigenvalues
-    compute_LDOS = args.compute_LDOS
-    gridsize = tuple(args.gridsize)
-    dospoints = args.dospoints
-    boxsize = args.boxsize
-    output_directory = args.output
+    head_directory      = args.head_directory
+    ndim                = args.ndim
+    n_cpus              = args.n_cpus
+    refractive_n        = args.refractive_n
+    k0range_args        = args.k0range
+    if k0range_args     != None:
+        k0range_args    = tuple(k0range_args)
+    just_plot           = args.just_plot
+    regularize          = args.regularize
+    lattice             = args.lattice
+    compute_DOS         = args.compute_DOS
+    compute_SDOS        = args.compute_SDOS
+    write_eigenvalues   = args.write_eigenvalues
+    compute_LDOS        = args.compute_LDOS
+    gridsize            = tuple(args.gridsize)
+    dospoints           = args.dospoints
+    boxsize             = args.boxsize
+    output_directory    = args.output
 
     np.set_num_threads(n_cpus)
     np.device("cpu")
     main(head_directory, ndim, 
-        refractive_n = refractive_n, k0range_args = k0range_args, lattice=lattice, 
+        refractive_n = refractive_n, k0range_args = k0range_args, lattice=lattice, regularize=regularize,
         just_plot=just_plot, compute_DOS=compute_DOS, dospoints=dospoints, compute_SDOS=compute_SDOS, write_eigenvalues=write_eigenvalues,  compute_LDOS=compute_LDOS, gridsize=gridsize, 
         L=boxsize, output_directory=output_directory)
     sys.exit()
