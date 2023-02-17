@@ -354,6 +354,42 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j,
 
             onp.savetxt(file_name+'_dos.csv',onp.stack([k0_range,DOSall]).T)
 
+        
+        if compute_LDOS:
+            # Expensive computation
+            # For now, taking the central plane z = 0
+            ngridx = gridsize[0]
+            ngridy = gridsize[1]
+            xyratio = ngridx/ngridy
+            window_width = 1.2
+            x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx),onp.linspace(0,1,ngridy))
+            z   = 0.5*onp.ones(len(x))
+            measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T-0.5)*L*window_width)
+
+            batches = np.split(measurement_points, batch_size)
+            n_batches = len(batches)
+
+            print("Computing the LDOS at "+str(gridsize)+" points in "+str(n_batches)+" batches of "+str(batch_size))
+
+            for k0, alpha in zip(k0range,alpharange):
+
+                outputs = []
+                k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+
+                for batch in range(0, n_batches):
+                    print("Batch "+str(batch+1))
+                    batch_points = batches[batch]
+                    ldos = solver.LDOS_measurements(batch_points, k0, alpha, radius, regularize=regularize)
+
+                    outputs.append(ldos)
+
+                #    onp.savetxt(file_name+'_temp_ldos_'+str(k0_)+'_TE.csv',np.cat(outputs_TE).numpy())
+                #    onp.savetxt(file_name+'_temp_ldos_'+str(k0_)+'_TM.csv',np.cat(outputs_TM).numpy())
+
+                ldos = np.cat(outputs)
+
+                plot_LDOS_2D(ldos,k0_,ngridx,ngridy,file_name, appended_string='z=0')
+
 
 if __name__ == '__main__':
 

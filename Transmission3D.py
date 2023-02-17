@@ -20,6 +20,14 @@ class Transmission3D:
         self.source = source
     
     def greens(self,r,k0,periodic = '', regularize = False, radius=0.0):
+        '''
+        Torch implementation of the 3d Green's function, taking tensors as entries
+        r          - (M,2)      distances to propagate over
+        k0         - (1)        wave-vector of source beam in vacuum
+        periodic   - str        change boundary conditions: '' = free, ('x', 'y', 'xy') = choices of possible periodic directions
+        regularize - bool       bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
+        radius     - (1)        considered scatterer radius, only used for regularization
+        '''
         N = r.shape[0]
         M = r.shape[1]
         if 'x' in periodic:
@@ -51,6 +59,7 @@ class Transmission3D:
         k0     - (1)        frequency of source beam
         u      - (Ndirs, 3) propagation directions for the source
         p      - (Ndirs, 3) polarization directions for the source
+        w      - (1)        beam waist for beam sources
         '''
         if self.source == 'beam':
             k0_ = onp.round(k0/(2.0*onp.pi),1)
@@ -125,6 +134,8 @@ class Transmission3D:
         alpha               - (1)           bare static polarizability at given k0
         u                   - (Ndirs, 3)    propagation directions for the source
         p                   - (Ndirs, 3)    polarization directions for the source
+        radius              - (1)           radius of scatterers, used in self-interaction
+        beam_waist          - (1)           beam waist of Gaussian beam source
         self_interaction    - (bool)        include or not self-interactions, defaults to True 
         '''
 

@@ -90,6 +90,14 @@ class Transmission2D:
         return 0.25j*self.torch_hankel1(0,R*k0)
 
     def generate_source(self, points, k0, thetas, w, print_statement=''):
+        '''
+        Generates the EM field of a source at a set of points
+
+        points      - (M,2)      coordinates of points
+        k0          - (1)        frequency of source beam
+        thetas      - (Ndirs)    propagation directions for the source
+        w           - (1)        beam waist for beam sources
+        '''
         if self.source == 'beam':
             k0_ = onp.round(k0/(2.0*onp.pi),1)
             print('Calculating Beam Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
@@ -118,6 +126,19 @@ class Transmission2D:
         return E0j, u
  
     def calc_EM(self,points, EkTE, EkTM, k0, alpha, thetas, beam_waist, regularize = False, radius = 0.0):
+        '''
+        Calculates the EM field at a set of measurement points
+
+        points     - (M,2)      coordinates of all measurement points
+        EkTE       - (N*2)      TE polarization component of the electromagnetic field at each scatterer
+        EkTM       - (N)        TM polarization component of the electromagnetic field at each scatterer
+        k0         - (1)        frequency being measured
+        alpha      - (1)        bare static polarizability at given k0
+        thetas     - (Ndirs)    propagation directions for the source
+        beam_waist - (1)        beam waist
+        regularize - bool       bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
+        radius     - (1)        considered scatterer radius, only used for regularization 
+        '''
         points = np.tensor(points)
         E0j, u = self.generate_source(points, k0, thetas, beam_waist, print_statement='calc')
         EkTM_ = np.matmul(self.G0_TM(points, k0, alpha,print_statement='calc', regularize=regularize, radius=radius), EkTM) + E0j
@@ -140,6 +161,16 @@ class Transmission2D:
         return EkTE_, EkTM_
    
     def run_EM(self, k0, alpha, thetas, radius, beam_waist, self_interaction=True):
+        '''
+        Solves the EM field at each scatterer
+
+        k0                  - (1)           frequency being measured
+        alpha               - (1)           bare static polarizability at given k0
+        thetas              - (Ndirs)       propagation directions for the source
+        radius              - (1)           radius of scatterers, used in self-interaction
+        beam_waist          - (1)           beam waist of Gaussian beam source
+        self_interaction    - (bool)        include or not self-interactions, defaults to True 
+        '''
 
         ### TM calculation
         E0j, u = self.generate_source(self.r, k0, thetas, beam_waist, print_statement='run')
