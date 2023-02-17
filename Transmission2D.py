@@ -143,9 +143,9 @@ class Transmission2D:
         points = np.tensor(points)
         E0j, u = self.generate_source(points, k0, thetas, beam_waist, print_statement='calc')
 
-        EkTM_ = np.matmul(self.G0_TM(points, k0, alpha,print_statement='calc', regularize=regularize, radius=radius), EkTM) + E0j
+        EkTM_ = np.matmul(alpha*k0*k0* self.G0_TM(points, k0, print_statement='calc', regularize=regularize, radius=radius), EkTM) + E0j
         E0j = E0j.reshape(points.shape[0],1,len(thetas))*u
-        EkTE_ = np.matmul(self.G0_TE(points, k0, alpha, print_statement='calc', regularize=regularize, radius=radius), EkTE).reshape(points.shape[0],2,-1) + E0j 
+        EkTE_ = np.matmul(alpha*k0*k0* self.G0_TE(points, k0, print_statement='calc', regularize=regularize, radius=radius), EkTE).reshape(points.shape[0],2,-1) + E0j 
 
         # Take care of cases in which measurement points are exactly scatterer positions
         for j in np.argwhere(np.isnan(EkTM_[:,0])):
@@ -177,7 +177,7 @@ class Transmission2D:
 
         ### TM calculation
         E0j, u = self.generate_source(self.r, k0, thetas, beam_waist, print_statement='run')
-        G0 = self.G0_TM(self.r, k0, alpha, print_statement='run')
+        G0 = alpha*k0*k0* self.G0_TM(self.r, k0, print_statement='run')
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -190,7 +190,7 @@ class Transmission2D:
         
         ### TE calculation
         E0j = E0j.reshape(self.N,1,len(thetas))*u
-        G0 = self.G0_TE(None, k0, alpha, print_statement='run')
+        G0 = alpha*k0*k0* self.G0_TE(None, k0, print_statement='run')
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -201,16 +201,14 @@ class Transmission2D:
         EkTE = np.linalg.solve(G0, -E0j.reshape(2*self.N,-1)) 
         return EkTE, EkTM
 
-    def G0_TM(self, points, k0, alpha, print_statement='', regularize = False, radius=0.0):
+    def G0_TM(self, points, k0, print_statement='', regularize = False, radius=0.0):
         #Green's function
         k0_ = onp.round(k0/(2.0*onp.pi),1)
         print("Calculating TM Green's function at k0L/2pi = "+str(k0_)+' ('+print_statement+')')
         G0 = self.torch_greensTM(points.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0, regularize=regularize, radius=radius)
-        #Construct matrix form
-        G0 *= alpha*k0*k0
         return G0
 
-    def G0_TE(self, points, k0, alpha, print_statement='', regularize = False, radius = 0.0):
+    def G0_TE(self, points, k0, print_statement='', regularize = False, radius = 0.0):
         #Green's function
         if points == None:
             points_ = self.r
@@ -224,7 +222,6 @@ class Transmission2D:
             for idx in range(self.N):
                 G0[idx,idx,:,:] = 0
         G0 = np.transpose(G0,1,2).reshape(2*G0.shape[0],2*G0.shape[1]).to(np.complex128)
-        G0 *= alpha*k0*k0
         return G0
 
     def mean_DOS_measurements(self, measure_points, k0, alpha, radius, file_name, self_interaction= True, regularize = False, write_eigenvalues = True):
@@ -246,7 +243,7 @@ class Transmission2D:
         print("Computing mean DOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
 
         ### TM Calculation
-        G0 = self.G0_TM(self.r, k0, alpha, print_statement='DOS inverse')
+        G0 = alpha*k0*k0* self.G0_TM(self.r, k0, print_statement='DOS inverse')
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -259,15 +256,15 @@ class Transmission2D:
         Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0_TM(measure_points, k0, alpha, print_statement='DOS measure', regularize=regularize, radius=radius)
+        G0_measure = self.G0_TM(measure_points, k0, print_statement='DOS measure', regularize=regularize, radius=radius)
         # Check for measurement points falling exactly on scatterers
         for j in np.argwhere(np.isnan(G0_measure)):
             point_idx = j[0]
             scatter_idx = j[1]
-            G0_measure[point_idx][scatter_idx] = 1
+            G0_measure[point_idx][scatter_idx] = 0
             if self_interaction:
                 volume = onp.pi*radius*radius
-                self_int_TM = alpha*k0*k0 * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+                self_int_TM = (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
                 G0_measure[point_idx][scatter_idx] -= self_int_TM
         #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
@@ -280,7 +277,7 @@ class Transmission2D:
         dos_factor_TM = np.imag(dos_factor_TM)
 
         ### TE calculation
-        G0 = self.G0_TE(None, k0, alpha, print_statement='DOS inverse')
+        G0 = alpha*k0*k0*self.G0_TE(None, k0, print_statement='DOS inverse')
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -292,15 +289,15 @@ class Transmission2D:
         Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0_TE(measure_points, k0, alpha, print_statement='DOS measure', regularize=regularize, radius=radius)
+        G0_measure = self.G0_TE(measure_points, k0, print_statement='DOS measure', regularize=regularize, radius=radius)
         # Check for measurement points falling exactly on scatterers
         for j in np.argwhere(np.isnan(G0_measure)):
             point_idx = j[0]
             scatter_idx = j[1]
-            G0_measure[point_idx][scatter_idx] = 1
+            G0_measure[point_idx][scatter_idx] = 0
             if self_interaction:
                 volume = onp.pi*radius*radius
-                self_int_TE = alpha*k0*k0 * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+                self_int_TE = (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
                 G0_measure[point_idx][scatter_idx] -= self_int_TE
         #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
@@ -329,7 +326,7 @@ class Transmission2D:
         M = measure_points.shape[0]
 
         ### TM Calculation
-        G0 = self.G0_TM(self.r, k0, alpha, print_statement='LDOS inverse')
+        G0 = alpha*k0*k0* self.G0_TM(self.r, k0, print_statement='LDOS inverse')
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -342,15 +339,15 @@ class Transmission2D:
         Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0_TM(measure_points, k0, alpha, print_statement='LDOS measure', regularize=regularize, radius=radius)
+        G0_measure = self.G0_TM(measure_points, k0, print_statement='LDOS measure', regularize=regularize, radius=radius)
         # Check for measurement points falling exactly on scatterers
         for j in np.argwhere(np.isnan(G0_measure)):
             point_idx = j[0]
             scatter_idx = j[1]
-            G0_measure[point_idx][scatter_idx] = 1
+            G0_measure[point_idx][scatter_idx] = 0
             if self_interaction:
                 volume = onp.pi*radius*radius
-                self_int_TM = alpha*k0*k0 * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+                self_int_TM = (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
                 G0_measure[point_idx][scatter_idx] -= self_int_TM
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
@@ -361,7 +358,7 @@ class Transmission2D:
         ldos_factor_TM = np.imag(ldos_factor_TM)
 
         ### TE calculation
-        G0 = self.G0_TE(None, k0, alpha, print_statement='LDOS inverse')
+        G0 = alpha*k0*k0* self.G0_TE(None, k0, print_statement='LDOS inverse')
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -373,15 +370,15 @@ class Transmission2D:
         Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0_TE(measure_points, k0, alpha, print_statement='LDOS measure', regularize=regularize, radius=radius)
+        G0_measure = self.G0_TE(measure_points, k0, print_statement='LDOS measure', regularize=regularize, radius=radius)
         # Check for measurement points falling exactly on scatterers
         for j in np.argwhere(np.isnan(G0_measure)):
             point_idx = j[0]
             scatter_idx = j[1]
-            G0_measure[point_idx][scatter_idx] = 1
+            G0_measure[point_idx][scatter_idx] = 0
             if self_interaction:
                 volume = onp.pi*radius*radius
-                self_int_TE = alpha*k0*k0 * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+                self_int_TE = (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
                 G0_measure[point_idx][scatter_idx] -= self_int_TE
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
@@ -412,7 +409,7 @@ class Transmission2D:
         print("Computing spectrum and scatterer LDOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
 
         ### TM Calculation
-        G0 = self.G0_TM(self.r, k0, alpha, print_statement='DOS eigvals')
+        G0 = alpha*k0*k0*self.G0_TM(self.r, k0, print_statement='DOS eigvals')
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -433,7 +430,7 @@ class Transmission2D:
         dos_factor_TM = np.imag(dos_factor_TM)
 
         ### TE calculation
-        G0 = self.G0_TE(None, k0, alpha, print_statement='DOS eigvals')
+        G0 = alpha*k0*k0*self.G0_TE(None, k0, print_statement='DOS eigvals')
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction

@@ -225,7 +225,10 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j,
             batches = np.split(measurement_points, batch_size)
             n_batches = len(batches)
 
-            print("Computing the LDOS at "+str(gridsize)+" points in "+str(n_batches)+" batches of "+str(batch_size))
+            extra_string=""
+            if n_batches > 1:
+                extra_string = extra_string+"es"
+            print("Computing the LDOS at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(batch_size))
 
             for k0, alpha in zip(k0range,alpharange):
 
@@ -372,7 +375,11 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j,
             batches = np.split(measurement_points, batch_size)
             n_batches = len(batches)
 
-            print("Computing the LDOS at "+str(measurement_points.shape)+" points in "+str(n_batches)+" batches of "+str(batch_size))
+            extra_string=""
+            if n_batches > 1:
+                extra_string = extra_string+"es"
+            n_points_LDOS = measurement_points.shape[0]
+            print("Computing the LDOS at "+str(n_points_LDOS)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(batch_size))
 
             for k0, alpha in zip(k0range,alpharange):
 

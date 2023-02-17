@@ -109,7 +109,7 @@ class Transmission3D:
         E0j = self.generate_source(points, k0, u, p, beam_waist, print_statement='calc') #(M,3,Ndirs)
         
         # calculate Ek field at all measurement points
-        Ek_ = np.matmul(self.G0(points, k0, alpha, print_statement='calc', regularize=regularize, radius=radius), Ek).reshape(points.shape[0],3,-1) + E0j 
+        Ek_ = np.matmul(alpha*k0*k0*self.G0(points, k0, print_statement='calc', regularize=regularize, radius=radius), Ek).reshape(points.shape[0],3,-1) + E0j 
 
         # Take care of cases in which measurement points are exactly scatterer positions
         for j in np.argwhere(np.isnan(Ek_[:,0,0])):
@@ -143,7 +143,7 @@ class Transmission3D:
         E0j = self.generate_source(self.r, k0, u, p, beam_waist, print_statement='run') #(N,3,Ndirs)
         
         # calculate Ek field at each scatterer position
-        G0 = self.G0(None, k0, alpha, print_statement='run')
+        G0 = alpha*k0*k0*self.G0(None, k0, print_statement='run')
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -154,13 +154,12 @@ class Transmission3D:
         Ek = np.linalg.solve(G0, -E0j.reshape(3*self.N,-1)) 
         return Ek
 
-    def G0(self, points, k0, alpha, print_statement='', regularize = False, radius = 0.0):
+    def G0(self, points, k0, print_statement='', regularize = False, radius = 0.0):
         '''
         Generate the Green's tensor for a set of positions
 
         points          - (N,3)      set of point positions, None indicates the saved point pattern
         k0              - (1)        frequency being measured
-        alpha           - (1)        bare static polarizability at given k0
         print_statement - str        disambiguating string used when printing (default = empty)
         regularize - bool       bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
         radius     - (1)        considered scatterer radius, only used for regularization
@@ -183,7 +182,6 @@ class Transmission3D:
 
         # shape into (N*3,N*3)
         G0 = np.transpose(G0,1,2).reshape(3*G0.shape[0],3*G0.shape[1]).to(np.complex128)
-        G0 *= alpha*k0*k0
         return G0
 
     def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False):
@@ -206,7 +204,7 @@ class Transmission3D:
         print("Computing mean DOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
 
 
-        G0 = self.G0(None, k0, alpha, print_statement='DOS inverse')
+        G0 = alpha*k0*k0*self.G0(None, k0, print_statement='DOS inverse')
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -219,15 +217,15 @@ class Transmission3D:
         Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0(measure_points, k0, alpha, print_statement='DOS measure', regularize=regularize, radius = radius)
+        G0_measure = self.G0(measure_points, k0, print_statement='DOS measure', regularize=regularize, radius = radius)
         # Check for measurement points falling exactly on scatterers
         for j in np.argwhere(np.isnan(G0_measure)):
             point_idx = j[0]
             scatter_idx = j[1]
-            G0_measure[point_idx][scatter_idx] = 1
+            G0_measure[point_idx][scatter_idx] = 0
             if self_interaction:
                 volume = 4*onp.pi*(radius**3)/3
-                self_int = (alpha/volume) * ((2.0/3.0)*onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
+                self_int = (1/(volume*k0*k0)) * ((2.0/3.0)*onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
                 G0_measure[point_idx][scatter_idx] -= self_int
         #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
@@ -256,7 +254,7 @@ class Transmission3D:
 
         M = measure_points.shape[0]
 
-        G0 = self.G0(None, k0, alpha, print_statement='LDOS inverse')
+        G0 = alpha*k0*k0*self.G0(None, k0, print_statement='LDOS inverse')
         G0.fill_diagonal_(-1)
         if self_interaction:
             # Add self-interaction
@@ -269,15 +267,15 @@ class Transmission3D:
         Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0(measure_points, k0, alpha, print_statement='LDOS measure', regularize=regularize, radius=radius)
+        G0_measure = self.G0(measure_points, k0, print_statement='LDOS measure', regularize=regularize, radius=radius)
         # Check for measurement points falling exactly on scatterers
         for j in np.argwhere(np.isnan(G0_measure)):
             point_idx = j[0]
             scatter_idx = j[1]
-            G0_measure[point_idx][scatter_idx] = 1
+            G0_measure[point_idx][scatter_idx] = 0
             if self_interaction:
                 volume = 4*onp.pi*(radius**3)/3
-                self_int = (alpha/volume) * ((2.0/3.0)*onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
+                self_int = (1/(volume*k0*k0)) * ((2.0/3.0)*onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
                 G0_measure[point_idx][scatter_idx] -= self_int
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
@@ -307,7 +305,7 @@ class Transmission3D:
             k0_ = onp.round(k0/(2.0*onp.pi),1)
             print("Computing spectrum and scatterer LDOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
 
-            G0 = self.G0(None, k0, alpha, print_statement='DOS eigvals')
+            G0 = alpha*k0*k0*self.G0(None, k0, print_statement='DOS eigvals')
             G0.fill_diagonal_(-1)
             if self_interaction:
                 # Add self-interaction
