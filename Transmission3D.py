@@ -139,19 +139,21 @@ class Transmission3D:
         self_interaction    - (bool)        include or not self-interactions, defaults to True 
         '''
 
-        # generate source field for scatterer positions
+        # Generate source field for scatterer positions
         E0j = self.generate_source(self.r, k0, u, p, beam_waist, print_statement='run') #(N,3,Ndirs)
         
-        # calculate Ek field at each scatterer position
-        G0 = alpha*k0*k0*self.G0(None, k0, print_statement='run')
-        G0.fill_diagonal_(-1)
+        ### Calculate Ek field at each scatterer position
+        # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
+        M_tensor = -alpha*k0*k0*self.G0(None, k0, print_statement='run')
+        M_tensor.fill_diagonal_(1)
         if self_interaction:
-            # Add self-interaction
-            dims = G0.shape[0]
+            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
+            dims = M_tensor.shape[0]
             volume = 4*onp.pi*(radius**3)/3
             self_int = (alpha/volume) * np.eye(dims)*((2.0/3.0)*onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
-            G0 += self_int
-        Ek = np.linalg.solve(G0, -E0j.reshape(3*self.N,-1)) 
+            M_tensor -= self_int
+        # Solve M_tensor.Ek = E0j
+        Ek = np.linalg.solve(M_tensor, E0j.reshape(3*self.N,-1)) 
         return Ek
 
     def G0(self, points, k0, print_statement='', regularize = False, radius = 0.0):
@@ -203,18 +205,17 @@ class Transmission3D:
         k0_ = onp.round(k0/(2.0*onp.pi),1)
         print("Computing mean DOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
 
-
-        G0 = alpha*k0*k0*self.G0(None, k0, print_statement='DOS inverse')
-        G0.fill_diagonal_(-1)
+        # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
+        M_tensor = -alpha*k0*k0*self.G0(None, k0, print_statement='DOS inverse')
+        M_tensor.fill_diagonal_(1)
         if self_interaction:
-            # Add self-interaction
-            dims = G0.shape[0]
+            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
+            dims = M_tensor.shape[0]
             volume = 4*onp.pi*(radius**3)/3
             self_int = (alpha/volume) * np.eye(dims)*((2.0/3.0)*onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
-            G0 += self_int
-        # Invert the matrix 1 - k^2 alpha Green
-        G0 *= -1
-        Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
+            M_tensor -= self_int
+        # Compute W_tensor = inverse(M_tensor)
+        W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
         G0_measure = self.G0(measure_points, k0, print_statement='DOS measure', regularize=regularize, radius = radius)
@@ -222,15 +223,16 @@ class Transmission3D:
         for j in np.argwhere(np.isnan(G0_measure)):
             point_idx = j[0]
             scatter_idx = j[1]
+            # At scatterers, replace G0(r_i, r_i) by self-interaction
             G0_measure[point_idx][scatter_idx] = 0
             if self_interaction:
                 volume = 4*onp.pi*(radius**3)/3
                 self_int = (1/(volume*k0*k0)) * ((2.0/3.0)*onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
-                G0_measure[point_idx][scatter_idx] -= self_int
+                G0_measure[point_idx][scatter_idx] += self_int
         #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
-        dos_factor = ( np.matmul(G0_measure.t(), G0_measure) * Ainv ).sum()/Npoints
+        dos_factor = ( np.matmul(G0_measure.t(), G0_measure) * W_tensor ).sum()/Npoints
         # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
         alpha_ = onp.real(alpha)
         dos_factor *= 2.0*onp.pi*k0*alpha_
@@ -254,17 +256,17 @@ class Transmission3D:
 
         M = measure_points.shape[0]
 
-        G0 = alpha*k0*k0*self.G0(None, k0, print_statement='LDOS inverse')
-        G0.fill_diagonal_(-1)
+        # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
+        M_tensor = -alpha*k0*k0*self.G0(None, k0, print_statement='DOS inverse')
+        M_tensor.fill_diagonal_(1)
         if self_interaction:
-            # Add self-interaction
-            dims = G0.shape[0]
+            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
+            dims = M_tensor.shape[0]
             volume = 4*onp.pi*(radius**3)/3
             self_int = (alpha/volume) * np.eye(dims)*((2.0/3.0)*onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
-            G0 += self_int
-        # Invert the matrix 1 - k^2 alpha Green
-        G0 *= -1
-        Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
+            M_tensor -= self_int
+        # Compute W_tensor = inverse(M_tensor)
+        W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
         G0_measure = self.G0(measure_points, k0, print_statement='LDOS measure', regularize=regularize, radius=radius)
@@ -272,14 +274,15 @@ class Transmission3D:
         for j in np.argwhere(np.isnan(G0_measure)):
             point_idx = j[0]
             scatter_idx = j[1]
+            # At scatterers, replace G0(r_i, r_i) by self-interaction
             G0_measure[point_idx][scatter_idx] = 0
             if self_interaction:
                 volume = 4*onp.pi*(radius**3)/3
                 self_int = (1/(volume*k0*k0)) * ((2.0/3.0)*onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
-                G0_measure[point_idx][scatter_idx] -= self_int
-        # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
+                G0_measure[point_idx][scatter_idx] += self_int
+        # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, W_tensor),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
-        ldos_factor = np.einsum('ij, ji->i',np.matmul(G0_measure, Ainv), (G0_measure).t() )
+        ldos_factor = np.einsum('ij, ji->i',np.matmul(G0_measure, W_tensor), (G0_measure).t() )
         # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
         alpha_ = onp.real(alpha)
         ldos_factor *= 2.0*onp.pi*k0*alpha_
@@ -290,39 +293,39 @@ class Transmission3D:
         return ldos_factor
 
     def compute_eigenvalues_and_scatterer_LDOS(self, k0, alpha, radius, file_name, self_interaction= True, write_eigenvalues=True):
-            '''
-            Computes the eigenvalues of the Green's matrix, and the corresponding LDOS at scatterers.
-            This computation is way less expensive than the other LDOS, due to simple dependence on the eigenvalues
-            measure_points      - (M,3)  coordinates of points where the LDOS is evaluated
-            k0                  - (1)    frequency of source beam
-            alpha               - (1)    bare static polarizability at given k0
-            radius              - (1)    radius of the scatterers
-            self_interaction    - (bool) include or not self-interactions, defaults to True 
-            '''
+        '''
+        Computes the eigenvalues of the Green's matrix, and the corresponding LDOS at scatterers.
+        This computation is way less expensive than the other LDOS, due to simple dependence on the eigenvalues
+        measure_points      - (M,3)  coordinates of points where the LDOS is evaluated
+        k0                  - (1)    frequency of source beam
+        alpha               - (1)    bare static polarizability at given k0
+        radius              - (1)    radius of the scatterers
+        self_interaction    - (bool) include or not self-interactions, defaults to True 
+        '''
 
-            Npoints = self.r.shape[0]
-            print(self.r.shape)
-            k0_ = onp.round(k0/(2.0*onp.pi),1)
-            print("Computing spectrum and scatterer LDOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
+        Npoints = self.r.shape[0]
+        print(self.r.shape)
+        k0_ = onp.round(k0/(2.0*onp.pi),1)
+        print("Computing spectrum and scatterer LDOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
 
-            G0 = alpha*k0*k0*self.G0(None, k0, print_statement='DOS eigvals')
-            G0.fill_diagonal_(-1)
-            if self_interaction:
-                # Add self-interaction
-                dims = G0.shape[0]
-                volume = 4*onp.pi*(radius**3)/3
-                self_int = (alpha/volume) * np.eye(dims)*((2.0/3.0)*onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
-                G0 += self_int
-            # Invert the matrix 1 - k^2 alpha Green
-            G0 *= -1
-            lambdas = np.linalg.eigvals(G0)
+        # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
+        M_tensor = -alpha*k0*k0*self.G0(None, k0, print_statement='DOS inverse')
+        M_tensor.fill_diagonal_(1)
+        if self_interaction:
+            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
+            dims = M_tensor.shape[0]
+            volume = 4*onp.pi*(radius**3)/3
+            self_int = (alpha/volume) * np.eye(dims)*((2.0/3.0)*onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
+            M_tensor -= self_int
+        # Compute the spectrum of the M_tensor
+        lambdas = np.linalg.eigvals(M_tensor)
 
-            if write_eigenvalues:
-                onp.savetxt(file_name+'_lambdas_'+str(k0_)+'.csv', onp.stack([np.real(lambdas).numpy(), np.imag(lambdas).numpy()]).T)
+        if write_eigenvalues:
+            onp.savetxt(file_name+'_lambdas_'+str(k0_)+'.csv', onp.stack([np.real(lambdas).numpy(), np.imag(lambdas).numpy()]).T)
 
-            # Compute the trace part here
-            dos_factor= ((1 - lambdas)**2 / lambdas).sum()/Npoints
-            dos_factor *= 2.0 * onp.pi / (k0**3 * alpha)
-            dos_factor = np.imag(dos_factor)
+        # Compute the trace part here
+        dos_factor= ((1 - lambdas)**2 / lambdas).sum()/Npoints
+        dos_factor *= 2.0 * onp.pi / (k0**3 * alpha)
+        dos_factor = np.imag(dos_factor)
 
-            return dos_factor
+        return dos_factor

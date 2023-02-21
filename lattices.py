@@ -43,9 +43,9 @@ def triangular(Nx=71,Ny=41,disp=0):
     #r += onp.random.random(2)
     r -= np.mean(r)
     r /= np.max(r[:,0])
-    # r = r.type(np.double)
     if disp != 0:
         r = add_displacement(r,dr=disp)
+    r = r.to(np.double)
     return r
 
 def honeycomb(Nx=71,Ny=41,disp=0):

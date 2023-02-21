@@ -176,32 +176,37 @@ class Transmission2D:
         '''
 
         ### TM calculation
+        # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
         E0j, u = self.generate_source(self.r, k0, thetas, beam_waist, print_statement='run')
-        G0 = alpha*k0*k0* self.G0_TM(self.r, k0, print_statement='run')
-        G0.fill_diagonal_(-1)
+        M_tensor = -alpha*k0*k0* self.G0_TM(self.r, k0, print_statement='run')
+        M_tensor.fill_diagonal_(1)
         if self_interaction:
-            # Add self-interaction
+            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
             volume = onp.pi*radius*radius
-            dims = G0.shape[0]
-            self_int_TM = alpha*k0*k0*np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-            G0 += self_int_TM
-        # Solve
-        EkTM = np.linalg.solve(G0,-E0j)
+            dims = M_tensor.shape[0]
+            self_int_TM = np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+            M_tensor -= alpha*k0*k0*self_int_TM
+        # Solve M_tensor.Ek = E0j
+        EkTM = np.linalg.solve(M_tensor,E0j)
         
         ### TE calculation
+        # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
         E0j = E0j.reshape(self.N,1,len(thetas))*u
-        G0 = alpha*k0*k0* self.G0_TE(None, k0, print_statement='run')
-        G0.fill_diagonal_(-1)
+        M_tensor = -alpha*k0*k0* self.G0_TE(None, k0, print_statement='run')
+        M_tensor.fill_diagonal_(1)
         if self_interaction:
             # Add self-interaction
-            dims = G0.shape[0]
-            self_int_TE = alpha*k0*k0*np.eye(dims) * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-            G0 += self_int_TE
-        # Solve
-        EkTE = np.linalg.solve(G0, -E0j.reshape(2*self.N,-1)) 
+            dims = M_tensor.shape[0]
+            self_int_TE = np.eye(dims) * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+            M_tensor -= alpha*k0*k0*self_int_TE
+        # Solve M_tensor.Ek = E0j
+        EkTE = np.linalg.solve(M_tensor, E0j.reshape(2*self.N,-1)) 
         return EkTE, EkTM
 
     def G0_TM(self, points, k0, print_statement='', regularize = False, radius=0.0):
+        '''
+        Returns a Green's tensor linking all points to all scatterers for the TM polarization
+        '''
         #Green's function
         k0_ = onp.round(k0/(2.0*onp.pi),1)
         print("Calculating TM Green's function at k0L/2pi = "+str(k0_)+' ('+print_statement+')')
@@ -209,6 +214,9 @@ class Transmission2D:
         return G0
 
     def G0_TE(self, points, k0, print_statement='', regularize = False, radius = 0.0):
+        '''
+        Returns a Green's tensor linking all points to all scatterers for the TE polarization
+        '''
         #Green's function
         if points == None:
             points_ = self.r
@@ -243,17 +251,17 @@ class Transmission2D:
         print("Computing mean DOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
 
         ### TM Calculation
-        G0 = alpha*k0*k0* self.G0_TM(self.r, k0, print_statement='DOS inverse')
-        G0.fill_diagonal_(-1)
+        # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
+        M_tensor = -alpha*k0*k0* self.G0_TM(self.r, k0, print_statement='DOS inverse')
+        M_tensor.fill_diagonal_(1)
         if self_interaction:
-            # Add self-interaction
+            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
             volume = onp.pi*radius*radius
-            dims = G0.shape[0]
-            self_int_TM = alpha*k0*k0*np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-            G0 += self_int_TM
-        # Invert the matrix 1 - k^2 alpha Green
-        G0 *= -1
-        Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
+            dims = M_tensor.shape[0]
+            self_int_TM = np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+            M_tensor -= alpha*k0*k0*self_int_TM
+        # Compute W_tensor = inverse(M_tensor)
+        W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
         G0_measure = self.G0_TM(measure_points, k0, print_statement='DOS measure', regularize=regularize, radius=radius)
@@ -261,15 +269,16 @@ class Transmission2D:
         for j in np.argwhere(np.isnan(G0_measure)):
             point_idx = j[0]
             scatter_idx = j[1]
+            # At scatterers, replace G0(r_i, r_i) by self-interaction
             G0_measure[point_idx][scatter_idx] = 0
             if self_interaction:
                 volume = onp.pi*radius*radius
                 self_int_TM = (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-                G0_measure[point_idx][scatter_idx] -= self_int_TM
+                G0_measure[point_idx][scatter_idx] += self_int_TM
         #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
-        dos_factor_TM = ( np.matmul(G0_measure.t(), G0_measure) * Ainv ).sum()/Npoints
+        dos_factor_TM = ( np.matmul(G0_measure.t(), G0_measure) * W_tensor ).sum()/Npoints
 
         # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
         alpha_ = onp.real(alpha)
@@ -277,16 +286,16 @@ class Transmission2D:
         dos_factor_TM = np.imag(dos_factor_TM)
 
         ### TE calculation
-        G0 = alpha*k0*k0*self.G0_TE(None, k0, print_statement='DOS inverse')
-        G0.fill_diagonal_(-1)
+        # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
+        M_tensor = -alpha*k0*k0*self.G0_TE(None, k0, print_statement='DOS inverse')
+        M_tensor.fill_diagonal_(1)
         if self_interaction:
-            # Add self-interaction
-            dims = G0.shape[0]
-            self_int_TE = alpha*k0*k0*np.eye(dims) * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-            G0 += self_int_TE
-        # Invert the matrix 1 - k^2 alpha Green
-        G0 *= -1
-        Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
+            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
+            dims = M_tensor.shape[0]
+            self_int_TE = np.eye(dims) * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+            M_tensor -= alpha*k0*k0*self_int_TE
+        # Compute W_tensor = inverse(M_tensor)
+        W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
         G0_measure = self.G0_TE(measure_points, k0, print_statement='DOS measure', regularize=regularize, radius=radius)
@@ -294,15 +303,16 @@ class Transmission2D:
         for j in np.argwhere(np.isnan(G0_measure)):
             point_idx = j[0]
             scatter_idx = j[1]
+            # At scatterers, replace G0(r_i, r_i) by self-interaction
             G0_measure[point_idx][scatter_idx] = 0
             if self_interaction:
                 volume = onp.pi*radius*radius
                 self_int_TE = (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-                G0_measure[point_idx][scatter_idx] -= self_int_TE
+                G0_measure[point_idx][scatter_idx] += self_int_TE
         #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
-        dos_factor_TE = ( np.matmul(G0_measure.t(), G0_measure) * Ainv ).sum()/Npoints
+        dos_factor_TE = ( np.matmul(G0_measure.t(), G0_measure) * W_tensor ).sum()/Npoints
         # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
         alpha_ = onp.real(alpha)
         dos_factor_TE *= 4.0 * k0*k0* alpha_
@@ -326,17 +336,17 @@ class Transmission2D:
         M = measure_points.shape[0]
 
         ### TM Calculation
-        G0 = alpha*k0*k0* self.G0_TM(self.r, k0, print_statement='LDOS inverse')
-        G0.fill_diagonal_(-1)
+        # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
+        M_tensor = -alpha*k0*k0* self.G0_TM(self.r, k0, print_statement='LDOS inverse')
+        M_tensor.fill_diagonal_(1)
         if self_interaction:
-            # Add self-interaction
+            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
             volume = onp.pi*radius*radius
-            dims = G0.shape[0]
-            self_int_TM = alpha*k0*k0*np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-            G0 += self_int_TM
-        # Invert the matrix 1 - k^2 alpha Green
-        G0 *= -1
-        Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
+            dims = M_tensor.shape[0]
+            self_int_TM = np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+            M_tensor -= alpha*k0*k0*self_int_TM
+        # Compute W_tensor = inverse(M_tensor)
+        W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
         G0_measure = self.G0_TM(measure_points, k0, print_statement='LDOS measure', regularize=regularize, radius=radius)
@@ -344,30 +354,31 @@ class Transmission2D:
         for j in np.argwhere(np.isnan(G0_measure)):
             point_idx = j[0]
             scatter_idx = j[1]
+            # At scatterers, replace G0(r_i, r_i) by self-interaction
             G0_measure[point_idx][scatter_idx] = 0
             if self_interaction:
                 volume = onp.pi*radius*radius
                 self_int_TM = (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-                G0_measure[point_idx][scatter_idx] -= self_int_TM
-        # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
+                G0_measure[point_idx][scatter_idx] += self_int_TM
+        # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, W_tensor),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
-        ldos_factor_TM = np.einsum('ij, ji->i',np.matmul(G0_measure, Ainv), (G0_measure).t() )
+        ldos_factor_TM = np.einsum('ij, ji->i',np.matmul(G0_measure, W_tensor), (G0_measure).t() )
         # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
         alpha_ = onp.real(alpha)
         ldos_factor_TM *= 4.0 * k0*k0*alpha_
         ldos_factor_TM = np.imag(ldos_factor_TM)
 
         ### TE calculation
-        G0 = alpha*k0*k0* self.G0_TE(None, k0, print_statement='LDOS inverse')
-        G0.fill_diagonal_(-1)
+        # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
+        M_tensor = -alpha*k0*k0* self.G0_TE(None, k0, print_statement='LDOS inverse')
+        M_tensor.fill_diagonal_(1)
         if self_interaction:
-            # Add self-interaction
-            dims = G0.shape[0]
-            self_int_TE = alpha*k0*k0*np.eye(dims) * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-            G0 += self_int_TE
-        # Invert the matrix 1 - k^2 alpha Green
-        G0 *= -1
-        Ainv = np.linalg.solve(G0, np.eye(len(G0), dtype=np.complex128))
+            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
+            dims = M_tensor.shape[0]
+            self_int_TE = np.eye(dims) * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+            M_tensor -= alpha*k0*k0*self_int_TE
+        # Compute W_tensor = inverse(M_tensor)
+        W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
         G0_measure = self.G0_TE(measure_points, k0, print_statement='LDOS measure', regularize=regularize, radius=radius)
@@ -375,14 +386,15 @@ class Transmission2D:
         for j in np.argwhere(np.isnan(G0_measure)):
             point_idx = j[0]
             scatter_idx = j[1]
+            # At scatterers, replace G0(r_i, r_i) by self-interaction
             G0_measure[point_idx][scatter_idx] = 0
             if self_interaction:
                 volume = onp.pi*radius*radius
                 self_int_TE = (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-                G0_measure[point_idx][scatter_idx] -= self_int_TE
+                G0_measure[point_idx][scatter_idx] += self_int_TE
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
-        ldos_factor_TE = np.einsum('ij, ji->i',np.matmul(G0_measure, Ainv), (G0_measure).t() )
+        ldos_factor_TE = np.einsum('ij, ji->i',np.matmul(G0_measure, W_tensor), (G0_measure).t() )
         # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
         alpha_ = onp.real(alpha)
         ldos_factor_TE *= 4.0 * k0*k0*alpha_
@@ -409,17 +421,17 @@ class Transmission2D:
         print("Computing spectrum and scatterer LDOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
 
         ### TM Calculation
-        G0 = alpha*k0*k0*self.G0_TM(self.r, k0, print_statement='DOS eigvals')
-        G0.fill_diagonal_(-1)
+        # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
+        M_tensor = -alpha*k0*k0*self.G0_TM(self.r, k0, print_statement='DOS eigvals')
+        M_tensor.fill_diagonal_(1)
         if self_interaction:
-            # Add self-interaction
+            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
             volume = onp.pi*radius*radius
-            dims = G0.shape[0]
-            self_int_TM = alpha*k0*k0*np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-            G0 += self_int_TM
-        # Compute the spectrum of the matrix 1 - k^2 alpha Green here
-        G0 *= -1
-        lambdas = np.linalg.eigvals(G0)
+            dims = M_tensor.shape[0]
+            self_int_TM = np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+            M_tensor -= alpha*k0*k0*self_int_TM
+        # Compute the spectrum of the M_tensor
+        lambdas = np.linalg.eigvals(M_tensor)
 
         if write_eigenvalues:
             onp.savetxt(file_name+'_lambdas_'+str(k0_)+'_TM.csv', onp.stack([np.real(lambdas).numpy(), np.imag(lambdas).numpy()]).T)
@@ -430,16 +442,16 @@ class Transmission2D:
         dos_factor_TM = np.imag(dos_factor_TM)
 
         ### TE calculation
-        G0 = alpha*k0*k0*self.G0_TE(None, k0, print_statement='DOS eigvals')
-        G0.fill_diagonal_(-1)
+        # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
+        M_tensor = -alpha*k0*k0*self.G0_TE(None, k0, print_statement='DOS eigvals')
+        M_tensor.fill_diagonal_(1)
         if self_interaction:
-            # Add self-interaction
-            dims = G0.shape[0]
-            self_int_TE = alpha*k0*k0*np.eye(dims) * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-            G0 += self_int_TE
-        # Compute the spectrum of the matrix 1 - k^2 alpha Green here
-        G0 *= -1
-        lambdas = np.linalg.eigvals(G0)
+            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
+            dims = M_tensor.shape[0]
+            self_int_TE = np.eye(dims) * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+            M_tensor -= alpha*k0*k0*self_int_TE
+        # Compute the spectrum of the M_tensor
+        lambdas = np.linalg.eigvals(M_tensor)
 
         if write_eigenvalues:
             onp.savetxt(file_name+'_lambdas_'+str(k0_)+'_TE.csv', onp.stack([np.real(lambdas).numpy(), np.imag(lambdas).numpy()]).T)
