@@ -232,7 +232,7 @@ class Transmission2D:
         G0 = np.transpose(G0,1,2).reshape(2*G0.shape[0],2*G0.shape[1]).to(np.complex128)
         return G0
 
-    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, file_name, self_interaction= True, regularize = False, write_eigenvalues = True):
+    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, file_name, self_interaction= True, regularize = False):
         '''
         Computes the LDOS averaged at a list of measurement points, for TM and TE.
         This computation is a bit less expensive than the actual LDOS one,

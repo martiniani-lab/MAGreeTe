@@ -18,23 +18,22 @@ import lattices
 import argparse
 
 
-def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, 
+def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
         k0range_args = None, lattice=None, just_plot = False, regularize = True,
-        compute_DOS=False, dospoints=1, compute_SDOS=False, write_eigenvalues=True, compute_LDOS=False, gridsize=(301,301), batch_size = 101*101,
+        compute_DOS=False, compute_interDOS=False, dospoints=1, compute_SDOS=False, write_eigenvalues=True, compute_LDOS=False, gridsize=(301,301), batch_size = 101*101,
         cold_atoms=False, L = 1, output_directory=""):
     '''
     Simple front-end for MAGreeTe
     '''
 
-    #Todo: clean up this main to have explicit 2d or 3d cases, just make main callable from the outside
-    phi = 0.1
+    #Todo: finish sending these to options with more uh, transparent names
     N = 4096
-    size_ratio = 1.0
     a = 0.0
     k = 16#32
     w = 0.2*L
-    source = 'beam'
 
+    # # Name the output directory in a human-readable way containing the two physical parameters, volume fraction and refractive index
+    # output_directory = output_directory+"phi_"+str(phi)+"/"
     if cold_atoms:
         output_directory = output_directory+"cold_atoms"
     else:
@@ -85,6 +84,9 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j,
             else: 
                 print("Not a valid lattice!")
                 exit()
+        else:
+            print("Not a valid dimensionality!")
+            exit()
         file_name = lattice
         i=0
         points = lattices.cut_circle(points)
@@ -212,6 +214,43 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j,
 
             onp.savetxt(file_name+'_dos_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
             onp.savetxt(file_name+'_dos_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+
+        if compute_interDOS:
+            DOSall_TE = []
+            DOSall_TM = []
+            k0_range = []
+
+            M = dospoints
+            measurement_points = utils.uniform_unit_disk_picking(M)
+            measurement_points *= L/2
+
+            # Find all overlaps and redraw while you have some
+            overlaps = np.nonzero(np.sum(np.cdist(measurement_points.to(np.double), points.to(np.double), p=2) <= radius, axis = -1)).squeeze()
+            count = overlaps.shape[0]
+            while count > 0:
+                print("Removing "+str(count)+" overlaps...")
+                measurement_points[overlaps] = L/2 * utils.uniform_unit_disk_picking(count)
+                overlaps = np.nonzero(np.sum(np.cdist(measurement_points.to(np.double), points.to(np.double), p=2) <= radius, axis = -1)).squeeze()
+                if len(overlaps.shape) == 0:
+                    count = 0
+                else:
+                    count = overlaps.shape[0]
+
+            utils.plot_2d_points(measurement_points, file_name+'_measurement')
+
+            for k0, alpha in zip(k0range,alpharange):
+                dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, file_name, regularize=regularize)
+                DOSall_TE.append(dos_TE.numpy())
+                DOSall_TM.append(dos_TM.numpy())
+
+                k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                k0_range.append(k0_)
+
+                onp.savetxt(file_name+'_temp_idos_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
+                onp.savetxt(file_name+'_temp_idos_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+
+            onp.savetxt(file_name+'_idos_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
+            onp.savetxt(file_name+'_idos_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
 
         if compute_LDOS:
             # Expensive computation
@@ -361,6 +400,41 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j,
 
             onp.savetxt(file_name+'_dos.csv',onp.stack([k0_range,DOSall]).T)
 
+        if compute_interDOS:
+            DOSall = []
+            k0_range = []
+
+            # Expensive computation in 3d
+            M = dospoints
+            measurement_points = utils.uniform_unit_ball_picking(M, ndim)
+            measurement_points *= L/2
+
+            # Find all overlaps and redraw while you have some
+            overlaps = np.nonzero(np.sum(np.cdist(measurement_points, points, p=2) <= radius)).squeeze()
+            count = overlaps.shape[0]
+            while count > 0:
+                print("Removing "+str(count)+" overlaps...")
+                measurement_points[overlaps] = L/2 * utils.uniform_unit_ball_picking(count, ndim).squeeze()
+                overlaps = np.nonzero(np.sum(np.cdist(measurement_points, points, p=2) <= radius))
+                if len(overlaps.shape) == 0:
+                    count = 0
+                else:
+                    count = overlaps.shape[0]
+
+
+            utils.plot_3d_points(measurement_points, file_name+'_measurement')
+
+            for k0, alpha in zip(k0range,alpharange):
+                dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, file_name, regularize=regularize)
+                DOSall.append(dos.numpy())
+
+                k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                k0_range.append(k0_)
+
+                onp.savetxt(file_name+'_temp_idos.csv',onp.stack([k0_range,DOSall]).T)
+
+            onp.savetxt(file_name+'_idos.csv',onp.stack([k0_range,DOSall]).T)
+
         
         if compute_LDOS:
             # Expensive computation
@@ -410,6 +484,8 @@ if __name__ == '__main__':
         default = os.cpu_count", default=os.cpu_count())
     parser.add_argument("-n", "--refractive_n", type=complex, help="Complex refractive index of the dielectric material \
         default = 1.65 - 0.025j", default = 1.6 - 0.025j)
+    parser.add_argument("--phi", type=float, help="Volume fraction of scatterers within the medium \
+        default = 0.1", default = 0.1)  
     parser.add_argument("-k", "--k0range", nargs='+', type=float, help = "Values of k0 to span, in units of 2pi/L. Can be a single-value argument, a k_min and a k_max (with default step 1), or k_min, k_max, and step\
         default=(20,40,0.5) in 2d, (10,40,0.5) in 3d", default=None)
     parser.add_argument("-l", "--lattice", type=str, help="Use a simple lattice in lieu of datapoints as entry. \
@@ -420,6 +496,8 @@ if __name__ == '__main__':
     parser.add_argument("-r", "--regularize", action='store_true', help="Regularize the fields and DOS inside of scatterers\
         default=False", default=False)
     parser.add_argument("-dos","--compute_DOS", action='store_true', help="Compute the mean DOS of the medium  \
+        default=False", default=False)
+    parser.add_argument("-idos","--compute_interDOS", action='store_true', help="Compute the mean DOS of the medium away from scatterers  \
         default=False", default=False)
     parser.add_argument("--dospoints",type=int, help="Number of points to use for the mean DOS computation \
         default = 1000", default=1000)
@@ -441,6 +519,7 @@ if __name__ == '__main__':
     ndim                = args.ndim
     n_cpus              = args.n_cpus
     refractive_n        = args.refractive_n
+    phi                 = args.phi
     k0range_args        = args.k0range
     if k0range_args     != None:
         k0range_args    = tuple(k0range_args)
@@ -448,6 +527,7 @@ if __name__ == '__main__':
     regularize          = args.regularize
     lattice             = args.lattice
     compute_DOS         = args.compute_DOS
+    compute_interDOS    = args.compute_interDOS
     compute_SDOS        = args.compute_SDOS
     write_eigenvalues   = args.write_eigenvalues
     compute_LDOS        = args.compute_LDOS
@@ -459,8 +539,8 @@ if __name__ == '__main__':
     np.set_num_threads(n_cpus)
     np.device("cpu")
     main(head_directory, ndim, 
-        refractive_n = refractive_n, k0range_args = k0range_args, lattice=lattice, regularize=regularize,
-        just_plot=just_plot, compute_DOS=compute_DOS, dospoints=dospoints, compute_SDOS=compute_SDOS, write_eigenvalues=write_eigenvalues,  compute_LDOS=compute_LDOS, gridsize=gridsize, 
+        refractive_n = refractive_n, phi=phi, k0range_args = k0range_args, lattice=lattice, regularize=regularize,
+        just_plot=just_plot, compute_DOS=compute_DOS, compute_interDOS=compute_interDOS, dospoints=dospoints, compute_SDOS=compute_SDOS, write_eigenvalues=write_eigenvalues,  compute_LDOS=compute_LDOS, gridsize=gridsize, 
         L=boxsize, output_directory=output_directory)
     sys.exit()
 
