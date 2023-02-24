@@ -21,19 +21,27 @@ import argparse
 def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
         k0range_args = None, lattice=None, just_plot = False, regularize = True,
         compute_DOS=False, compute_interDOS=False, dospoints=1, compute_SDOS=False, write_eigenvalues=True, compute_LDOS=False, gridsize=(301,301), batch_size = 101*101,
-        cold_atoms=False, L = 1, output_directory=""):
+        cold_atoms=False, L = 1, output_directory="",
+        donut = False):
     '''
     Simple front-end for MAGreeTe
     '''
 
-    #Todo: finish sending these to options with more uh, transparent names
     N = 4096
     a = 0.0
     k = 16#32
     w = 0.2*L
+    phi_ = phi
 
-    # # Name the output directory in a human-readable way containing the two physical parameters, volume fraction and refractive index
-    # output_directory = output_directory+"phi_"+str(phi)+"/"
+    #Todo: finish sending these to options with more uh, transparent names
+    if donut:
+        N = 4096
+        a = -1.0
+        k = 80
+        phi_ = 0.6
+
+    # Name the output directory in a human-readable way containing the two physical parameters, volume fraction and refractive index
+    output_directory = output_directory+"phi_"+str(phi)+"/"
     if cold_atoms:
         output_directory = output_directory+"cold_atoms"
     else:
@@ -43,8 +51,8 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
     utils.trymakedir(output_directory)
 
     if lattice == None:
-        dname = head_directory+'HPY'+str(ndim)+'D/phi'+str(phi)+'/a'+str(a)+'/'
-        file_name = 'HPY'+str(ndim)+'D_phi'+str(phi)+'_a'+str(a)+'_N'+str(N)+'_K'+str(k)
+        dname = head_directory+'HPY'+str(ndim)+'D/phi'+str(phi_)+'/a'+str(a)+'/'
+        file_name = 'HPY'+str(ndim)+'D_phi'+str(phi_)+'_a'+str(a)+'_N'+str(N)+'_K'+str(k)
         file_name += '_points'
 
         i=0
@@ -225,12 +233,14 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
             measurement_points *= L/2
 
             # Find all overlaps and redraw while you have some
-            overlaps = np.nonzero(np.sum(np.cdist(measurement_points.to(np.double), points.to(np.double), p=2) <= radius, axis = -1)).squeeze()
+            # Following Pierrat et al., I use 1 diameter as the spacing there
+            spacing = 2.0*radius
+            overlaps = np.nonzero(np.sum(np.cdist(measurement_points.to(np.double), points.to(np.double), p=2) <= spacing, axis = -1)).squeeze()
             count = overlaps.shape[0]
             while count > 0:
                 print("Removing "+str(count)+" overlaps...")
                 measurement_points[overlaps] = L/2 * utils.uniform_unit_disk_picking(count)
-                overlaps = np.nonzero(np.sum(np.cdist(measurement_points.to(np.double), points.to(np.double), p=2) <= radius, axis = -1)).squeeze()
+                overlaps = np.nonzero(np.sum(np.cdist(measurement_points.to(np.double), points.to(np.double), p=2) <= spacing, axis = -1)).squeeze()
                 if len(overlaps.shape) == 0:
                     count = 0
                 else:
@@ -410,12 +420,14 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
             measurement_points *= L/2
 
             # Find all overlaps and redraw while you have some
-            overlaps = np.nonzero(np.sum(np.cdist(measurement_points, points, p=2) <= radius)).squeeze()
+            # Following Pierrat et al., I use 1 diameter as the spacing there
+            spacing = 2.0*radius
+            overlaps = np.nonzero(np.sum(np.cdist(measurement_points, points, p=2) <= spacing)).squeeze()
             count = overlaps.shape[0]
             while count > 0:
                 print("Removing "+str(count)+" overlaps...")
                 measurement_points[overlaps] = L/2 * utils.uniform_unit_ball_picking(count, ndim).squeeze()
-                overlaps = np.nonzero(np.sum(np.cdist(measurement_points, points, p=2) <= radius))
+                overlaps = np.nonzero(np.sum(np.cdist(measurement_points, points, p=2) <= spacing))
                 if len(overlaps.shape) == 0:
                     count = 0
                 else:
@@ -513,6 +525,10 @@ if __name__ == '__main__':
     parser.add_argument("-o", "--output", type=str, help="Output directory\
         default = ./refractive_n_$Value/", default='')
 
+    # DEBUG ARGUMENTS
+    parser.add_argument("--donut", action="store_true", help="Do the donut thing! \
+        default=False", default=False)
+
     args = parser.parse_args()
 
     head_directory      = args.head_directory
@@ -536,12 +552,16 @@ if __name__ == '__main__':
     boxsize             = args.boxsize
     output_directory    = args.output
 
+    # Debug arguments
+    donut               = args.donut
+
     np.set_num_threads(n_cpus)
     np.device("cpu")
     main(head_directory, ndim, 
         refractive_n = refractive_n, phi=phi, k0range_args = k0range_args, lattice=lattice, regularize=regularize,
         just_plot=just_plot, compute_DOS=compute_DOS, compute_interDOS=compute_interDOS, dospoints=dospoints, compute_SDOS=compute_SDOS, write_eigenvalues=write_eigenvalues,  compute_LDOS=compute_LDOS, gridsize=gridsize, 
-        L=boxsize, output_directory=output_directory)
+        L=boxsize, output_directory=output_directory,
+        donut = donut)
     sys.exit()
 
 
