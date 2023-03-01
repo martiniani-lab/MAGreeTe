@@ -21,6 +21,7 @@ import argparse
 def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
         k0range_args = None, lattice=None, just_plot = False, regularize = True,
         compute_DOS=False, compute_interDOS=False, dospoints=1, compute_SDOS=False, write_eigenvalues=True, compute_LDOS=False, gridsize=(301,301), batch_size = 101*101,
+        intensity_fields = False, amplitude_fields = False, phase_fields = False,
         cold_atoms=False, L = 1, output_directory="",
         donut = False):
     '''
@@ -29,7 +30,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
 
     N = 4096
     a = 0.0
-    k = 16#32
+    k = 16#32so
     w = 0.2*L
     phi_ = phi
 
@@ -178,6 +179,74 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
         utils.plot_transmission_angularbeam(k0range, L, thetas, TEtotal, file_name, appended_string='TE')
         utils.plot_transmission_flat(k0range, L, thetas, TMtotal, file_name, appended_string='TM')
         utils.plot_transmission_flat(k0range, L, thetas, TEtotal, file_name, appended_string='TE')
+        utils.plot_angular_averaged_transmission(k0range, L, TMtotal, file_name, appended_string='TM')
+        utils.plot_angular_averaged_transmission(k0range, L, TEtotal, file_name, appended_string='TE')
+
+        # Compute full fields
+        # Pretty expensive!
+        some_fields = intensity_fields+amplitude_fields+phase_fields
+        if some_fields:
+            # Expensive computation
+            ngridx = gridsize[0]
+            ngridy = gridsize[1]
+            xyratio = ngridx/ngridy
+            window_width = 1.2
+            x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx),onp.linspace(0,1,ngridy))
+            meas_points = np.tensor((onp.vstack([x.ravel(),y.ravel()]).T-0.5)*L*window_width)
+
+            batches = np.split(meas_points, batch_size)
+            n_batches = len(batches)
+
+            extra_string=""
+            if n_batches > 1:
+                extra_string = extra_string+"es"
+            print("Computing the full fields at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
+
+            for k0, alpha in zip(k0range,alpharange):
+                k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                print("k0L/2pi = "+str(k0_))
+
+                for index, angle in enumerate(thetas):
+                    angle_ = onp.round(angle*180/onp.pi)
+                    print("angle = "+str(angle_)+"degrees")
+
+                    ETEall = []
+                    ETMall = []
+
+                    for batch in range(0, n_batches):
+                        print("Batch "+str(batch+1))
+                        batch_points = batches[batch]
+
+                        ### XXX DEBUG: PROBLEM WITH TM WHEN ANGLE HAS ONLY ONE ELEMENT!
+
+                        print(EjTE.shape)
+                        print(EjTM.shape)
+
+                        EkTE, EkTM = solver.calc_EM(batch_points, EjTE[:,index], EjTM[:,index], k0, alpha, [angle], w, regularize=regularize, radius=radius)
+
+                        print(EkTE.shape)
+                        print(EkTM.shape)
+
+                        ETEall.append(EkTE)
+                        ETMall.append(EkTM)
+
+                    print(len(ETEall))
+                    print(len(ETMall))
+
+                    print(ETEall[0].shape)
+                    print(ETMall[0].shape)
+                    
+                    ETEall = np.cat(ETEall, dim=1)
+                    ETMall = np.cat(ETMall, dim=1)
+
+                    print(ETEall.shape)
+                    print(ETMall.shape)
+
+                    ETEall = ETEall.reshape(ngridx, ngridy)
+                    ETMall = ETMall.reshape(ngridx, ngridy)
+
+                    utils.plot_full_fields(ETEall, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='TE', my_dpi = 300)
+                    utils.plot_full_fields(ETMall, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='TM', my_dpi = 300)
 
         if compute_SDOS:
             DOSall_TE = []
@@ -197,6 +266,9 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
 
             onp.savetxt(file_name+'_sdos_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
             onp.savetxt(file_name+'_sdos_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+
+            utils.plot_averaged_DOS(k0range, L, DOSall_TE, file_name, 'sdos', appended_string='TE')
+            utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'sdos', appended_string='TM')
 
         if compute_DOS:
             DOSall_TE = []
@@ -222,6 +294,9 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
 
             onp.savetxt(file_name+'_dos_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
             onp.savetxt(file_name+'_dos_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+
+            utils.plot_averaged_DOS(k0range, L, DOSall_TE, file_name, 'dos', appended_string='TE')
+            utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'dos', appended_string='TM')
 
         if compute_interDOS:
             DOSall_TE = []
@@ -262,6 +337,9 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
             onp.savetxt(file_name+'_idos_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
             onp.savetxt(file_name+'_idos_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
 
+            utils.plot_averaged_DOS(k0range, L, DOSall_TE, file_name, 'idos', appended_string='TE')
+            utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'idos', appended_string='TM')
+
         if compute_LDOS:
             # Expensive computation
             ngridx = gridsize[0]
@@ -299,8 +377,8 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
                 ldos_TE = np.cat(outputs_TE)
                 ldos_TM = np.cat(outputs_TM)
 
-                utils.plot_LDOS_2D(ldos_TE,k0_,ngridx,ngridy,file_name, appended_string='TE')
-                utils.plot_LDOS_2D(ldos_TM,k0_,ngridx,ngridy,file_name, appended_string='TM')
+                utils.plot_LDOS_2D(ldos_TE,k0_,ngridx,ngridy,file_name, appended_string='TE', my_dpi = 300)
+                utils.plot_LDOS_2D(ldos_TM,k0_,ngridx,ngridy,file_name, appended_string='TM', my_dpi = 300)
 
 
     elif ndim==3:
@@ -372,6 +450,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
     
         utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name) 
         utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name) 
+        utils.plot_angular_averaged_transmission(k0range, L, Etotal, file_name)
 
         if compute_SDOS:
             DOSall = []
@@ -387,6 +466,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
                 onp.savetxt(file_name+'_temp_sdos.csv',onp.stack(([k0_range,DOSall])).T)
 
             onp.savetxt(file_name+'_sdos.csv', onp.stack([k0_range,DOSall]).T)
+            utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'sdos')
 
         if compute_DOS:
             DOSall = []
@@ -409,6 +489,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
                 onp.savetxt(file_name+'_temp_dos.csv',onp.stack([k0_range,DOSall]).T)
 
             onp.savetxt(file_name+'_dos.csv',onp.stack([k0_range,DOSall]).T)
+            utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'dos')
 
         if compute_interDOS:
             DOSall = []
@@ -446,6 +527,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
                 onp.savetxt(file_name+'_temp_idos.csv',onp.stack([k0_range,DOSall]).T)
 
             onp.savetxt(file_name+'_idos.csv',onp.stack([k0_range,DOSall]).T)
+            utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'idos')
 
         
         if compute_LDOS:
@@ -484,7 +566,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
 
                 ldos = np.cat(outputs)
 
-                utils.plot_LDOS_2D(ldos,k0_,ngridx,ngridy,file_name, appended_string='z=0')
+                utils.plot_LDOS_2D(ldos,k0_,ngridx,ngridy,file_name, appended_string='z=0', my_dpi = 300)
 
 
 if __name__ == '__main__':
@@ -516,9 +598,15 @@ if __name__ == '__main__':
     parser.add_argument("-sdos","--compute_SDOS", action='store_true', help="Compute the spectrum of the Green's matrix, as well as the mean DOS at scatterers  \
         default=False", default=False)
     parser.add_argument("-ev","--write_eigenvalues", action='store_false', help="Write the eigenvalues of the Green's matrix at every frequency  \
-        default=True", default=True)
+        default=True", default=False)
     parser.add_argument("-ldos","--compute_LDOS", action='store_true', help="Compute an LDOS map  \
         default=False", default=False)
+    parser.add_argument("--intensity_fields", action = "store_true", help="Output images of intensity fields for every beam used in the angular plot, in real space\
+        default = False", default=False)
+    parser.add_argument("--amplitude_fields", action = "store_true", help="Output images of amplitude fields for every beam used in the angular plot, in real space\
+        default = False", default=False)
+    parser.add_argument("--phase_fields", action = "store_true", help="Output images of phase fields for every beam used in the angular plot, in real space\
+        default = False", default=False)
     parser.add_argument("-g","--gridsize",nargs=2,type=int, help="Number of pixels to use in the sidelength of output images \
         default = (301,301)", default=(301,301))
     parser.add_argument("--boxsize", type=float, help="Set physical units for the box size: the results are dimensionless so that default=1m", default = 1)
@@ -544,11 +632,14 @@ if __name__ == '__main__':
     lattice             = args.lattice
     compute_DOS         = args.compute_DOS
     compute_interDOS    = args.compute_interDOS
+    dospoints           = args.dospoints
     compute_SDOS        = args.compute_SDOS
     write_eigenvalues   = args.write_eigenvalues
     compute_LDOS        = args.compute_LDOS
+    intensity_fields    = args.intensity_fields
+    amplitude_fields    = args.amplitude_fields
+    phase_fields        = args.phase_fields
     gridsize            = tuple(args.gridsize)
-    dospoints           = args.dospoints
     boxsize             = args.boxsize
     output_directory    = args.output
 
@@ -559,7 +650,10 @@ if __name__ == '__main__':
     np.device("cpu")
     main(head_directory, ndim, 
         refractive_n = refractive_n, phi=phi, k0range_args = k0range_args, lattice=lattice, regularize=regularize,
-        just_plot=just_plot, compute_DOS=compute_DOS, compute_interDOS=compute_interDOS, dospoints=dospoints, compute_SDOS=compute_SDOS, write_eigenvalues=write_eigenvalues,  compute_LDOS=compute_LDOS, gridsize=gridsize, 
+        just_plot=just_plot,
+        compute_DOS=compute_DOS, compute_interDOS=compute_interDOS, dospoints=dospoints, compute_SDOS=compute_SDOS, write_eigenvalues=write_eigenvalues,  compute_LDOS=compute_LDOS,
+        intensity_fields = intensity_fields, amplitude_fields=amplitude_fields, phase_fields=phase_fields,
+        gridsize=gridsize, 
         L=boxsize, output_directory=output_directory,
         donut = donut)
     sys.exit()

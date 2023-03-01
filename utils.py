@@ -171,11 +171,54 @@ def plot_singlebeam_angular_frequency_plot(k0range, L, thetas, intensity, file_n
     plt.savefig(file_name_root+'_transmission_angular'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
     plt.close()
 
+def plot_full_fields(field, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name_root, appended_string='', my_dpi = 1):
+
+    if intensity_fields:
+
+        intensity = onp.absolute(field)**2
+
+        fig = plt.figure(figsize=(ngridx/my_dpi,ngridy/my_dpi), dpi=my_dpi)
+        ax = plt.gca()
+        pc = ax.imshow(intensity,cmap='magma' ,norm=clr.LogNorm(vmin=1e-3,vmax=1e0))
+        fig.colorbar(pc)
+        plt.savefig(file_name_root+'_log_capped_intensity_k0'+str(k0_)+'_angle_'+str(angle_)+appended_string+'.png', bbox_inches = 'tight',dpi=my_dpi, pad_inches = 0)
+        plt.close()
+
+        fig = plt.figure(figsize=(ngridx/my_dpi,ngridy/my_dpi), dpi=my_dpi)
+        ax = plt.gca()
+        pc = ax.imshow(intensity,cmap='magma', vmin=1e-3,vmax=1e0)
+        fig.colorbar(pc)
+        plt.savefig(file_name_root+'_linear_capped_intensity_k0'+str(k0_)+'_angle_'+str(angle_)+appended_string+'.png', bbox_inches = 'tight',dpi=my_dpi, pad_inches = 0)
+        plt.close()
+
+    if amplitude_fields:
+        amplitude = onp.real(field)
+
+        fig = plt.figure(figsize=(ngridx/my_dpi,ngridy/my_dpi), dpi=my_dpi)
+        ax = plt.gca()
+        pc = ax.imshow(amplitude,cmap=cmr.redshift, vmin=-1e0,vmax=1e0)
+        fig.colorbar(pc)
+        plt.savefig(file_name_root+'_linear_capped_amplitude_k0'+str(k0_)+'_angle_'+str(angle_)+appended_string+'.png', bbox_inches = 'tight',dpi=my_dpi, pad_inches = 0)
+        plt.close()
+
+    if phase_fields:
+        pure_phase = onp.angle(field)
+
+        fig = plt.figure(figsize=(ngridx/my_dpi,ngridy/my_dpi), dpi=my_dpi)
+        ax = plt.gca()
+        pc = ax.imshow(pure_phase,cmap=cmr.emergency_s, vmin=-onp.pi,vmax=onp.pi,)
+        fig.colorbar(pc)
+        plt.savefig(file_name_root+'_phase_k0'+str(k0_)+'_angle_'+str(angle_)+appended_string+'.png', bbox_inches = 'tight',dpi=my_dpi, pad_inches = 0)
+        plt.close()
+
+
 def plot_2d_field(intensity, ngrid, file_name_root, cmap=cmr.ember,logscale = True, vmin=1e-3, vmax=1e0,appended_string=''):
     fig = plt.figure()
     ax = plt.gca()
     if logscale:
         pc = ax.imshow(intensity.reshape(ngrid,ngrid),cmap=cmap,norm=clr.LogNorm(vmin=vmin,vmax=vmax))
+    else: 
+        pc = ax.imshow(intensity.reshape(ngrid,ngrid),cmap=cmap,vmin=vmin,vmax=vmax)
     fig.colorbar(pc)
     plt.savefig(file_name_root+'_intensity'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
     plt.close()
@@ -198,12 +241,41 @@ def plot_2d_points(points, file_name):
 
 def plot_LDOS_2D(ldos_change,k0_,ngridx,ngridy,file_name,my_dpi=1, appended_string=''):
 
+    # Matplotlib deals with figure sizes in a completely idiotic way, workaround https://stackoverflow.com/questions/13714454/specifying-and-saving-a-figure-with-exact-size-in-pixels
     fig = plt.figure(figsize=(ngridx/my_dpi,ngridy/my_dpi), dpi=my_dpi)
     ax = plt.gca()
     pc=ax.imshow(ldos_change.numpy().reshape(ngridy,ngridx),cmap=cmr.iceburn, vmin=-1.0, vmax=1.0)
     ax.tick_params(left = False, right = False , labelleft = False , labelbottom = False, bottom = False)
     plt.savefig(file_name+'_k0_'+str(k0_)+'_ldos_capped'+appended_string+'.png', bbox_inches='tight', pad_inches=0., dpi=my_dpi)
     plt.close()
+
+def plot_angular_averaged_transmission(k0range, L, intensities, file_name, appended_string=''):
+    # Angular-averaged transmission
+    intensities_ = onp.sum(intensities*onp.diag(onp.ones(intensities.shape[-1])),axis=1)
+    avg_intensity = onp.mean(intensities_, axis=1)
+    fig = plt.figure()
+    ax = fig.gca()
+    freqs = onp.real(k0range*L/(2*onp.pi))
+    ax.plot(freqs, avg_intensity)
+    ax.set_xlabel(r'$k_0L/2\pi$')
+    ax.set_ylabel('Intensity')
+    ax.legend()
+    ax.set_yscale('log')
+    plt.savefig(file_name+'_transmission_avg'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
+    plt.close()
+
+def plot_averaged_DOS(k0range, L, DOS, file_name, DOS_type, appended_string=''):
+    # Angular-averaged transmission
+    fig = plt.figure()
+    ax = fig.gca()
+    freqs = onp.real(k0range*L/(2*onp.pi))
+    ax.plot(freqs, DOS)
+    ax.set_xlabel(r'$k_0L/2\pi$')
+    ax.set_ylabel(r'$\delta\varrho$')
+    ax.legend()
+    plt.savefig(file_name+'_'+DOS_type+'_avg'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
+    plt.close()
+
 
 def trymakedir(path):
     """this function deals with common race conditions"""
