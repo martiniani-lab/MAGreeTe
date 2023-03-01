@@ -191,8 +191,8 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
             ngridy = gridsize[1]
             xyratio = ngridx/ngridy
             window_width = 1.2
-            x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx),onp.linspace(0,1,ngridy))
-            meas_points = np.tensor((onp.vstack([x.ravel(),y.ravel()]).T-0.5)*L*window_width)
+            x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5)
+            meas_points = np.tensor((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
 
             batches = np.split(meas_points, batch_size)
             n_batches = len(batches)
@@ -217,35 +217,27 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
                         print("Batch "+str(batch+1))
                         batch_points = batches[batch]
 
-                        ### XXX DEBUG: PROBLEM WITH TM WHEN ANGLE HAS ONLY ONE ELEMENT!
-
-                        print(EjTE.shape)
-                        print(EjTM.shape)
-
-                        EkTE, EkTM = solver.calc_EM(batch_points, EjTE[:,index], EjTM[:,index], k0, alpha, [angle], w, regularize=regularize, radius=radius)
-
-                        print(EkTE.shape)
-                        print(EkTM.shape)
+                        EkTE, EkTM = solver.calc_EM(batch_points, EjTE[:,index], EjTM[:,index].unsqueeze(-1), k0, alpha, [angle], w, regularize=regularize, radius=radius)
 
                         ETEall.append(EkTE)
                         ETMall.append(EkTM)
 
-                    print(len(ETEall))
-                    print(len(ETMall))
 
-                    print(ETEall[0].shape)
-                    print(ETMall[0].shape)
-                    
-                    ETEall = np.cat(ETEall, dim=1)
-                    ETMall = np.cat(ETMall, dim=1)
+                    ETEall = np.cat(ETEall, dim=0).squeeze(-1)
+                    ETMall = np.cat(ETMall, dim=0)
 
-                    print(ETEall.shape)
-                    print(ETMall.shape)
+                    ETEall_amplitude         = np.sqrt(ETEall[:,0]**2 + ETEall[:,1]**2)
+                    ETEall_longitudinal      = ETEall[:,0]*onp.cos(angle) - ETEall[:,1]*onp.sin(angle)
+                    ETEall_transverse        = ETEall[:,0]*onp.sin(angle) + ETEall[:,1]*onp.cos(angle)
 
-                    ETEall = ETEall.reshape(ngridx, ngridy)
-                    ETMall = ETMall.reshape(ngridx, ngridy)
+                    ETEall_amplitude    = ETEall_amplitude.reshape(ngridy, ngridx)
+                    ETEall_longitudinal = ETEall_longitudinal.reshape(ngridy, ngridx)
+                    ETEall_transverse   = ETEall_transverse.reshape(ngridy, ngridx)
+                    ETMall = ETMall.reshape(ngridy, ngridx)
 
-                    utils.plot_full_fields(ETEall, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='TE', my_dpi = 300)
+                    utils.plot_full_fields(ETEall_amplitude, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='TE', my_dpi = 300)
+                    utils.plot_full_fields(ETEall_longitudinal, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='TE_long', my_dpi = 300)
+                    utils.plot_full_fields(ETEall_transverse, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='TE_trans', my_dpi = 300)
                     utils.plot_full_fields(ETMall, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='TM', my_dpi = 300)
 
         if compute_SDOS:

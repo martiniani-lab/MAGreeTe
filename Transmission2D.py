@@ -103,8 +103,7 @@ class Transmission2D:
             print('Calculating Beam Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
             E0j = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
             u = np.zeros((2,len(thetas)))
-            for idx in range(len(thetas)):
-                theta = thetas[idx]
+            for idx, theta in enumerate(thetas):
                 cost, sint = onp.cos(-theta),onp.sin(-theta)
                 u[:,idx] = np.tensor([sint, cost])
                 rot = np.tensor([[cost,-sint],[sint,cost]])
