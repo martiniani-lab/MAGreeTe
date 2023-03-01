@@ -444,6 +444,60 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
         utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name) 
         utils.plot_angular_averaged_transmission(k0range, L, Etotal, file_name)
 
+        # Compute full fields
+        # Pretty expensive!
+        some_fields = intensity_fields+amplitude_fields+phase_fields
+        if some_fields:
+            # Expensive computation
+            ngridx = gridsize[0]
+            ngridy = gridsize[1]
+            xyratio = ngridx/ngridy
+            window_width = 1.2
+            x,y,z = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5, [0.0])
+            meas_points = np.tensor((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T)*L*window_width)
+
+            batches = np.split(meas_points, batch_size)
+            n_batches = len(batches)
+
+            extra_string=""
+            if n_batches > 1:
+                extra_string = extra_string+"es"
+            print("Computing the full fields at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
+
+            for k0, alpha in zip(k0range,alpharange):
+                k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                print("k0L/2pi = "+str(k0_))
+
+                for index, angle in enumerate(thetas):
+                    angle_ = onp.round(angle*180/onp.pi)
+                    print("angle = "+str(angle_)+"degrees")
+
+                    Eall = []
+
+                    for batch in range(0, n_batches):
+                        print("Batch "+str(batch+1))
+                        batch_points = batches[batch]
+
+                        E = solver.calc_EM(batch_points, Ej[:,index], k0, alpha, u[index], p[index], w, regularize=regularize, radius=radius)
+
+                        Eall.append(E)
+
+
+                    Eall = np.cat(Eall, dim=0)
+
+                    Eall_amplitude         = np.sqrt(Eall[:,0]**2 + Eall[:,1]**2 + Eall[:,2]**2)
+                    Eall_longitudinal      = Eall[:,0]*onp.cos(angle) - Eall[:,1]*onp.sin(angle)
+                    Eall_transverse        = Eall[:,0]*onp.sin(angle) + Eall[:,1]*onp.cos(angle)
+                    Eall_vertical          = Eall[:,2]
+
+                    
+
+                    utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='TE', my_dpi = 300)
+                    utils.plot_full_fields(Eall_longitudinal, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='TE_long', my_dpi = 300)
+                    utils.plot_full_fields(Eall_transverse, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='TE_trans', my_dpi = 300)
+                    utils.plot_full_fields(Eall_vertical, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='TE_trans', my_dpi = 300)
+
+
         if compute_SDOS:
             DOSall = []
             k0_range = []
