@@ -20,7 +20,7 @@ import argparse
 
 def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
         k0range_args = None, lattice=None, just_plot = False, regularize = True,
-        compute_DOS=False, compute_interDOS=False, dospoints=1, compute_SDOS=False, write_eigenvalues=True, compute_LDOS=False, gridsize=(301,301), batch_size = 101*101,
+        compute_DOS=False, compute_interDOS=False, dospoints=1, compute_SDOS=False, write_eigenvalues=True, compute_LDOS=False, gridsize=(301,301), window_width=1.2, batch_size = 101*101,
         intensity_fields = False, amplitude_fields = False, phase_fields = False,
         cold_atoms=False, L = 1, output_directory="",
         donut = False):
@@ -190,7 +190,6 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
             ngridx = gridsize[0]
             ngridy = gridsize[1]
             xyratio = ngridx/ngridy
-            window_width = 1.2
             x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5)
             meas_points = np.tensor((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
 
@@ -235,10 +234,10 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
                     ETEall_transverse   = ETEall_transverse.reshape(ngridy, ngridx)
                     ETMall = ETMall.reshape(ngridy, ngridx)
 
-                    utils.plot_full_fields(ETEall_amplitude, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='TE', my_dpi = 300)
-                    utils.plot_full_fields(ETEall_longitudinal, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='TE_long', my_dpi = 300)
-                    utils.plot_full_fields(ETEall_transverse, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='TE_trans', my_dpi = 300)
-                    utils.plot_full_fields(ETMall, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='TM', my_dpi = 300)
+                    utils.plot_full_fields(ETEall_amplitude, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_TE', my_dpi = 300)
+                    utils.plot_full_fields(ETEall_longitudinal, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_TE_long', my_dpi = 300)
+                    utils.plot_full_fields(ETEall_transverse, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_TE_trans', my_dpi = 300)
+                    utils.plot_full_fields(ETMall, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_TM', my_dpi = 300)
 
         if compute_SDOS:
             DOSall_TE = []
@@ -337,7 +336,6 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
             ngridx = gridsize[0]
             ngridy = gridsize[1]
             xyratio = ngridx/ngridy
-            window_width = 1.2
             x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx),onp.linspace(0,1,ngridy))
             measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel()]).T-0.5)*L*window_width)
 
@@ -452,7 +450,6 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
             ngridx = gridsize[0]
             ngridy = gridsize[1]
             xyratio = ngridx/ngridy
-            window_width = 1.2
             x,y,z = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5, [0.0])
             meas_points = np.tensor((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T)*L*window_width)
 
@@ -492,10 +489,10 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
 
                     
 
-                    utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='TE', my_dpi = 300)
-                    utils.plot_full_fields(Eall_longitudinal, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='TE_long', my_dpi = 300)
-                    utils.plot_full_fields(Eall_transverse, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='TE_trans', my_dpi = 300)
-                    utils.plot_full_fields(Eall_vertical, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='TE_trans', my_dpi = 300)
+                    utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy), my_dpi = 300)
+                    utils.plot_full_fields(Eall_longitudinal, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_long', my_dpi = 300)
+                    utils.plot_full_fields(Eall_transverse, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_trans', my_dpi = 300)
+                    utils.plot_full_fields(Eall_vertical, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_trans', my_dpi = 300)
 
 
         if compute_SDOS:
@@ -582,7 +579,6 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
             ngridx = gridsize[0]
             ngridy = gridsize[1]
             xyratio = ngridx/ngridy
-            window_width = 1.2
             x,y,z = onp.meshgrid(onp.linspace(0,xyratio,ngridx),onp.linspace(0,1,ngridy), [0.5])
             measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T-0.5)*L*window_width)
 
@@ -655,6 +651,8 @@ if __name__ == '__main__':
         default = False", default=False)
     parser.add_argument("-g","--gridsize",nargs=2,type=int, help="Number of pixels to use in the sidelength of output images \
         default = (301,301)", default=(301,301))
+    parser.add_argument("-w","--window_width", type=float, help="Width of the viewfield for real-space plots, in units of system diameters, \
+                        default = 1.2", default = 1.2)
     parser.add_argument("--boxsize", type=float, help="Set physical units for the box size: the results are dimensionless so that default=1m", default = 1)
     parser.add_argument("-o", "--output", type=str, help="Output directory\
         default = ./refractive_n_$Value/", default='')
@@ -686,6 +684,7 @@ if __name__ == '__main__':
     amplitude_fields    = args.amplitude_fields
     phase_fields        = args.phase_fields
     gridsize            = tuple(args.gridsize)
+    window_width        = args.window_width
     boxsize             = args.boxsize
     output_directory    = args.output
 
@@ -699,7 +698,7 @@ if __name__ == '__main__':
         just_plot=just_plot,
         compute_DOS=compute_DOS, compute_interDOS=compute_interDOS, dospoints=dospoints, compute_SDOS=compute_SDOS, write_eigenvalues=write_eigenvalues,  compute_LDOS=compute_LDOS,
         intensity_fields = intensity_fields, amplitude_fields=amplitude_fields, phase_fields=phase_fields,
-        gridsize=gridsize, 
+        gridsize=gridsize, window_width=window_width,
         L=boxsize, output_directory=output_directory,
         donut = donut)
     sys.exit()
