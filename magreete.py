@@ -19,10 +19,10 @@ import argparse
 
 
 def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
-        k0range_args = None, lattice=None, just_plot = False, regularize = True,
+        k0range_args = None, thetarange_args = None, lattice=None, just_plot = False, regularize = True,
         compute_DOS=False, compute_interDOS=False, dospoints=1, compute_SDOS=False, write_eigenvalues=True, compute_LDOS=False, gridsize=(301,301), window_width=1.2, batch_size = 101*101,
         intensity_fields = False, amplitude_fields = False, phase_fields = False,
-        cold_atoms=False, L = 1, output_directory="",
+        cold_atoms=False, L = 1, output_directory="", skip_transmission = False,
         donut = False):
     '''
     Simple front-end for MAGreeTe
@@ -103,8 +103,22 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
         points *= L
     assert ndim == points.shape[1]
 
-    Ntheta = 360
-    thetas = onp.arange(Ntheta)/Ntheta*2*np.pi
+    if thetarange_args == None:
+        Ntheta = 360
+        thetas = onp.arange(Ntheta)/Ntheta*2*np.pi
+    else:
+        if len(thetarange_args)==1:
+            Ntheta = 1
+            thetas = onp.array(thetarange_args)*np.pi / 180.0
+        elif len(thetarange_args)==2:
+            thetas = onp.range(thetarange_args[0],thetarange_args[1]+1,1) * np.pi / 180.0
+            Ntheta = len(thetas)
+        else:
+            thetas = onp.arange(thetarange_args[0],thetarange_args[1]+thetarange_args[2],thetarange_args[2]) * np.pi / 180.0
+            Ntheta = len(thetas)
+
+    thetas_plot = thetas 
+
 
     file_name = output_directory+"/"+file_name
 
@@ -124,43 +138,46 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
 
         if cold_atoms:
             alpharange = utils.alpha_cold_atoms_2d(k0range)
+            self_interaction = True
+            print("Effective indices:"+str(onp.sqrt(alpharange/volume + 1)))
         else:
             alpharange = onp.ones(len(k0range)) * utils.alpha_small_dielectric_object(refractive_n,volume)
+            self_interaction = True
 
         if just_plot:
 
-            ETEall = []
-            ETMall = []
-            for k0, alpha in zip(k0range,alpharange):
-                
-                k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                EjTE, EjTM, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(i)+'.hkl')
-                EjTE = np.tensor(EjTE, dtype=np.complex128)
-                EjTM = np.tensor(EjTM, dtype=np.complex128)
-                points = np.tensor(points, dtype=np.complex128)
-                thetas = onp.float64(thetas)
-                alpha, k0 = params
-                k0 = onp.float64(k0)
-                alpha = onp.complex128(alpha)
-                solver = Transmission2D(points)
+            if not skip_transmission:
 
-                EkTE, EkTM = solver.calc_EM(meas_points, EjTE, EjTM, k0, alpha, thetas, w, regularize=regularize, radius=radius)
-                EkTE = np.linalg.norm(EkTE,axis=1)
-                ETEall.append(EkTE.numpy())
-                ETMall.append(EkTM.numpy())
-            ETEall = onp.array(ETEall)
-            ETMall = onp.array(ETMall)
-            TEtotal = onp.absolute(ETEall)**2
-            TMtotal = onp.absolute(ETMall)**2
+                ETEall = []
+                ETMall = []
+                for k0, alpha in zip(k0range,alpharange):
+                    
+                    k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                    EjTE, EjTM, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(i)+'.hkl')
+                    EjTE = np.tensor(EjTE, dtype=np.complex128)
+                    EjTM = np.tensor(EjTM, dtype=np.complex128)
+                    points = np.tensor(points, dtype=np.complex128)
+                    thetas = onp.float64(thetas)
+                    alpha, k0 = params
+                    k0 = onp.float64(k0)
+                    alpha = onp.complex128(alpha)
+                    solver = Transmission2D(points)
 
-            
+                    EkTE, EkTM = solver.calc_EM(meas_points, EjTE, EjTM, k0, alpha, thetas, w, regularize=regularize, radius=radius)
+                    EkTE = np.linalg.norm(EkTE,axis=1)
+                    ETEall.append(EkTE.numpy())
+                    ETMall.append(EkTM.numpy())
+                ETEall = onp.array(ETEall)
+                ETMall = onp.array(ETMall)
+                TEtotal = onp.absolute(ETEall)**2
+                TMtotal = onp.absolute(ETMall)**2
 
         else: 
             solver = Transmission2D(points)
             ETEall = []
             ETMall = []
             for k0, alpha in zip(k0range,alpharange):
-                EjTE, EjTM = solver.run_EM(k0, alpha, thetas, radius, w, self_interaction=not cold_atoms)
+                EjTE, EjTM = solver.run_EM(k0, alpha, thetas, radius, w, self_interaction=self_interaction)
                 k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                 params = [alpha, k0]
                 hkl.dump([onp.array(EjTE), onp.array(EjTM), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(i)+'.hkl')
@@ -175,12 +192,13 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
             TEtotal = onp.absolute(ETEall)**2
             TMtotal = onp.absolute(ETMall)**2
 
-        utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal, file_name, appended_string='TM')
-        utils.plot_transmission_angularbeam(k0range, L, thetas, TEtotal, file_name, appended_string='TE')
-        utils.plot_transmission_flat(k0range, L, thetas, TMtotal, file_name, appended_string='TM')
-        utils.plot_transmission_flat(k0range, L, thetas, TEtotal, file_name, appended_string='TE')
-        utils.plot_angular_averaged_transmission(k0range, L, TMtotal, file_name, appended_string='TM')
-        utils.plot_angular_averaged_transmission(k0range, L, TEtotal, file_name, appended_string='TE')
+        if not skip_transmission:
+            utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal, file_name, appended_string='TM')
+            utils.plot_transmission_angularbeam(k0range, L, thetas, TEtotal, file_name, appended_string='TE')
+            utils.plot_transmission_flat(k0range, L, thetas, TMtotal, file_name, appended_string='TM')
+            utils.plot_transmission_flat(k0range, L, thetas, TEtotal, file_name, appended_string='TE')
+            utils.plot_angular_averaged_transmission(k0range, L, TMtotal, file_name, appended_string='TM')
+            utils.plot_angular_averaged_transmission(k0range, L, TEtotal, file_name, appended_string='TE')
 
         # Compute full fields
         # Pretty expensive!
@@ -201,11 +219,23 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
                 extra_string = extra_string+"es"
             print("Computing the full fields at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
 
+            thetas_plot_indices = onp.searchsorted(thetas, thetas_plot)
+
             for k0, alpha in zip(k0range,alpharange):
                 k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                 print("k0L/2pi = "+str(k0_))
 
-                for index, angle in enumerate(thetas):
+                EjTE, EjTM, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(i)+'.hkl')
+                EjTE = np.tensor(EjTE, dtype=np.complex128)
+                EjTM = np.tensor(EjTM, dtype=np.complex128)
+                points = np.tensor(points, dtype=np.complex128)
+                thetas = onp.float64(thetas)
+                alpha, k0 = params
+                k0 = onp.float64(k0)
+                alpha = onp.complex128(alpha)
+                solver = Transmission2D(points)
+
+                for index, angle in zip(thetas_plot_indices, thetas_plot):
                     angle_ = onp.round(angle*180/onp.pi)
                     print("angle = "+str(angle_)+"degrees")
 
@@ -393,29 +423,30 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
             alpharange = onp.ones(len(k0range)) * utils.alpha_small_dielectric_object(refractive_n,volume)
 
         if just_plot:
-            Eall = []
-            u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
-            u = np.tensor(u)
-            print(points.shape)
-            p = np.zeros(u.shape)
-            p[:,2] = 1
-            for k0, alpha in zip(k0range,alpharange):
-                
-                k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                Ej, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(i)+'.hkl')
-                Ej = np.tensor(Ej, dtype=np.complex128)
-                points = np.tensor(points, dtype=np.complex128)
-                thetas = onp.float64(thetas)
-                alpha, k0 = params
-                k0 = onp.float64(k0)
-                alpha = onp.complex128(alpha)
-                solver = Transmission3D(points)
+            if not skip_transmission:
+                Eall = []
+                u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
+                u = np.tensor(u)
+                print(points.shape)
+                p = np.zeros(u.shape)
+                p[:,2] = 1
+                for k0, alpha in zip(k0range,alpharange):
+                    
+                    k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                    Ej, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(i)+'.hkl')
+                    Ej = np.tensor(Ej, dtype=np.complex128)
+                    points = np.tensor(points, dtype=np.complex128)
+                    thetas = onp.float64(thetas)
+                    alpha, k0 = params
+                    k0 = onp.float64(k0)
+                    alpha = onp.complex128(alpha)
+                    solver = Transmission3D(points)
 
-                Ek = solver.calc(meas_points, Ej, k0, alpha, u, p, w, regularize=regularize, radius = radius)
-                Ek = np.linalg.norm(Ek,axis=1)
-                Eall.append(Ek.numpy())
-            Eall = onp.array(Eall)
-            Etotal = onp.absolute(Eall)**2
+                    Ek = solver.calc(meas_points, Ej, k0, alpha, u, p, w, regularize=regularize, radius = radius)
+                    Ek = np.linalg.norm(Ek,axis=1)
+                    Eall.append(Ek.numpy())
+                Eall = onp.array(Eall)
+                Etotal = onp.absolute(Eall)**2                                      
         
         else: 
 
@@ -427,7 +458,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
             p[:,2] = 1
             Eall = []
             for k0, alpha in zip(k0range,alpharange):
-                Ej = solver.run(k0, alpha, u, p, radius, w)
+                Ej = solver.run(k0, alpha, u, p, radius, w, self_interaction=self_interaction)
                 k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                 params = [alpha, k0]
                 hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(i)+'.hkl')
@@ -438,9 +469,10 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
             Eall = onp.array(Eall)
             Etotal = onp.absolute(Eall)**2
     
-        utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name) 
-        utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name) 
-        utils.plot_angular_averaged_transmission(k0range, L, Etotal, file_name)
+        if not skip_transmission:
+            utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name) 
+            utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name) 
+            utils.plot_angular_averaged_transmission(k0range, L, Etotal, file_name)
 
         # Compute full fields
         # Pretty expensive!
@@ -461,11 +493,22 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
                 extra_string = extra_string+"es"
             print("Computing the full fields at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
 
+            thetas_plot_indices = onp.searchsorted(thetas, thetas_plot)
+
             for k0, alpha in zip(k0range,alpharange):
                 k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                 print("k0L/2pi = "+str(k0_))
 
-                for index, angle in enumerate(thetas):
+                Ej, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(i)+'.hkl')
+                Ej = np.tensor(Ej, dtype=np.complex128)
+                points = np.tensor(points, dtype=np.complex128)
+                thetas = onp.float64(thetas)
+                alpha, k0 = params
+                k0 = onp.float64(k0)
+                alpha = onp.complex128(alpha)
+                solver = Transmission3D(points)
+
+                for index, angle in zip(thetas_plot_indices,thetas_plot):
                     angle_ = onp.round(angle*180/onp.pi)
                     print("angle = "+str(angle_)+"degrees")
 
@@ -620,10 +663,14 @@ if __name__ == '__main__':
         default = os.cpu_count", default=os.cpu_count())
     parser.add_argument("-n", "--refractive_n", type=complex, help="Complex refractive index of the dielectric material \
         default = 1.65 - 0.025j", default = 1.6 - 0.025j)
+    parser.add_argument("--cold_atoms", action='store_true', help="Use a Lorentz model of the electron as a polarizability \
+        default = False", default = False)
     parser.add_argument("--phi", type=float, help="Volume fraction of scatterers within the medium \
         default = 0.1", default = 0.1)  
     parser.add_argument("-k", "--k0range", nargs='+', type=float, help = "Values of k0 to span, in units of 2pi/L. Can be a single-value argument, a k_min and a k_max (with default step 1), or k_min, k_max, and step\
         default=(20,40,0.5) in 2d, (10,40,0.5) in 3d", default=None)
+    parser.add_argument("-t","--thetas",  nargs = "+", type = float, help = "Angles to consider, in degrees. Can be a single-value argument, a theta_min and a theta_max (with default step 1), or theta_min, theta_max, and step\
+        default=(0,359,1)", default = None)
     parser.add_argument("-l", "--lattice", type=str, help="Use a simple lattice in lieu of datapoints as entry. \
         Options are 'square', 'triangular', 'honeycomb', 'quasicrystal', 'quasidual', 'quasivoro' in 2d, and 'cubic', 'fcc', 'bcc', 'diamond' in 3d. \
         default=None", default=None)
@@ -656,6 +703,8 @@ if __name__ == '__main__':
     parser.add_argument("--boxsize", type=float, help="Set physical units for the box size: the results are dimensionless so that default=1m", default = 1)
     parser.add_argument("-o", "--output", type=str, help="Output directory\
         default = ./refractive_n_$Value/", default='')
+    parser.add_argument("--skip_transmission", action='store_true', help="Skip the transmission plot\
+        default = False", default=False)
 
     # DEBUG ARGUMENTS
     parser.add_argument("--donut", action="store_true", help="Do the donut thing! \
@@ -667,10 +716,14 @@ if __name__ == '__main__':
     ndim                = args.ndim
     n_cpus              = args.n_cpus
     refractive_n        = args.refractive_n
+    cold_atoms          = args.cold_atoms
     phi                 = args.phi
     k0range_args        = args.k0range
     if k0range_args     != None:
         k0range_args    = tuple(k0range_args)
+    thetarange_args = args.thetas
+    if thetarange_args     != None:
+        thetarange_args    = tuple(thetarange_args)
     just_plot           = args.just_plot
     regularize          = args.regularize
     lattice             = args.lattice
@@ -687,6 +740,7 @@ if __name__ == '__main__':
     window_width        = args.window_width
     boxsize             = args.boxsize
     output_directory    = args.output
+    skip_transmission   = args.skip_transmission
 
     # Debug arguments
     donut               = args.donut
@@ -694,12 +748,13 @@ if __name__ == '__main__':
     np.set_num_threads(n_cpus)
     np.device("cpu")
     main(head_directory, ndim, 
-        refractive_n = refractive_n, phi=phi, k0range_args = k0range_args, lattice=lattice, regularize=regularize,
+        refractive_n = refractive_n, cold_atoms=cold_atoms, phi=phi, k0range_args = k0range_args, thetarange_args=thetarange_args, lattice=lattice, regularize=regularize,
         just_plot=just_plot,
         compute_DOS=compute_DOS, compute_interDOS=compute_interDOS, dospoints=dospoints, compute_SDOS=compute_SDOS, write_eigenvalues=write_eigenvalues,  compute_LDOS=compute_LDOS,
         intensity_fields = intensity_fields, amplitude_fields=amplitude_fields, phase_fields=phase_fields,
         gridsize=gridsize, window_width=window_width,
         L=boxsize, output_directory=output_directory,
+        skip_transmission = skip_transmission,
         donut = donut)
     sys.exit()
 
