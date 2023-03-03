@@ -15,6 +15,10 @@ def add_displacement(r, dr=1e-6):
         disp = (onp.random.random(r.shape)-0.5)*dr
     return r + np.tensor(disp)
 
+def poisson(N, ndim):
+    r = np.rand(N, ndim) - 0.5
+    return r
+
 def square(Nside=65,centered=True,disp=0):
     N = Nside*Nside
     x = np.arange(Nside)

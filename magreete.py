@@ -18,28 +18,28 @@ import lattices
 import argparse
 
 
-def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
-        k0range_args = None, thetarange_args = None, lattice=None, just_plot = False, regularize = True,
-        compute_DOS=False, compute_interDOS=False, dospoints=1, compute_SDOS=False, write_eigenvalues=True, compute_LDOS=False, gridsize=(301,301), window_width=1.2, batch_size = 101*101,
-        intensity_fields = False, amplitude_fields = False, phase_fields = False,
-        cold_atoms=False, L = 1, output_directory="", skip_transmission = False,
-        donut = False):
+def main(head_directory, ndim, # Required arguments
+        refractive_n = 1.65 - 0.025j, phi = 0.1, regularize = True, N = 4096, beam_waist = 0.2, L = 1, # Physical parameters
+        lattice=None, cold_atoms=False, donut = False, stealthy = False, # Special cases
+        k0range_args = None, thetarange_args = None, file_index = 0,# Range of values to use
+        compute_transmission = False, plot_transmission = False, compute_DOS=False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, intensity_fields = False, amplitude_fields = False, phase_fields = False,# Computations to perform
+        dospoints=1, write_eigenvalues=False, write_ldos= False,  gridsize=(301,301), window_width=1.2, batch_size = 101*101, output_directory="" # Parameters for outputs
+        ):
     '''
     Simple front-end for MAGreeTe
     '''
 
-    N = 4096
-    a = 0.0
-    k = 16#32so
-    w = 0.2*L
-    phi_ = phi
-
-    #Todo: finish sending these to options with more uh, transparent names
+    #TODO: Clean up this part to be a bit more generic
     if donut:
-        N = 4096
         a = -1.0
         k = 80
         phi_ = 0.6
+    elif stealthy:
+        a = 0.0
+        k = 16#32so
+        phi_ = 0.6
+    else:
+        phi_ = phi
 
     # Name the output directory in a human-readable way containing the two physical parameters, volume fraction and refractive index
     output_directory = output_directory+"phi_"+str(phi)+"/"
@@ -56,8 +56,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
         file_name = 'HPY'+str(ndim)+'D_phi'+str(phi_)+'_a'+str(a)+'_N'+str(N)+'_K'+str(k)
         file_name += '_points'
 
-        i=0
-        points = hkl.load(dname+file_name+'_'+str(i)+'.hkl')
+        points = hkl.load(dname+file_name+'_'+str(file_index)+'.hkl')
         points = np.tensor(points[:,0:ndim]-0.5,dtype=np.double)
         idx = np.nonzero(np.linalg.norm(points,axis=-1)<=0.5)
         points = np.squeeze(points[idx])
@@ -77,6 +76,8 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
                 points = lattices.quasicrystal(mode='quasidual')
             elif lattice == 'quasivoro':
                 points = lattices.quasicrystal(mode='quasivoro')
+            elif lattice == 'poisson':
+                points = lattices.poisson(N, ndim)
             else:
                 print("Not a valid lattice!")
                 exit()
@@ -90,6 +91,8 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
                 points = lattices.fcc()
             elif lattice == 'diamond':
                 points = lattices.diamond(9)
+            elif lattice == 'poisson':
+                points = lattices.poisson(N, ndim)
             else: 
                 print("Not a valid lattice!")
                 exit()
@@ -97,7 +100,6 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
             print("Not a valid dimensionality!")
             exit()
         file_name = lattice
-        i=0
         points = lattices.cut_circle(points)
         N = points.shape[0]
         points *= L
@@ -117,12 +119,14 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
             thetas = onp.arange(thetarange_args[0],thetarange_args[1]+thetarange_args[2],thetarange_args[2]) * np.pi / 180.0
             Ntheta = len(thetas)
 
+    w = beam_waist * L
     thetas_plot = thetas 
-
 
     file_name = output_directory+"/"+file_name
 
     if ndim==2:
+
+        # Wave-vector list
         if k0range_args == None:
             k0range = onp.arange(40,81)*64/128*2*onp.pi/L
         else:
@@ -132,10 +136,12 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
                 k0range = onp.arange(k0range_args[0],k0range_args[1]+1,1)* 2*onp.pi/L
             else:
                 k0range = onp.arange(k0range_args[0],k0range_args[1]+k0range_args[2],k0range_args[2])* 2*onp.pi/L
+
+        # Volume and radius of (circular cross-section) scatterers
         volume = L*L*phi/N
         radius = onp.sqrt(volume/onp.pi )
-        meas_points = 2*L*onp.vstack([onp.cos(thetas),onp.sin(thetas)]).T
 
+        # Polarizability list
         if cold_atoms:
             alpharange = utils.alpha_cold_atoms_2d(k0range)
             self_interaction = True
@@ -144,16 +150,39 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
             alpharange = onp.ones(len(k0range)) * utils.alpha_small_dielectric_object(refractive_n,volume)
             self_interaction = True
 
-        if just_plot:
+        # Transmission plot computations
+        if compute_transmission or plot_transmission:
 
-            if not skip_transmission:
+            # Define the list of measurement points for transmission plots
+            meas_points = 2*L*onp.vstack([onp.cos(thetas),onp.sin(thetas)]).T
 
+            
+            # A fresh computation is required
+            if compute_transmission: 
+                solver = Transmission2D(points)
                 ETEall = []
                 ETMall = []
                 for k0, alpha in zip(k0range,alpharange):
+                    EjTE, EjTM = solver.run_EM(k0, alpha, thetas, radius, w, self_interaction=self_interaction)
+                    k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                    params = [alpha, k0]
+                    hkl.dump([onp.array(EjTE), onp.array(EjTM), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
+
+                    EkTE, EkTM = solver.calc_EM(meas_points, EjTE, EjTM, k0, alpha, thetas, w, regularize = regularize, radius=radius)
+                    EkTE = np.linalg.norm(EkTE,axis=1)
+                    ETEall.append(EkTE.numpy())
+                    ETMall.append(EkTM.numpy())
+
+            # A computation has already been performed
+            elif plot_transmission:
+
+                ETEall = []
+                ETMall = []
+
+                for k0, alpha in zip(k0range,alpharange):
                     
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                    EjTE, EjTM, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(i)+'.hkl')
+                    EjTE, EjTM, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
                     EjTE = np.tensor(EjTE, dtype=np.complex128)
                     EjTM = np.tensor(EjTM, dtype=np.complex128)
                     points = np.tensor(points, dtype=np.complex128)
@@ -167,38 +196,21 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
                     EkTE = np.linalg.norm(EkTE,axis=1)
                     ETEall.append(EkTE.numpy())
                     ETMall.append(EkTM.numpy())
+
+            # If required: plot results
+            if plot_transmission:
+                # Compute intensities at measurement points
                 ETEall = onp.array(ETEall)
                 ETMall = onp.array(ETMall)
                 TEtotal = onp.absolute(ETEall)**2
                 TMtotal = onp.absolute(ETMall)**2
-
-        else: 
-            solver = Transmission2D(points)
-            ETEall = []
-            ETMall = []
-            for k0, alpha in zip(k0range,alpharange):
-                EjTE, EjTM = solver.run_EM(k0, alpha, thetas, radius, w, self_interaction=self_interaction)
-                k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                params = [alpha, k0]
-                hkl.dump([onp.array(EjTE), onp.array(EjTM), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(i)+'.hkl')
-
-                EkTE, EkTM = solver.calc_EM(meas_points, EjTE, EjTM, k0, alpha, thetas, w, regularize = regularize, radius=radius)
-                EkTE = np.linalg.norm(EkTE,axis=1)
-                ETEall.append(EkTE.numpy())
-                ETMall.append(EkTM.numpy())
-            ETEall = onp.array(ETEall)
-            ETMall = onp.array(ETMall)
-
-            TEtotal = onp.absolute(ETEall)**2
-            TMtotal = onp.absolute(ETMall)**2
-
-        if not skip_transmission:
-            utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal, file_name, appended_string='TM')
-            utils.plot_transmission_angularbeam(k0range, L, thetas, TEtotal, file_name, appended_string='TE')
-            utils.plot_transmission_flat(k0range, L, thetas, TMtotal, file_name, appended_string='TM')
-            utils.plot_transmission_flat(k0range, L, thetas, TEtotal, file_name, appended_string='TE')
-            utils.plot_angular_averaged_transmission(k0range, L, TMtotal, file_name, appended_string='TM')
-            utils.plot_angular_averaged_transmission(k0range, L, TEtotal, file_name, appended_string='TE')
+                # Produce plots
+                utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal, file_name, appended_string='TM')
+                utils.plot_transmission_angularbeam(k0range, L, thetas, TEtotal, file_name, appended_string='TE')
+                utils.plot_transmission_flat(k0range, L, thetas, TMtotal, file_name, appended_string='TM')
+                utils.plot_transmission_flat(k0range, L, thetas, TEtotal, file_name, appended_string='TE')
+                utils.plot_angular_averaged_transmission(k0range, L, TMtotal, file_name, appended_string='TM')
+                utils.plot_angular_averaged_transmission(k0range, L, TEtotal, file_name, appended_string='TE')
 
         # Compute full fields
         # Pretty expensive!
@@ -220,20 +232,29 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
             print("Computing the full fields at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
 
             thetas_plot_indices = onp.searchsorted(thetas, thetas_plot)
+            solver = Transmission2D(points)
 
             for k0, alpha in zip(k0range,alpharange):
                 k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                 print("k0L/2pi = "+str(k0_))
 
-                EjTE, EjTM, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(i)+'.hkl')
-                EjTE = np.tensor(EjTE, dtype=np.complex128)
-                EjTM = np.tensor(EjTM, dtype=np.complex128)
-                points = np.tensor(points, dtype=np.complex128)
-                thetas = onp.float64(thetas)
-                alpha, k0 = params
-                k0 = onp.float64(k0)
-                alpha = onp.complex128(alpha)
-                solver = Transmission2D(points)
+                # Check if file already exists or if computation is needed
+                file = file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl'
+                # File is there: load data
+                if os.path.isfile(file):
+                    EjTE, EjTM, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
+                    EjTE = np.tensor(EjTE, dtype=np.complex128)
+                    EjTM = np.tensor(EjTM, dtype=np.complex128)
+                    points = np.tensor(points, dtype=np.complex128)
+                    thetas = onp.float64(thetas)
+                    alpha, k0 = params
+                    k0 = onp.float64(k0)
+                    alpha = onp.complex128(alpha)
+                else:
+                    EjTE, EjTM = solver.run_EM(k0, alpha, thetas, radius, w, self_interaction=self_interaction)
+                    k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                    params = [alpha, k0]
+                    hkl.dump([onp.array(EjTE), onp.array(EjTM), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
 
                 for index, angle in zip(thetas_plot_indices, thetas_plot):
                     angle_ = onp.round(angle*180/onp.pi)
@@ -400,8 +421,14 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
                 utils.plot_LDOS_2D(ldos_TE,k0_,ngridx,ngridy,file_name, appended_string='TE', my_dpi = 300)
                 utils.plot_LDOS_2D(ldos_TM,k0_,ngridx,ngridy,file_name, appended_string='TM', my_dpi = 300)
 
+                if write_ldos:
+                    onp.savetxt(file_name+'_ldos_'+str(k0_)+'_TE_'+str(index)+'.csv',ldos_TE.numpy())
+                    onp.savetxt(file_name+'_ldos_'+str(k0_)+'_TM_'+str(index)+'.csv',ldos_TM.numpy())
+
 
     elif ndim==3:
+
+        # Wave-vector list
         if k0range_args == None:
             k0range = onp.arange(10,41)*64/128*2*onp.pi/L
         else: 
@@ -411,19 +438,47 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
                 k0range = onp.arange(k0range_args[0],k0range_args[1]+1,1)* 2*onp.pi/L
             else:
                 k0range = onp.arange(k0range_args[0],k0range_args[1]+k0range_args[2],k0range_args[2])* 2*onp.pi/L
+        # Volume and radius of (spherical) scatterers
         volume = L*L*L*phi/N
         radius = onp.cbrt(volume * 3.0 / (4.0 * onp.pi))
-        meas_points = 2*L*onp.vstack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
-        print(meas_points.shape)
+
+        # Consistency check: plot set of scatterers
         utils.plot_3d_points(points,file_name)
 
+        # Polarizability list
         if cold_atoms:
             alpharange = utils.alpha_cold_atoms_3d(k0range)
         else:
             alpharange = onp.ones(len(k0range)) * utils.alpha_small_dielectric_object(refractive_n,volume)
 
-        if just_plot:
-            if not skip_transmission:
+        if compute_transmission or plot_transmission:
+            
+            # Define the list of measurement points for transmission plots
+            meas_points = 2*L*onp.vstack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
+
+            # A fresh computation is required
+            if compute_transmission:
+
+                solver = Transmission3D(points)
+                u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
+                u = np.tensor(u)
+                print(points.shape)
+                p = np.zeros(u.shape)
+                p[:,2] = 1
+                Eall = []
+                for k0, alpha in zip(k0range,alpharange):
+                    Ej = solver.run(k0, alpha, u, p, radius, w, self_interaction=self_interaction)
+                    k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                    params = [alpha, k0]
+                    hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
+
+                    Ek = solver.calc(meas_points, Ej, k0, alpha, u, p, w, regularize = regularize, radius=radius)
+                    Ek = np.linalg.norm(Ek,axis=1)
+                    Eall.append(Ek.numpy())       
+
+            # A computation has already been performed
+            elif plot_transmission:
+
                 Eall = []
                 u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
                 u = np.tensor(u)
@@ -433,7 +488,7 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
                 for k0, alpha in zip(k0range,alpharange):
                     
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                    Ej, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(i)+'.hkl')
+                    Ej, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
                     Ej = np.tensor(Ej, dtype=np.complex128)
                     points = np.tensor(points, dtype=np.complex128)
                     thetas = onp.float64(thetas)
@@ -444,32 +499,15 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
 
                     Ek = solver.calc(meas_points, Ej, k0, alpha, u, p, w, regularize=regularize, radius = radius)
                     Ek = np.linalg.norm(Ek,axis=1)
-                    Eall.append(Ek.numpy())
-                Eall = onp.array(Eall)
-                Etotal = onp.absolute(Eall)**2                                      
-        
-        else: 
+                    Eall.append(Ek.numpy())   
 
-            solver = Transmission3D(points)
-            u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
-            u = np.tensor(u)
-            print(points.shape)
-            p = np.zeros(u.shape)
-            p[:,2] = 1
-            Eall = []
-            for k0, alpha in zip(k0range,alpharange):
-                Ej = solver.run(k0, alpha, u, p, radius, w, self_interaction=self_interaction)
-                k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                params = [alpha, k0]
-                hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(i)+'.hkl')
-
-                Ek = solver.calc(meas_points, Ej, k0, alpha, u, p, w, regularize = regularize, radius=radius)
-                Ek = np.linalg.norm(Ek,axis=1)
-                Eall.append(Ek.numpy())
+    
+        # If required: plot results
+        if plot_transmission:
+            # Compute intensities at measurement points
             Eall = onp.array(Eall)
             Etotal = onp.absolute(Eall)**2
-    
-        if not skip_transmission:
+            # Produce the plots
             utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name) 
             utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name) 
             utils.plot_angular_averaged_transmission(k0range, L, Etotal, file_name)
@@ -494,19 +532,34 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
             print("Computing the full fields at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
 
             thetas_plot_indices = onp.searchsorted(thetas, thetas_plot)
+            solver = Transmission3D(points)
 
             for k0, alpha in zip(k0range,alpharange):
                 k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                 print("k0L/2pi = "+str(k0_))
 
-                Ej, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(i)+'.hkl')
-                Ej = np.tensor(Ej, dtype=np.complex128)
-                points = np.tensor(points, dtype=np.complex128)
-                thetas = onp.float64(thetas)
-                alpha, k0 = params
-                k0 = onp.float64(k0)
-                alpha = onp.complex128(alpha)
-                solver = Transmission3D(points)
+                # Check if file already exists or if computation is needed
+                file = file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl'
+                # File is there: load data
+                if os.path.isfile(file):
+                    Ej, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
+                    Ej = np.tensor(Ej, dtype=np.complex128)
+                    points = np.tensor(points, dtype=np.complex128)
+                    thetas = onp.float64(thetas)
+                    alpha, k0 = params
+                    k0 = onp.float64(k0)
+                    alpha = onp.complex128(alpha)
+                # File is not there: compute
+                else:
+                    u = onp.stack([onp.cos(thetas_plot),onp.sin(thetas_plot),onp.zeros(len(thetas_plot))]).T
+                    u = np.tensor(u)
+                    p = np.zeros(u.shape)
+                    p[:,2] = 1
+                    Eall = []
+                    Ej = solver.run(k0, alpha, u, p, radius, w, self_interaction=self_interaction)
+                    k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                    params = [alpha, k0]
+                    hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')   
 
                 for index, angle in zip(thetas_plot_indices,thetas_plot):
                     angle_ = onp.round(angle*180/onp.pi)
@@ -646,48 +699,63 @@ def main(head_directory, ndim, refractive_n = 1.65 - 0.025j, phi = 0.1,
 
                     outputs.append(ldos)
 
-                #    onp.savetxt(file_name+'_temp_ldos_'+str(k0_)+'_TE.csv',np.cat(outputs_TE).numpy())
-                #    onp.savetxt(file_name+'_temp_ldos_'+str(k0_)+'_TM.csv',np.cat(outputs_TM).numpy())
 
                 ldos = np.cat(outputs)
 
                 utils.plot_LDOS_2D(ldos,k0_,ngridx,ngridy,file_name, appended_string='z=0', my_dpi = 300)
 
+                if write_ldos:
+                    onp.savetxt(file_name+'_ldos_'+str(k0_)+'_'+str(index)+'.csv',ldos.numpy())
+
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Run a full solving and plotting routine of MAGreeTe")
+    # Required arguments
     parser.add_argument("head_directory", type=str, help="parent directory containing all configurations")
     parser.add_argument("ndim", type=int, help="Dimensionality of the problem at hand")
     parser.add_argument("--n_cpus", type=int, help="Number of cpus to use for computation\
         default = os.cpu_count", default=os.cpu_count())
+    # Physical quantities
     parser.add_argument("-n", "--refractive_n", type=complex, help="Complex refractive index of the dielectric material \
         default = 1.65 - 0.025j", default = 1.6 - 0.025j)
     parser.add_argument("--cold_atoms", action='store_true', help="Use a Lorentz model of the electron as a polarizability \
         default = False", default = False)
     parser.add_argument("--phi", type=float, help="Volume fraction of scatterers within the medium \
         default = 0.1", default = 0.1)  
+    parser.add_argument("-r", "--regularize", action='store_true', help="Regularize the fields and DOS inside of scatterers\
+        default=False", default=False)
+    parser.add_argument("-N", "--number_particles", type = int, help="Number of particles in the system, before cutting a circle\
+        default = 4096", default=4096)
+    parser.add_argument("-bw", "--beam_waist", type = float, help="Waist of the beam used for transmission plots and full fields, in units of L\
+        default = 0.2", default=0.2)
+    parser.add_argument("--boxsize", type=float, help="Set physical units for the box size: the results are dimensionless so that default=1", default = 1)
+    # Ranges of wave-vectors and beam orientations, index of copy to look at
     parser.add_argument("-k", "--k0range", nargs='+', type=float, help = "Values of k0 to span, in units of 2pi/L. Can be a single-value argument, a k_min and a k_max (with default step 1), or k_min, k_max, and step\
         default=(20,40,0.5) in 2d, (10,40,0.5) in 3d", default=None)
     parser.add_argument("-t","--thetas",  nargs = "+", type = float, help = "Angles to consider, in degrees. Can be a single-value argument, a theta_min and a theta_max (with default step 1), or theta_min, theta_max, and step\
         default=(0,359,1)", default = None)
+    parser.add_argument("-i", "--file_index", type = int, help = "Suffix integer of input file to use in case several realisations are provided\
+        default=0", default = 0)
+    # Special systems
     parser.add_argument("-l", "--lattice", type=str, help="Use a simple lattice in lieu of datapoints as entry. \
-        Options are 'square', 'triangular', 'honeycomb', 'quasicrystal', 'quasidual', 'quasivoro' in 2d, and 'cubic', 'fcc', 'bcc', 'diamond' in 3d. \
+        Options are 'square', 'triangular', 'honeycomb', 'quasicrystal', 'quasidual', 'quasivoro', 'poisson' in 2d, and 'cubic', 'fcc', 'bcc', 'diamond', 'poisson' in 3d. \
         default=None", default=None)
-    parser.add_argument("-p","--just_plot", action='store_true', help="Bypass the calculation and just produce plots\
+    parser.add_argument("--donut", action="store_true", help="Use a donut initial condition \
         default=False", default=False)
-    parser.add_argument("-r", "--regularize", action='store_true', help="Regularize the fields and DOS inside of scatterers\
+    parser.add_argument("--stealthy", action="store_true", help="Use a stealthy hyperuniform initial condition\
+        default=False", default=False)
+    # Computation type arguments
+    parser.add_argument("--compute_transmission", action='store_true', help="Compute transmission for laser beams\
+        default = False", default=False)
+    parser.add_argument("--plot_transmission", action='store_true', help="Produce transmission plots\
         default=False", default=False)
     parser.add_argument("-dos","--compute_DOS", action='store_true', help="Compute the mean DOS of the medium  \
         default=False", default=False)
     parser.add_argument("-idos","--compute_interDOS", action='store_true', help="Compute the mean DOS of the medium away from scatterers  \
         default=False", default=False)
-    parser.add_argument("--dospoints",type=int, help="Number of points to use for the mean DOS computation \
-        default = 1000", default=1000)
     parser.add_argument("-sdos","--compute_SDOS", action='store_true', help="Compute the spectrum of the Green's matrix, as well as the mean DOS at scatterers  \
         default=False", default=False)
-    parser.add_argument("-ev","--write_eigenvalues", action='store_false', help="Write the eigenvalues of the Green's matrix at every frequency  \
-        default=True", default=False)
     parser.add_argument("-ldos","--compute_LDOS", action='store_true', help="Compute an LDOS map  \
         default=False", default=False)
     parser.add_argument("--intensity_fields", action = "store_true", help="Output images of intensity fields for every beam used in the angular plot, in real space\
@@ -696,66 +764,76 @@ if __name__ == '__main__':
         default = False", default=False)
     parser.add_argument("--phase_fields", action = "store_true", help="Output images of phase fields for every beam used in the angular plot, in real space\
         default = False", default=False)
+    # Parameters of outputs
+    parser.add_argument("--dospoints",type=int, help="Number of points to use for the mean DOS computation \
+        default = 1000", default=1000)
+    parser.add_argument("-ev","--write_eigenvalues", action='store_false', help="Write the eigenvalues of the Green's matrix at every frequency  \
+        default=True", default=False)
+    parser.add_argument("--write_ldos", action="store_true", help="Save all computed LDOS outputs. Warning: this can grow pretty big.\
+        default = False", default = False)
     parser.add_argument("-g","--gridsize",nargs=2,type=int, help="Number of pixels to use in the sidelength of output images \
         default = (301,301)", default=(301,301))
     parser.add_argument("-w","--window_width", type=float, help="Width of the viewfield for real-space plots, in units of system diameters, \
-                        default = 1.2", default = 1.2)
-    parser.add_argument("--boxsize", type=float, help="Set physical units for the box size: the results are dimensionless so that default=1m", default = 1)
+        default = 1.2", default = 1.2)
     parser.add_argument("-o", "--output", type=str, help="Output directory\
         default = ./refractive_n_$Value/", default='')
-    parser.add_argument("--skip_transmission", action='store_true', help="Skip the transmission plot\
-        default = False", default=False)
-
-    # DEBUG ARGUMENTS
-    parser.add_argument("--donut", action="store_true", help="Do the donut thing! \
-        default=False", default=False)
 
     args = parser.parse_args()
 
-    head_directory      = args.head_directory
-    ndim                = args.ndim
-    n_cpus              = args.n_cpus
-    refractive_n        = args.refractive_n
-    cold_atoms          = args.cold_atoms
-    phi                 = args.phi
-    k0range_args        = args.k0range
+    # Required arguments
+    head_directory          = args.head_directory
+    ndim                    = args.ndim
+    n_cpus                  = args.n_cpus
+    # Physical quantities
+    refractive_n            = args.refractive_n
+    phi                     = args.phi
+    regularize              = args.regularize
+    N                       = args.number_particles
+    beam_waist              = args.beam_waist
+    boxsize                 = args.boxsize
+    # Ranges of wave-vectors and beam orientations, index of copy for source points
+    k0range_args            = args.k0range
     if k0range_args     != None:
-        k0range_args    = tuple(k0range_args)
+        k0range_args        = tuple(k0range_args)
     thetarange_args = args.thetas
     if thetarange_args     != None:
         thetarange_args    = tuple(thetarange_args)
-    just_plot           = args.just_plot
-    regularize          = args.regularize
-    lattice             = args.lattice
-    compute_DOS         = args.compute_DOS
-    compute_interDOS    = args.compute_interDOS
-    dospoints           = args.dospoints
-    compute_SDOS        = args.compute_SDOS
-    write_eigenvalues   = args.write_eigenvalues
-    compute_LDOS        = args.compute_LDOS
-    intensity_fields    = args.intensity_fields
-    amplitude_fields    = args.amplitude_fields
-    phase_fields        = args.phase_fields
-    gridsize            = tuple(args.gridsize)
-    window_width        = args.window_width
-    boxsize             = args.boxsize
-    output_directory    = args.output
-    skip_transmission   = args.skip_transmission
-
-    # Debug arguments
-    donut               = args.donut
+    file_index             = args.file_index
+    # Special cases
+    cold_atoms             = args.cold_atoms
+    lattice                = args.lattice
+    donut                  = args.donut
+    stealthy               = args.stealthy
+    # Outputs
+    compute_transmission   = args.compute_transmission
+    plot_transmission      = args.plot_transmission
+    compute_DOS            = args.compute_DOS
+    compute_interDOS       = args.compute_interDOS
+    compute_SDOS           = args.compute_SDOS
+    compute_LDOS           = args.compute_LDOS
+    intensity_fields       = args.intensity_fields
+    amplitude_fields       = args.amplitude_fields
+    phase_fields           = args.phase_fields
+    # Options for outputs
+    dospoints              = args.dospoints
+    write_eigenvalues      = args.write_eigenvalues
+    write_ldos             = args.write_ldos
+    gridsize               = tuple(args.gridsize)
+    window_width           = args.window_width
+    output_directory       = args.output
 
     np.set_num_threads(n_cpus)
     np.device("cpu")
-    main(head_directory, ndim, 
-        refractive_n = refractive_n, cold_atoms=cold_atoms, phi=phi, k0range_args = k0range_args, thetarange_args=thetarange_args, lattice=lattice, regularize=regularize,
-        just_plot=just_plot,
-        compute_DOS=compute_DOS, compute_interDOS=compute_interDOS, dospoints=dospoints, compute_SDOS=compute_SDOS, write_eigenvalues=write_eigenvalues,  compute_LDOS=compute_LDOS,
+    main(head_directory, ndim,
+        refractive_n = refractive_n,  phi=phi, regularize=regularize, N=N, beam_waist=beam_waist, L=boxsize,
+        k0range_args = k0range_args, thetarange_args=thetarange_args, file_index = file_index,
+        cold_atoms=cold_atoms, lattice=lattice, donut = donut, stealthy=stealthy,
+        compute_transmission = compute_transmission, plot_transmission=plot_transmission,
+        compute_DOS=compute_DOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS,
         intensity_fields = intensity_fields, amplitude_fields=amplitude_fields, phase_fields=phase_fields,
-        gridsize=gridsize, window_width=window_width,
-        L=boxsize, output_directory=output_directory,
-        skip_transmission = skip_transmission,
-        donut = donut)
+        dospoints=dospoints, write_eigenvalues=write_eigenvalues, write_ldos=write_ldos, gridsize=gridsize, window_width=window_width,
+        output_directory=output_directory
+        )
     sys.exit()
 
 

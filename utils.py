@@ -50,6 +50,11 @@ def alpha_small_dielectric_object(refractive_n, volume):
     epsilon = refractive_n**2
     delta_epsilon = epsilon - 1 
 
+    if onp.real(refractive_n) < 1.0:
+        contrast = refractive_n - 1
+        medium_n = onp.sqrt(1 - delta_epsilon)
+        print("Real part of provided refractive_n is smaller than 1.0. Assuming dielectric contrast delta_epsilon = n_provided**2 - 1 ="+str(delta_epsilon)+" between medium and scatterers. We will assume n = 1.0 in scatterers and a medium with n_medium = sqrt(1 - delta_epsilon) = "+str(medium_n))
+
     return volume*delta_epsilon
 
 def uniform_unit_disk_picking(n_points):
