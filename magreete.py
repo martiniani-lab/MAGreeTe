@@ -532,6 +532,7 @@ def main(head_directory, ndim, # Required arguments
                         Ek = np.linalg.norm(Ek,axis=1)
                         Eall.append(Ek.numpy())   
 
+            hkl.dump([onp.array(Eall), onp.array(k0range), onp.array(thetas)],file_name+'_transmission_'+str(file_index)+'.hkl')
         
             # If required: plot results
             if plot_transmission:
@@ -810,7 +811,48 @@ def main(head_directory, ndim, # Required arguments
                     utils.plot_angular_averaged_transmission(k0range, L, ITE_fluct, file_name, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies_TE')
 
         elif ndim == 3:
-            Eall = []
+            
+            if compute_transmission:
+                # Accumulate data from calculations
+                Eall = []
+                Iall = []
+                
+                
+                for file_index in file_index_list: 
+
+                    E_onecopy, k0range, thetas = hkl.load(file_name+'_transmission_'+str(file_index)+'.hkl')
+                    E_onecopy = onp.complex128(E_onecopy)
+                    thetas = onp.float64(thetas)
+                    k0range = onp.float64(k0range)
+
+                    E_all.append(E_onecopy)
+                    I_all.append(onp.absolute(E_onecopy)**2)
+
+                # Define averaged fields, both amplitude and intensity
+                E_mean  = onp.mean(E_all, axis = 0)
+                I_mean  = onp.mean(I_all, axis = 0)
+                # Define the ballistic intensity
+                I_ball = onp.absolute(E_mean)**2
+                # Also define the average fluctuating intensity field
+                I_fluct = I_mean - I_ball
+
+                # If required: plot results
+                if plot_transmission:
+                    # Produce plots for average intensity
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, I_mean, file_name, appended_string='_averageintensity_'+str(n_copies)+'copies')
+                    utils.plot_transmission_flat(k0range, L, thetas, I_mean, file_name, appended_string='_averageintensity_'+str(n_copies)+'copies')
+                    utils.plot_angular_averaged_transmission(k0range, L, I_mean, file_name, appended_string='_averageintensity_'+str(n_copies)+'copies')
+
+                    # Produce plots for intensity of the average field = ballistic intensity
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, I_ball, file_name, appended_string='_ballisticintensity_'+str(n_copies)+'copies')
+                    utils.plot_transmission_flat(k0range, L, thetas, I_ball, file_name, appended_string='_ballisticintensity_'+str(n_copies)+'copies')
+                    utils.plot_angular_averaged_transmission(k0range, L, I_ball, file_name, appended_string='_ballisticintensity_'+str(n_copies)+'copies')
+
+                    # Produce plots for intensity of the fluctuating field
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, I_fluct, file_name, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies')
+                    utils.plot_transmission_flat(k0range, L, thetas, I_fluct, file_name, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies')
+                    utils.plot_angular_averaged_transmission(k0range, L, I_fluct, file_name, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies')
+
 
 
 if __name__ == '__main__':
