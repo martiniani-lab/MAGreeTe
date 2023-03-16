@@ -69,8 +69,7 @@ def honeycomb(Nx=71,Ny=41,disp=0):
     return r
 
 
-def quasicrystal(nspan=46, ndirs=5, mode=None,disp=0):
-    N = 4096
+def quasicrystal(N = 4096, nspan=46, ndirs=5, mode=None,disp=0):
     if mode != None:
         nspan=33
     dirs = onp.arange(ndirs).reshape(-1,1)

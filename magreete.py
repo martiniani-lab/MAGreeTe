@@ -42,7 +42,8 @@ def main(head_directory, ndim, # Required arguments
     else:
         phi_ = phi
 
-    # Name the output directory in a human-readable way containing the two physical parameters, volume fraction and refractive index
+    # Name the output directory in a human-readable way containing the three physical parameters: raw number of particles, volume fraction and refractive index
+    output_directory = output_directory+"N"+str(N_raw)+"/"
     output_directory = output_directory+"phi_"+str(phi)+"/"
     if cold_atoms:
         output_directory = output_directory+"cold_atoms"
@@ -83,8 +84,6 @@ def main(head_directory, ndim, # Required arguments
 
     # Loop over copies
     for file_index in file_index_list:
-        # Reset number of points to the argument value, and print a message with the index of the copy
-        N = N_raw
         print("____________________________________________________\nCopy #"+str(file_index)+"\n____________________________________________________")
 
         if lattice == None:
@@ -106,19 +105,34 @@ def main(head_directory, ndim, # Required arguments
             
             if ndim==2:
                 if lattice == 'square':
-                    points = lattices.square()
+                    Nside = onp.int(onp.round(onp.sqrt(N_raw)))
+                    if Nside%2==0:
+                        Nside += 1
+                    points = lattices.square(Nside=Nside)
                 elif lattice == 'triangular':
-                    points = lattices.triangular()
+                    Nx = onp.int(onp.round(onp.sqrt(N_raw / onp.sqrt(3.0))))
+                    Ny = onp.int(onp.round(onp.sqrt(3.0) * Nx))
+                    if Nx%2==0:
+                        Nx += 1
+                    if Ny%2 == 0:
+                        Ny += 1
+                    points = lattices.triangular(Nx=Nx, Ny=Ny)
                 elif lattice == 'honeycomb':
-                    points = lattices.honeycomb()
+                    Nx = onp.int(onp.round(onp.sqrt(N_raw / onp.sqrt(3.0))))
+                    Ny = onp.int(onp.round(onp.sqrt(3.0) * Nx))
+                    if Nx%2==0:
+                        Nx += 1
+                    if Ny%2 == 0:
+                        Ny += 1
+                    points = lattices.honeycomb(Nx=Nx, Ny=Ny)
                 elif lattice == 'quasicrystal':
-                    points = lattices.quasicrystal(mode='quasicrystal')
+                    points = lattices.quasicrystal(N=N_raw, mode='quasicrystal')
                 elif lattice == 'quasidual':
-                    points = lattices.quasicrystal(mode='quasidual')
+                    points = lattices.quasicrystal(N=N_raw, mode='quasidual')
                 elif lattice == 'quasivoro':
-                    points = lattices.quasicrystal(mode='quasivoro')
+                    points = lattices.quasicrystal(N=N_raw, mode='quasivoro')
                 elif lattice == 'poisson':
-                    points = lattices.poisson(N, ndim)
+                    points = lattices.poisson(N_raw, ndim)
                     file_name = file_name+"_2d"
                 else:
                     print("Not a valid lattice!")
@@ -126,15 +140,22 @@ def main(head_directory, ndim, # Required arguments
 
             elif ndim == 3:
                 if lattice == 'cubic':
-                    points = lattices.cubic()
+                    Nside  = onp.int(onp.round(onp.cbrt(N_raw)))
+                    points = lattices.cubic(Nside=Nside)
                 elif lattice == 'bcc':
-                    points = lattices.bcc()
+                    # bcc has two atoms per unit cell
+                    Nside  = onp.int(onp.round(onp.cbrt(N_raw/2)))
+                    points = lattices.bcc(Nside=Nside)
                 elif lattice == 'fcc':
-                    points = lattices.fcc()
+                    # fcc has four atoms per unit cell
+                    Nside  = onp.int(onp.round(onp.cbrt(N_raw/4)))
+                    points = lattices.fcc(Nside=Nside)
                 elif lattice == 'diamond':
-                    points = lattices.diamond(9)
+                    # diamond has two atoms per unit cell
+                    Nside  = onp.int(onp.round(onp.cbrt(N_raw/2)))
+                    points = lattices.diamond(Nside=Nside)
                 elif lattice == 'poisson':
-                    points = lattices.poisson(N, ndim)
+                    points = lattices.poisson(N_raw, ndim)
                     file_name = file_name+"_3d"
                 else: 
                     print("Not a valid lattice!")
