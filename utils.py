@@ -268,6 +268,26 @@ def plot_angular_averaged_transmission(k0range, L, intensities, file_name, appen
     ax.set_yscale('log')
     plt.savefig(file_name+'_transmission_avg'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
     plt.close()
+    
+def plot_optical_thickness(k0range, L, alpharange, ndim, phi, volume, file_name, appended_string=''):
+    # Determine and plot optical thickness against k for the system
+    if ndim == 2:
+        scattering_cross_section = 0.25 * k0range**3 * onp.absolute(alpharange)**2
+    elif ndim == 3:
+        scattering_cross_section = (1.0 / (6.0 * onp.pi)) * k0range**4 * onp.absolute(alpharange)**2
+    rho = phi / volume
+    scattering_mean_free_path_IS = 1. / ( rho * scattering_cross_section ) 
+    optical_thickness = L / scattering_mean_free_path_IS
+    
+    fig = plt.figure()
+    ax = fig.gca()
+    freqs = onp.real(k0range*L/(2*onp.pi))
+    ax.plot(freqs, optical_thickness)
+    ax.set_xlabel(r'$k_0L/2\pi$')
+    ax.set_ylabel('Optical thickness')
+    ax.legend()
+    plt.savefig(file_name+'_opticalthickness'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
+    plt.close()
 
 def plot_averaged_DOS(k0range, L, DOS, file_name, DOS_type, appended_string=''):
     # Angular-averaged transmission

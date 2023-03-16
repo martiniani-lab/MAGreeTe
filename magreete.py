@@ -83,8 +83,9 @@ def main(head_directory, ndim, # Required arguments
 
     # Loop over copies
     for file_index in file_index_list:
-        # Reset number of points to the argument value
+        # Reset number of points to the argument value, and print a message with the index of the copy
         N = N_raw
+        print("____________________________________________________\nCopy #"+str(file_index)+"\n____________________________________________________")
 
         if lattice == None:
             dname = head_directory+'HPY'+str(ndim)+'D/phi'+str(phi_)+'/a'+str(a)+'/'
@@ -200,6 +201,9 @@ def main(head_directory, ndim, # Required arguments
             else:
                 alpharange = onp.ones(len(k0range)) * utils.alpha_small_dielectric_object(refractive_n,volume)
                 self_interaction = True
+                
+        # Generate the corresponding list of optical thicknesses, and plot them
+        utils.plot_optical_thickness(k0range, L, alpharange, ndim, phi, volume, file_name)
 
         # If the code is run solely to put together data already obtained for several copies, skip this
         if just_compute_averages:
