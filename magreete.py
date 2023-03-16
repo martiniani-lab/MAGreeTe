@@ -19,7 +19,7 @@ import argparse
 
 
 def main(head_directory, ndim, # Required arguments
-        refractive_n = 1.65 - 0.025j, phi = 0.1, regularize = True, N = 4096, beam_waist = 0.2, L = 1, # Physical parameters
+        refractive_n = 1.65 - 0.025j, phi = 0.1, regularize = True, N_raw = 4096, beam_waist = 0.2, L = 1, # Physical parameters
         lattice=None, cold_atoms=False, donut = False, stealthy = False, dual = False, # Special cases
         k0range_args = None, thetarange_args = None, file_index_args = None,# Range of values to use
         compute_transmission = False, plot_transmission = False, compute_DOS=False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, intensity_fields = False, amplitude_fields = False, phase_fields = False, just_compute_averages = False,# Computations to perform
@@ -83,6 +83,8 @@ def main(head_directory, ndim, # Required arguments
 
     # Loop over copies
     for file_index in file_index_list:
+        # Reset number of points to the argument value
+        N = N_raw
 
         if lattice == None:
             dname = head_directory+'HPY'+str(ndim)+'D/phi'+str(phi_)+'/a'+str(a)+'/'
@@ -987,7 +989,7 @@ if __name__ == '__main__':
     np.set_num_threads(n_cpus)
     np.device("cpu")
     main(head_directory, ndim,
-        refractive_n = refractive_n,  phi=phi, regularize=regularize, N=N, beam_waist=beam_waist, L=boxsize,
+        refractive_n = refractive_n,  phi=phi, regularize=regularize, N_raw=N, beam_waist=beam_waist, L=boxsize,
         k0range_args = k0range_args, thetarange_args=thetarange_args, file_index_args = file_index_args,
         cold_atoms=cold_atoms, lattice=lattice, donut = donut, stealthy=stealthy, dual = dual,
         compute_transmission = compute_transmission, plot_transmission=plot_transmission,
