@@ -99,6 +99,8 @@ def main(head_directory, ndim, # Required arguments
             points *= L
         else:
 
+            file_name = lattice
+            
             if ndim==2:
                 if lattice == 'square':
                     points = lattices.square()
@@ -114,6 +116,7 @@ def main(head_directory, ndim, # Required arguments
                     points = lattices.quasicrystal(mode='quasivoro')
                 elif lattice == 'poisson':
                     points = lattices.poisson(N, ndim)
+                    file_name = file_name+"_2d"
                 else:
                     print("Not a valid lattice!")
                     exit()
@@ -129,13 +132,14 @@ def main(head_directory, ndim, # Required arguments
                     points = lattices.diamond(9)
                 elif lattice == 'poisson':
                     points = lattices.poisson(N, ndim)
+                    file_name = file_name+"_3d"
                 else: 
                     print("Not a valid lattice!")
                     exit()
             else:
                 print("Not a valid dimensionality!")
                 exit()
-            file_name = lattice
+        
             points = lattices.cut_circle(points)
             N = points.shape[0]
             points *= L
@@ -189,8 +193,11 @@ def main(head_directory, ndim, # Required arguments
             # Polarizability list
             if cold_atoms:
                 alpharange = utils.alpha_cold_atoms_3d(k0range)
+                self_interaction = True
+                print("Effective indices:"+str(onp.sqrt(alpharange/volume + 1)))
             else:
                 alpharange = onp.ones(len(k0range)) * utils.alpha_small_dielectric_object(refractive_n,volume)
+                self_interaction = True
 
         # If the code is run solely to put together data already obtained for several copies, skip this
         if just_compute_averages:
@@ -814,8 +821,8 @@ def main(head_directory, ndim, # Required arguments
             
             if compute_transmission:
                 # Accumulate data from calculations
-                Eall = []
-                Iall = []
+                E_all = []
+                I_all = []
                 
                 
                 for file_index in file_index_list: 
