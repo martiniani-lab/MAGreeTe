@@ -173,8 +173,17 @@ def main(head_directory, ndim, # Required arguments
 
         # Define wave-vector list here to avoid defining it again when averaging
         if ndim == 2:
+            
+            # Volume and radius of (circular cross-section) scatterers
+            volume = L**2 * phi/N
+            radius = onp.sqrt(volume/onp.pi )
+            
             if k0range_args == None:
-                k0range = onp.arange(40,81)*64/128*2*onp.pi/L
+                #TODO: Adapt this to N, phi
+                mean_distance = 1 / onp.sqrt(phi/volume)
+                k_max = 5.0 * L / mean_distance
+                k0range = onp.arange(1.0, k_max, 0.5)*2*onp.pi/L
+                # k0range = onp.arange(20,40.5,0.5)*2*onp.pi/L
             else:
                 if len(k0range_args)==1:
                     k0range = onp.array([k0range_args[0]])* 2*onp.pi/L
@@ -183,12 +192,9 @@ def main(head_directory, ndim, # Required arguments
                 else:
                     k0range = onp.arange(k0range_args[0],k0range_args[1]+k0range_args[2],k0range_args[2])* 2*onp.pi/L
 
-            # Volume and radius of (circular cross-section) scatterers
-            volume = L*L*phi/N
-            radius = onp.sqrt(volume/onp.pi )
-
             # Polarizability list
             if cold_atoms:
+                #TODO: Adapt constants in there
                 alpharange = utils.alpha_cold_atoms_2d(k0range)
                 self_interaction = True
                 print("Effective indices:"+str(onp.sqrt(alpharange/volume + 1)))
@@ -197,8 +203,17 @@ def main(head_directory, ndim, # Required arguments
                 self_interaction = True
 
         elif ndim ==3:
+            
+            # Volume and radius of (spherical) scatterers
+            volume = L**3 * phi/N
+            radius = onp.cbrt(volume * 3.0 / (4.0 * onp.pi))
+            
             if k0range_args == None:
-                k0range = onp.arange(10,41)*64/128*2*onp.pi/L
+                #TODO: Adapt this to N, phi
+                mean_distance = 1 / onp.cbrt(phi/volume)
+                k_max = 5.0 * L / mean_distance
+                k0range = onp.arange(1.0, k_max, 0.5)*2*onp.pi/L
+                # k0range = onp.arange(5.0,20.5,0.5)*2*onp.pi/L
             else: 
                 if len(k0range_args)==1:
                     k0range = onp.array([k0range_args[0]])* 2*onp.pi/L
@@ -206,10 +221,6 @@ def main(head_directory, ndim, # Required arguments
                     k0range = onp.arange(k0range_args[0],k0range_args[1]+1,1)* 2*onp.pi/L
                 else:
                     k0range = onp.arange(k0range_args[0],k0range_args[1]+k0range_args[2],k0range_args[2])* 2*onp.pi/L
-            
-            # Volume and radius of (spherical) scatterers
-            volume = L*L*L*phi/N
-            radius = onp.cbrt(volume * 3.0 / (4.0 * onp.pi))
 
             # Consistency check: plot set of scatterers
             utils.plot_3d_points(points,file_name)
@@ -913,7 +924,7 @@ if __name__ == '__main__':
     parser.add_argument("--boxsize", type=float, help="Set physical units for the box size: the results are dimensionless so that default=1", default = 1)
     # Ranges of wave-vectors and beam orientations, index of copy to look at
     parser.add_argument("-k", "--k0range", nargs='+', type=float, help = "Values of k0 to span, in units of 2pi/L. Can be a single-value argument, a k_min and a k_max (with default step 1), or k_min, k_max, and step\
-        default=(20,40,0.5) in 2d, (10,40,0.5) in 3d", default=None)
+        default=(1,L/mean_distance,0.5)*2pi/L ", default=None)
     parser.add_argument("-t","--thetas",  nargs = "+", type = float, help = "Angles to consider, in degrees. Can be a single-value argument, a theta_min and a theta_max (with default step 1), or theta_min, theta_max, and step\
         default=(0,359,1)", default = None)
     parser.add_argument("-i", "--file_index_args", nargs='+', type = int, help = "Suffix integer of input files to use in case several realisations are provided. Can provided just one, or a min and a max with step 1.\
