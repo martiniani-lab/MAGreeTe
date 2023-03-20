@@ -186,7 +186,7 @@ def main(head_directory, ndim, # Required arguments
                 # mean_distance = 1 / onp.sqrt(phi/volume)
                 # k_max = 5.0 * L / mean_distance
                 # now: set the max to be the last one where the assumptions are still somewhat ok, 2pi / radius
-                k_max = 1.0 * L /radius
+                k_max = 0.25 * L /radius
                 k0range = onp.arange(1.0, k_max, 0.5)*2*onp.pi/L
             else:
                 if len(k0range_args)==1:
@@ -220,7 +220,7 @@ def main(head_directory, ndim, # Required arguments
                 # mean_distance = 1 / onp.cbrt(phi/volume)
                 # k_max = 5.0 * L / mean_distance
                 # now: set the max to be the last one where the assumptions are still somewhat ok, 2pi / radius
-                k_max = 1.0 * L /radius
+                k_max = 0.25 * L /radius
                 k0range = onp.arange(1.0, k_max, 0.5)*2*onp.pi/L
             else: 
                 if len(k0range_args)==1:
@@ -934,7 +934,7 @@ if __name__ == '__main__':
     parser.add_argument("--boxsize", type=float, help="Set physical units for the box size: the results are dimensionless so that default=1", default = 1)
     # Ranges of wave-vectors and beam orientations, index of copy to look at
     parser.add_argument("-k", "--k0range", nargs='+', type=float, help = "Values of k0 to span, in units of 2pi/L. Can be a single-value argument, a k_min and a k_max (with default step 1), or k_min, k_max, and step\
-        default=(1,L/scatterer_radius,0.5)*2pi/L ", default=None)
+        default=(1,0.25 * L/scatterer_radius,0.5)*2pi/L ", default=None)
     parser.add_argument("-t","--thetas",  nargs = "+", type = float, help = "Angles to consider, in degrees. Can be a single-value argument, a theta_min and a theta_max (with default step 1), or theta_min, theta_max, and step\
         default=(0,359,1)", default = None)
     parser.add_argument("-i", "--file_index_args", nargs='+', type = int, help = "Suffix integer of input files to use in case several realisations are provided. Can provided just one, or a min and a max with step 1.\
