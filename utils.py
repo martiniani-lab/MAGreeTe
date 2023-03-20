@@ -289,6 +289,20 @@ def plot_optical_thickness(k0range, L, alpharange, ndim, phi, volume, file_name,
     plt.savefig(file_name+'_opticalthickness'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
     plt.close()
 
+def plot_k_times_radius(k0range, radius, L, file_name, appended_string=''):
+    # Plot the value of k times a to check whether hypotheses are still consistent
+    ka = k0range * radius
+    
+    fig = plt.figure()
+    ax = fig.gca()
+    freqs = onp.real(k0range*L/(2*onp.pi))
+    ax.plot(freqs, ka)
+    ax.set_xlabel(r'$k_0L/2\pi$')
+    ax.set_ylabel('$k_0 a$')
+    ax.legend()
+    plt.savefig(file_name+'_k_times_radius'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
+    plt.close()
+
 def plot_averaged_DOS(k0range, L, DOS, file_name, DOS_type, appended_string=''):
     # Angular-averaged transmission
     fig = plt.figure()
