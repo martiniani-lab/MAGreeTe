@@ -88,7 +88,7 @@ def main(head_directory, ndim, # Required arguments
 
         if lattice == None:
             dname = head_directory+'HPY'+str(ndim)+'D/phi'+str(phi_)+'/a'+str(a)+'/'
-            file_name = 'HPY'+str(ndim)+'D_phi'+str(phi_)+'_a'+str(a)+'_N'+str(N)+'_K'+str(k)
+            file_name = 'HPY'+str(ndim)+'D_phi'+str(phi_)+'_a'+str(a)+'_N'+str(N_raw)+'_K'+str(k)
             if dual:
                 file_name += '_dual'
             else:
@@ -99,6 +99,8 @@ def main(head_directory, ndim, # Required arguments
             idx = np.nonzero(np.linalg.norm(points,axis=-1)<=0.5)
             points = np.squeeze(points[idx])
             points *= L
+            
+            N = points.shape[0]
         else:
 
             file_name = lattice
