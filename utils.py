@@ -128,7 +128,7 @@ def plot_transmission_flat(k0range, L, thetas, intensity, file_name_root, append
     ax = fig.gca()
     pc = ax.imshow(total_[:,:int(total_.shape[1]/2)], norm=clr.LogNorm(vmin=1e-2,vmax=1e0), cmap=cmr.ember, extent =[0,180,freqs[0],freqs[-1]], origin='lower')
     ax.set_xlabel(r'$\theta$')
-    ax.set_ylabel('Frequency')
+    ax.set_ylabel(r'k_0L/2\pi')
     ax.set_aspect(180/(freqs[-1] - freqs[0]))
     fig.colorbar(pc)
     plt.savefig(file_name_root+'_transmission_beam_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
