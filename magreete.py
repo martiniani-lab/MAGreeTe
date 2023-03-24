@@ -177,7 +177,7 @@ def main(head_directory, ndim, # Required arguments
         if ndim == 2:
             
             # Volume and radius of (circular cross-section) scatterers
-            volume = onp.pi * L**2 * phi/(4.0 * N)
+            volume = L**2 * phi/N_raw
             radius = onp.sqrt(volume/onp.pi )
             
             if k0range_args == None:
@@ -211,7 +211,7 @@ def main(head_directory, ndim, # Required arguments
         elif ndim ==3:
             
             # Volume and radius of (spherical) scatterers
-            volume = onp.pi * L**3 * phi/(6.0 * N)
+            volume = L**3 * phi/N_raw
             radius = onp.cbrt(volume * 3.0 / (4.0 * onp.pi))
             
             if k0range_args == None:
