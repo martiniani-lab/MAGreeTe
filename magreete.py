@@ -20,7 +20,7 @@ import argparse
 
 def main(head_directory, ndim, # Required arguments
         refractive_n = 1.65 - 0.025j, phi = 0.1, regularize = True, N_raw = 4096, beam_waist = 0.2, L = 1, # Physical parameters
-        lattice=None, cold_atoms=False, donut = False, stealthy = False, dual = False, # Special cases
+        lattice=None, cold_atoms=False, donut = False, stealthy = False, dual = False, kick = 0.0, # Special cases
         k0range_args = None, thetarange_args = None, file_index_args = None,# Range of values to use
         compute_transmission = False, plot_transmission = False, compute_DOS=False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, intensity_fields = False, amplitude_fields = False, phase_fields = False, just_compute_averages = False,# Computations to perform
         dospoints=1, write_eigenvalues=False, write_ldos= False,  gridsize=(301,301), window_width=1.2, batch_size = 101*101, output_directory="" # Parameters for outputs
@@ -49,6 +49,8 @@ def main(head_directory, ndim, # Required arguments
         output_directory = output_directory+"cold_atoms"
     else:
         output_directory = output_directory+"refractive_n_"+str(refractive_n)
+    if kick != 0.0:
+        output_directory = output_directory+"_kicked_"+str(kick)
     if regularize:
         output_directory = output_directory+"_reg"
     utils.trymakedir(output_directory)
@@ -98,6 +100,9 @@ def main(head_directory, ndim, # Required arguments
             points = np.tensor(points[:,0:ndim]-0.5,dtype=np.double)
             idx = np.nonzero(np.linalg.norm(points,axis=-1)<=0.5)
             points = np.squeeze(points[idx])
+            # add random kicks
+            if kick != 0.0:
+                points = lattices.add_displacement(points, dr=kick)
             points *= L
             
             N = points.shape[0]
@@ -110,7 +115,7 @@ def main(head_directory, ndim, # Required arguments
                     Nside = onp.int(onp.round(onp.sqrt(N_raw)))
                     if Nside%2==0:
                         Nside += 1
-                    points = lattices.square(Nside=Nside)
+                    points = lattices.square(Nside=Nside, disp=kick)
                 elif lattice == 'triangular':
                     Nx = onp.int(onp.round(onp.sqrt(N_raw / onp.sqrt(3.0))))
                     Ny = onp.int(onp.round(onp.sqrt(3.0) * Nx))
@@ -118,7 +123,7 @@ def main(head_directory, ndim, # Required arguments
                         Nx += 1
                     if Ny%2 == 0:
                         Ny += 1
-                    points = lattices.triangular(Nx=Nx, Ny=Ny)
+                    points = lattices.triangular(Nx=Nx, Ny=Ny, disp=kick)
                 elif lattice == 'honeycomb':
                     Nx = onp.int(onp.round(onp.sqrt(N_raw / onp.sqrt(3.0))))
                     Ny = onp.int(onp.round(onp.sqrt(3.0) * Nx))
@@ -126,13 +131,13 @@ def main(head_directory, ndim, # Required arguments
                         Nx += 1
                     if Ny%2 == 0:
                         Ny += 1
-                    points = lattices.honeycomb(Nx=Nx, Ny=Ny)
+                    points = lattices.honeycomb(Nx=Nx, Ny=Ny, disp=kick)
                 elif lattice == 'quasicrystal':
-                    points = lattices.quasicrystal(N=N_raw, mode='quasicrystal')
+                    points = lattices.quasicrystal(N=N_raw, mode='quasicrystal', disp=kick)
                 elif lattice == 'quasidual':
-                    points = lattices.quasicrystal(N=N_raw, mode='quasidual')
+                    points = lattices.quasicrystal(N=N_raw, mode='quasidual', disp=kick)
                 elif lattice == 'quasivoro':
-                    points = lattices.quasicrystal(N=N_raw, mode='quasivoro')
+                    points = lattices.quasicrystal(N=N_raw, mode='quasivoro', disp=kick)
                 elif lattice == 'poisson':
                     points = lattices.poisson(N_raw, ndim)
                     file_name = file_name+"_2d"
@@ -143,19 +148,19 @@ def main(head_directory, ndim, # Required arguments
             elif ndim == 3:
                 if lattice == 'cubic':
                     Nside  = onp.int(onp.round(onp.cbrt(N_raw)))
-                    points = lattices.cubic(Nside=Nside)
+                    points = lattices.cubic(Nside=Nside, disp=kick)
                 elif lattice == 'bcc':
                     # bcc has two atoms per unit cell
                     Nside  = onp.int(onp.round(onp.cbrt(N_raw/2)))
-                    points = lattices.bcc(Nside=Nside)
+                    points = lattices.bcc(Nside=Nside, disp=kick)
                 elif lattice == 'fcc':
                     # fcc has four atoms per unit cell
                     Nside  = onp.int(onp.round(onp.cbrt(N_raw/4)))
-                    points = lattices.fcc(Nside=Nside)
+                    points = lattices.fcc(Nside=Nside, disp=kick)
                 elif lattice == 'diamond':
                     # diamond has two atoms per unit cell
                     Nside  = onp.int(onp.round(onp.cbrt(N_raw/2)))
-                    points = lattices.diamond(Nside=Nside)
+                    points = lattices.diamond(Nside=Nside, disp=kick)
                 elif lattice == 'poisson':
                     points = lattices.poisson(N_raw, ndim)
                     file_name = file_name+"_3d"
@@ -951,6 +956,8 @@ if __name__ == '__main__':
         default=False", default=False)
     parser.add_argument("--dual", action="store_true", help="Use the dual configuration\
         default=False", default=False)
+    parser.add_argument("--kick", type=float, help="Value of max amplitude of randomly oriented, random uniform length small kicks to add to all positions, in units of L\
+        default = 0", default = 0.0)
     # Computation type arguments
     parser.add_argument("--compute_transmission", action='store_true', help="Compute transmission for laser beams\
         default = False", default=False)
@@ -1015,6 +1022,7 @@ if __name__ == '__main__':
     donut                  = args.donut
     stealthy               = args.stealthy
     dual                   = args.dual
+    kick                   = args.kick
     # Outputs
     compute_transmission   = args.compute_transmission
     plot_transmission      = args.plot_transmission
@@ -1039,7 +1047,7 @@ if __name__ == '__main__':
     main(head_directory, ndim,
         refractive_n = refractive_n,  phi=phi, regularize=regularize, N_raw=N, beam_waist=beam_waist, L=boxsize,
         k0range_args = k0range_args, thetarange_args=thetarange_args, file_index_args = file_index_args,
-        cold_atoms=cold_atoms, lattice=lattice, donut = donut, stealthy=stealthy, dual = dual,
+        cold_atoms=cold_atoms, lattice=lattice, donut = donut, stealthy=stealthy, dual = dual, kick = kick,
         compute_transmission = compute_transmission, plot_transmission=plot_transmission,
         compute_DOS=compute_DOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS,
         intensity_fields = intensity_fields, amplitude_fields=amplitude_fields, phase_fields=phase_fields, just_compute_averages=just_compute_averages,

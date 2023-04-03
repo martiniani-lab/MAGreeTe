@@ -1,6 +1,7 @@
 import numpy as onp
 import torch as np
 from scipy.spatial import Delaunay, Voronoi
+from utils import uniform_unit_disk_picking, uniform_unit_ball_picking
 
 def cut_circle(r, rad=0.5):
     idx = np.nonzero(np.linalg.norm(r,axis=-1)<=rad)
@@ -8,12 +9,11 @@ def cut_circle(r, rad=0.5):
     return r
 
 def add_displacement(r, dr=1e-6):
-    disp = onp.random.random(r.shape[0])*2*onp.pi
     if r.shape[1]==2:
-        disp = onp.vstack([onp.cos(disp),onp.sin(disp)]).T*dr
+        disp = dr * uniform_unit_disk_picking(r.shape[0])
     else:
-        disp = (onp.random.random(r.shape)-0.5)*dr
-    return r + np.tensor(disp)
+        disp = dr * uniform_unit_ball_picking(r.shape[0], 3)
+    return r + disp
 
 def poisson(N, ndim):
     r = np.rand(N, ndim, dtype=np.double) - 0.5
