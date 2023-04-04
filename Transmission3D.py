@@ -186,7 +186,7 @@ class Transmission3D:
         G0 = np.transpose(G0,1,2).reshape(3*G0.shape[0],3*G0.shape[1]).to(np.complex128)
         return G0
 
-    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False):
+    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False, discard_absorption = False):
         '''
         Computes the LDOS averaged at a list of measurement points.
         This computation is a bit less expensive than the actual LDOS one,
@@ -233,14 +233,17 @@ class Transmission3D:
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
         dos_factor = ( np.matmul(G0_measure.t(), G0_measure) * W_tensor ).sum()/Npoints
-        # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
-        alpha_ = onp.real(alpha)
+        if discard_absorption:
+            # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
+            alpha_ = onp.real(alpha)
+        else:
+            alpha_ = alpha
         dos_factor *= 2.0*onp.pi*k0*alpha_
         dos_factor = np.imag(dos_factor)
 
         return dos_factor
 
-    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False):
+    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False, discard_absorption = False):
         '''
         Computes the LDOS at a list of measurement points
         This computation is fairly expensive, the number of measurement points should be small to avoid saturating resources
@@ -283,8 +286,11 @@ class Transmission3D:
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, W_tensor),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
         ldos_factor = np.einsum('ij, ji->i',np.matmul(G0_measure, W_tensor), (G0_measure).t() )
-        # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
-        alpha_ = onp.real(alpha)
+        if discard_absorption:
+            # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
+            alpha_ = onp.real(alpha)
+        else:
+            alpha_ = alpha
         ldos_factor *= 2.0*onp.pi*k0*alpha_
         ldos_factor = np.imag(ldos_factor)
         ldos_factor = ldos_factor.reshape(M,3,-1)

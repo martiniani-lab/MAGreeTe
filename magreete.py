@@ -405,6 +405,7 @@ def main(head_directory, ndim, # Required arguments
                         utils.plot_full_fields(ETMall, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TM', my_dpi = 300)
 
             if compute_SDOS:
+                solver = Transmission2D(points)
                 DOSall_TE = []
                 DOSall_TM = []
                 k0_range = []
@@ -427,6 +428,7 @@ def main(head_directory, ndim, # Required arguments
                 utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'sdos', appended_string='_'+str(file_index)+'_TM')
 
             if compute_DOS:
+                solver = Transmission2D(points)
                 DOSall_TE = []
                 DOSall_TM = []
                 k0_range = []
@@ -455,6 +457,7 @@ def main(head_directory, ndim, # Required arguments
                 utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'dos', appended_string='_'+str(file_index)+'_TM')
 
             if compute_interDOS:
+                solver = Transmission2D(points)
                 DOSall_TE = []
                 DOSall_TM = []
                 k0_range = []
@@ -497,12 +500,16 @@ def main(head_directory, ndim, # Required arguments
                 utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'idos', appended_string='_'+str(file_index)+'_TM')
 
             if compute_LDOS:
+                solver = Transmission2D(points)
                 # Expensive computation
                 ngridx = gridsize[0]
                 ngridy = gridsize[1]
                 xyratio = ngridx/ngridy
-                x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx),onp.linspace(0,1,ngridy))
-                measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel()]).T-0.5)*L*window_width)
+                x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5)
+                measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
+                
+                # Determine which points are within the system
+                idx_inside = np.nonzero(np.linalg.norm(measurement_points,axis=-1)<=L/2)
 
                 batches = np.split(measurement_points, batch_size)
                 n_batches = len(batches)
@@ -531,14 +538,24 @@ def main(head_directory, ndim, # Required arguments
 
                     ldos_TE = np.cat(outputs_TE)
                     ldos_TM = np.cat(outputs_TM)
+                    
+                    # XXX DEBUG
+                    # Also measure the average LDOS from these points
+                    ldos_TE_avg = np.sum(ldos_TE[idx_inside]) * onp.pi * L**2 / idx_inside.shape[0]
+                    ldos_TM_avg = np.sum(ldos_TM[idx_inside]) * onp.pi * L**2 / idx_inside.shape[0]
+                    print(ldos_TE_avg)
+                    print(ldos_TM_avg)
+                    
+                    ldos_TE = ldos_TE.reshape(ngridy, ngridx)
+                    ldos_TM = ldos_TM.reshape(ngridy, ngridx)
 
-                    utils.plot_LDOS_2D(ldos_TE,k0_,ngridx,ngridy,file_name, appended_string='TE', my_dpi = 300)
-                    utils.plot_LDOS_2D(ldos_TM,k0_,ngridx,ngridy,file_name, appended_string='TM', my_dpi = 300)
+                    utils.plot_LDOS_2D(ldos_TE,k0_,ngridx,ngridy,file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE', my_dpi = 300)
+                    utils.plot_LDOS_2D(ldos_TM,k0_,ngridx,ngridy,file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TM', my_dpi = 300)
 
                     if write_ldos:
                         onp.savetxt(file_name+'_ldos_'+str(k0_)+'_TE_'+str(index)+'.csv',ldos_TE.numpy())
-                        onp.savetxt(file_name+'_ldos_'+str(k0_)+'_TM_'+str(index)+'.csv',ldos_TM.numpy())        
-
+                        onp.savetxt(file_name+'_ldos_'+str(k0_)+'_TM_'+str(index)+'.csv',ldos_TM.numpy())  
+                    
         ### ###############
         ### 3d calculations
         ### ###############
@@ -686,6 +703,7 @@ def main(head_directory, ndim, # Required arguments
 
 
             if compute_SDOS:
+                solver = Transmission3D(points)
                 DOSall = []
                 k0_range = []
 
@@ -702,6 +720,7 @@ def main(head_directory, ndim, # Required arguments
                 utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'sdos', appended_string='_'+str(file_index))
 
             if compute_DOS:
+                solver = Transmission3D(points)
                 DOSall = []
                 k0_range = []
 
@@ -725,6 +744,7 @@ def main(head_directory, ndim, # Required arguments
                 utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'dos',appended_string='_'+str(file_index))
 
             if compute_interDOS:
+                solver = Transmission3D(points)
                 DOSall = []
                 k0_range = []
 
@@ -764,13 +784,14 @@ def main(head_directory, ndim, # Required arguments
 
             
             if compute_LDOS:
+                solver = Transmission3D(points)
                 # Expensive computation
                 # For now, taking the central plane z = 0
                 ngridx = gridsize[0]
                 ngridy = gridsize[1]
                 xyratio = ngridx/ngridy
-                x,y,z = onp.meshgrid(onp.linspace(0,xyratio,ngridx),onp.linspace(0,1,ngridy), [0.5])
-                measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T-0.5)*L*window_width)
+                x,y,z = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5, [0.0])
+                measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T)*L*window_width)
 
                 batches = np.split(measurement_points, batch_size)
                 n_batches = len(batches)
@@ -795,8 +816,10 @@ def main(head_directory, ndim, # Required arguments
 
 
                     ldos = np.cat(outputs)
+                    
+                    ldos = ldos.reshape(ngridy, ngridx)
 
-                    utils.plot_LDOS_2D(ldos,k0_,ngridx,ngridy,file_name, appended_string='z=0'+'_'+str(file_index), my_dpi = 300)
+                    utils.plot_LDOS_2D(ldos,k0_,ngridx,ngridy,file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_z=0'+'_'+str(file_index), my_dpi = 300)
 
                     if write_ldos:
                         onp.savetxt(file_name+'_ldos_'+str(k0_)+'_'+str(index)+'.csv',ldos.numpy())
