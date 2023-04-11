@@ -23,7 +23,7 @@ def main(head_directory, ndim, # Required arguments
         lattice=None, cold_atoms=False, donut = False, stealthy = False, dual = False, kick = 0.0, # Special cases
         k0range_args = None, thetarange_args = None, file_index_args = None,# Range of values to use
         compute_transmission = False, plot_transmission = False, compute_DOS=False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, intensity_fields = False, amplitude_fields = False, phase_fields = False, just_compute_averages = False,# Computations to perform
-        dospoints=1, write_eigenvalues=False, write_ldos= False,  gridsize=(301,301), window_width=1.2, batch_size = 101*101, output_directory="" # Parameters for outputs
+        dospoints=1, spacing_factor = 1.0,  write_eigenvalues=False, write_ldos= False,  gridsize=(301,301), window_width=1.2, batch_size = 101*101, output_directory="" # Parameters for outputs
         ):
     '''
     Simple front-end for MAGreeTe
@@ -469,10 +469,12 @@ def main(head_directory, ndim, # Required arguments
                 # Find all overlaps and redraw while you have some
                 # Following Pierrat et al., I use 1 diameter as the spacing there
                 spacing = 2.0*radius
+                spacing *= spacing_factor
+                # XXX TODO: use a random cavity or something similar instead!
                 overlaps = np.nonzero(np.sum(np.cdist(measurement_points.to(np.double), points.to(np.double), p=2) <= spacing, axis = -1)).squeeze()
                 count = overlaps.shape[0]
                 while count > 0:
-                    print("Removing "+str(count)+" overlaps...")
+                    print("Removing "+str(count)+" overlaps using an exclusion distance of "+str(spacing_factor)+" scatterer diameters...")
                     measurement_points[overlaps] = L/2 * utils.uniform_unit_disk_picking(count)
                     overlaps = np.nonzero(np.sum(np.cdist(measurement_points.to(np.double), points.to(np.double), p=2) <= spacing, axis = -1)).squeeze()
                     if len(overlaps.shape) == 0:
@@ -756,10 +758,11 @@ def main(head_directory, ndim, # Required arguments
                 # Find all overlaps and redraw while you have some
                 # Following Pierrat et al., I use 1 diameter as the spacing there
                 spacing = 2.0*radius
+                spacing *= spacing_factor
                 overlaps = np.nonzero(np.sum(np.cdist(measurement_points, points, p=2) <= spacing)).squeeze()
                 count = overlaps.shape[0]
                 while count > 0:
-                    print("Removing "+str(count)+" overlaps...")
+                    print("Removing "+str(count)+" overlaps using an exclusion distance of "+str(spacing_factor)+" scatterer diameters...")
                     measurement_points[overlaps] = L/2 * utils.uniform_unit_ball_picking(count, ndim).squeeze()
                     overlaps = np.nonzero(np.sum(np.cdist(measurement_points, points, p=2) <= spacing))
                     if len(overlaps.shape) == 0:
@@ -1005,6 +1008,8 @@ if __name__ == '__main__':
     # Parameters of outputs
     parser.add_argument("--dospoints",type=int, help="Number of points to use for the mean DOS computation \
         default = 1000", default=1000)
+    parser.add_argument("-s","--spacing_factor", type=float, help="Number of diameters to use as excluded volume around measurement points for idos\
+        default = 1.0", default = 1.0)
     parser.add_argument("-ev","--write_eigenvalues", action='store_false', help="Write the eigenvalues of the Green's matrix at every frequency  \
         default=True", default=False)
     parser.add_argument("--write_ldos", action="store_true", help="Save all computed LDOS outputs. Warning: this can grow pretty big.\
@@ -1059,6 +1064,7 @@ if __name__ == '__main__':
     just_compute_averages  = args.just_averages
     # Options for outputs
     dospoints              = args.dospoints
+    spacing_factor         = args.spacing_factor
     write_eigenvalues      = args.write_eigenvalues
     write_ldos             = args.write_ldos
     gridsize               = tuple(args.gridsize)
@@ -1074,7 +1080,7 @@ if __name__ == '__main__':
         compute_transmission = compute_transmission, plot_transmission=plot_transmission,
         compute_DOS=compute_DOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS,
         intensity_fields = intensity_fields, amplitude_fields=amplitude_fields, phase_fields=phase_fields, just_compute_averages=just_compute_averages,
-        dospoints=dospoints, write_eigenvalues=write_eigenvalues, write_ldos=write_ldos, gridsize=gridsize, window_width=window_width,
+        dospoints=dospoints, spacing_factor=spacing_factor, write_eigenvalues=write_eigenvalues, write_ldos=write_ldos, gridsize=gridsize, window_width=window_width,
         output_directory=output_directory
         )
     sys.exit()
