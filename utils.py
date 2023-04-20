@@ -303,8 +303,12 @@ def plot_k_times_radius(k0range, radius, L, file_name, appended_string=''):
     plt.savefig(file_name+'_k_times_radius'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
     plt.close()
 
-def plot_averaged_DOS(k0range, L, DOS, file_name, DOS_type, appended_string=''):
-    # Angular-averaged transmission
+def plot_averaged_DOS(k0range, L, DOS, file_name, DOS_type, appended_string='', debug=True):
+    # Averaged LDOS plot
+    if debug:
+        # XXX DEBUG: threshold values to -1
+        DOS = onp.array(DOS)
+        DOS = onp.where(DOS < -1, -1, DOS)
     fig = plt.figure()
     ax = fig.gca()
     freqs = onp.real(k0range*L/(2*onp.pi))

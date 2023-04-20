@@ -22,7 +22,7 @@ def main(head_directory, ndim, # Required arguments
         refractive_n = 1.65 - 0.025j, phi = 0.1, regularize = True, N_raw = 4096, beam_waist = 0.2, L = 1, # Physical parameters
         lattice=None, cold_atoms=False, donut = False, stealthy = False, dual = False, kick = 0.0, # Special cases
         k0range_args = None, thetarange_args = None, file_index_args = None,# Range of values to use
-        compute_transmission = False, plot_transmission = False, compute_DOS=False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, intensity_fields = False, amplitude_fields = False, phase_fields = False, just_compute_averages = False,# Computations to perform
+        compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, compute_DOS=False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, intensity_fields = False, amplitude_fields = False, phase_fields = False, just_compute_averages = False,# Computations to perform
         dospoints=1, spacing_factor = 1.0,  write_eigenvalues=False, write_ldos= False,  gridsize=(301,301), window_width=1.2, batch_size = 101*101, output_directory="" # Parameters for outputs
         ):
     '''
@@ -325,6 +325,43 @@ def main(head_directory, ndim, # Required arguments
                     utils.plot_transmission_flat(k0range, L, thetas, TEtotal, file_name, appended_string='_'+str(file_index)+'_TE')
                     utils.plot_angular_averaged_transmission(k0range, L, TMtotal, file_name, appended_string='_'+str(file_index)+'_TM')
                     utils.plot_angular_averaged_transmission(k0range, L, TEtotal, file_name, appended_string='_'+str(file_index)+'_TE')
+                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TMtotal, file_name, appended_string='_'+str(file_index)+'_TM_angle0')
+                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TEtotal, file_name, appended_string='_'+str(file_index)+'_TE_angle0')
+
+
+                            
+            # Single-scattering transmission
+            if single_scattering_transmission:
+                # Define the list of measurement points for transmission plots
+                meas_points = 2*L*onp.vstack([onp.cos(thetas),onp.sin(thetas)]).T
+                solver = Transmission2D(points)
+                ETEall_ss = []
+                ETMall_ss = []
+                
+                for k0, alpha in zip(k0range,alpharange):
+                    EkTE_ss, EkTM_ss = solver.calc_EM_ss(meas_points, k0, alpha, thetas, w, regularize=regularize, radius=radius)
+                    EkTE_ss = np.linalg.norm(EkTE_ss,axis=1)
+                    ETEall_ss.append(EkTE_ss.numpy())
+                    ETMall_ss.append(EkTM_ss.numpy())
+                    
+                # Compute intensities at measurement points
+                ETEall_ss = onp.array(ETEall_ss)
+                ETMall_ss = onp.array(ETMall_ss)
+                TEtotal_ss = onp.absolute(ETEall_ss)**2
+                TMtotal_ss = onp.absolute(ETMall_ss)**2
+                
+                # Produce plots
+                utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal_ss, file_name, appended_string='_'+str(file_index)+'_TM_ss')
+                utils.plot_transmission_angularbeam(k0range, L, thetas, TEtotal_ss, file_name, appended_string='_'+str(file_index)+'_TE_ss')
+                utils.plot_transmission_flat(k0range, L, thetas, TMtotal_ss, file_name, appended_string='_'+str(file_index)+'_TM_ss')
+                utils.plot_transmission_flat(k0range, L, thetas, TEtotal_ss, file_name, appended_string='_'+str(file_index)+'_TE_ss')
+                utils.plot_angular_averaged_transmission(k0range, L, TMtotal_ss, file_name, appended_string='_'+str(file_index)+'_TM_ss')
+                utils.plot_angular_averaged_transmission(k0range, L, TEtotal_ss, file_name, appended_string='_'+str(file_index)+'_TE_ss')
+                utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TMtotal_ss, file_name, appended_string='_'+str(file_index)+'_TM_angle0_ss')
+                utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TEtotal_ss, file_name, appended_string='_'+str(file_index)+'_TE_angle0_ss')
+
+                
+            
 
             # Compute full fields
             # Pretty expensive!
@@ -989,6 +1026,8 @@ if __name__ == '__main__':
         default = False", default=False)
     parser.add_argument("--plot_transmission", action='store_true', help="Produce transmission plots\
         default=False", default=False)
+    parser.add_argument("-ss","--single_scattering_transmission", action="store_true", help="Produce transmission plots using a single-scattering approximation of the Lippman-Schwinger equation\
+        default=False", default=False)
     parser.add_argument("-dos","--compute_DOS", action='store_true', help="Compute the mean DOS of the medium  \
         default=False", default=False)
     parser.add_argument("-idos","--compute_interDOS", action='store_true', help="Compute the mean DOS of the medium away from scatterers  \
@@ -1024,52 +1063,53 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Required arguments
-    head_directory          = args.head_directory
-    ndim                    = args.ndim
-    n_cpus                  = args.n_cpus
+    head_directory                  = args.head_directory
+    ndim                            = args.ndim
+    n_cpus                          = args.n_cpus
     # Physical quantities
-    refractive_n            = args.refractive_n
-    phi                     = args.phi
-    regularize              = args.regularize
-    N                       = args.number_particles
-    beam_waist              = args.beam_waist
-    boxsize                 = args.boxsize
+    refractive_n                    = args.refractive_n
+    phi                             = args.phi
+    regularize                      = args.regularize
+    N                               = args.number_particles
+    beam_waist                      = args.beam_waist
+    boxsize                         = args.boxsize
     # Ranges of wave-vectors and beam orientations, index of copy for source points
-    k0range_args            = args.k0range
+    k0range_args                    = args.k0range
     if k0range_args     != None:
-        k0range_args        = tuple(k0range_args)
+        k0range_args                = tuple(k0range_args)
     thetarange_args = args.thetas
     if thetarange_args     != None:
-        thetarange_args     = tuple(thetarange_args)
-    file_index_args         = args.file_index_args
+        thetarange_args             = tuple(thetarange_args)
+    file_index_args                 = args.file_index_args
     if file_index_args     != None:
-        file_index_args     = tuple(file_index_args)
+        file_index_args             = tuple(file_index_args)
     # Special cases
-    cold_atoms             = args.cold_atoms
-    lattice                = args.lattice
-    donut                  = args.donut
-    stealthy               = args.stealthy
-    dual                   = args.dual
-    kick                   = args.kick
+    cold_atoms                      = args.cold_atoms
+    lattice                         = args.lattice
+    donut                           = args.donut
+    stealthy                        = args.stealthy
+    dual                            = args.dual
+    kick                            = args.kick
     # Outputs
-    compute_transmission   = args.compute_transmission
-    plot_transmission      = args.plot_transmission
-    compute_DOS            = args.compute_DOS
-    compute_interDOS       = args.compute_interDOS
-    compute_SDOS           = args.compute_SDOS
-    compute_LDOS           = args.compute_LDOS
-    intensity_fields       = args.intensity_fields
-    amplitude_fields       = args.amplitude_fields
-    phase_fields           = args.phase_fields
-    just_compute_averages  = args.just_averages
+    compute_transmission            = args.compute_transmission
+    plot_transmission               = args.plot_transmission
+    single_scattering_transmission  = args.single_scattering_transmission
+    compute_DOS                     = args.compute_DOS
+    compute_interDOS                = args.compute_interDOS
+    compute_SDOS                    = args.compute_SDOS
+    compute_LDOS                    = args.compute_LDOS
+    intensity_fields                = args.intensity_fields
+    amplitude_fields                = args.amplitude_fields
+    phase_fields                    = args.phase_fields
+    just_compute_averages           = args.just_averages
     # Options for outputs
-    dospoints              = args.dospoints
-    spacing_factor         = args.spacing_factor
-    write_eigenvalues      = args.write_eigenvalues
-    write_ldos             = args.write_ldos
-    gridsize               = tuple(args.gridsize)
-    window_width           = args.window_width
-    output_directory       = args.output
+    dospoints                       = args.dospoints
+    spacing_factor                  = args.spacing_factor
+    write_eigenvalues               = args.write_eigenvalues
+    write_ldos                      = args.write_ldos
+    gridsize                        = tuple(args.gridsize)
+    window_width                    = args.window_width
+    output_directory                = args.output
 
     np.set_num_threads(n_cpus)
     np.device("cpu")
@@ -1077,7 +1117,7 @@ if __name__ == '__main__':
         refractive_n = refractive_n,  phi=phi, regularize=regularize, N_raw=N, beam_waist=beam_waist, L=boxsize,
         k0range_args = k0range_args, thetarange_args=thetarange_args, file_index_args = file_index_args,
         cold_atoms=cold_atoms, lattice=lattice, donut = donut, stealthy=stealthy, dual = dual, kick = kick,
-        compute_transmission = compute_transmission, plot_transmission=plot_transmission,
+        compute_transmission = compute_transmission, plot_transmission=plot_transmission, single_scattering_transmission=single_scattering_transmission,
         compute_DOS=compute_DOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS,
         intensity_fields = intensity_fields, amplitude_fields=amplitude_fields, phase_fields=phase_fields, just_compute_averages=just_compute_averages,
         dospoints=dospoints, spacing_factor=spacing_factor, write_eigenvalues=write_eigenvalues, write_ldos=write_ldos, gridsize=gridsize, window_width=window_width,
