@@ -8,6 +8,11 @@ def cut_circle(r, rad=0.5):
     r = np.squeeze(r[idx])
     return r
 
+def exclude_circle(r, rad=0.25):
+    idx = np.nonzero(np.linalg.norm(r,axis=-1)>rad)
+    r = np.squeeze(r[idx])
+    return r
+
 def add_displacement(r, dr=1e-6):
     if r.shape[1]==2:
         disp = dr * uniform_unit_disk_picking(r.shape[0])

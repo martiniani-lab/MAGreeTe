@@ -19,8 +19,8 @@ import argparse
 
 
 def main(head_directory, ndim, # Required arguments
-        refractive_n = 1.65 - 0.025j, phi = 0.1, regularize = True, N_raw = 4096, beam_waist = 0.2, L = 1, # Physical parameters
-        lattice=None, cold_atoms=False, donut = False, stealthy = False, dual = False, kick = 0.0, # Special cases
+        refractive_n = 1.65 - 0.025j, phi = 0.1, regularize = True, N_raw = 16384, beam_waist = 0.2, L = 1, # Physical parameters
+        lattice=None, cold_atoms=False, annulus = 0, composite = False, kick = 0.0, # Special cases
         k0range_args = None, thetarange_args = None, file_index_args = None,# Range of values to use
         compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, compute_DOS=False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, intensity_fields = False, amplitude_fields = False, phase_fields = False, just_compute_averages = False,# Computations to perform
         dospoints=1, spacing_factor = 1.0,  write_eigenvalues=False, write_ldos= False,  gridsize=(301,301), window_width=1.2, batch_size = 101*101, output_directory="" # Parameters for outputs
@@ -28,22 +28,144 @@ def main(head_directory, ndim, # Required arguments
     '''
     Simple front-end for MAGreeTe
     '''
-
-    #TODO: Clean up this part to be a bit more generic
-    #TODO NOW: add cleaner saves for DOS and transmission stuff across copies, write averaging of those, plus slightly different outputs for fields (ballistic + speckle)
-    if donut:
+    N = N_raw
+    a = -1.0
+    k = 80#32
+    w = 0.2*L
+    phi_ = 0.1
+    suffix = ''
+    if lattice == 'donut':
         a = -1.0
-        k = 80
-        phi_ = 0.6
-    elif stealthy:
+        if N == 16384:
+            k = 160
+        elif N == 4096:
+            k = 80
+        lattice = None
+    elif lattice == 'stealthy':
         a = 0.0
-        k = 32#32so
-        phi_ = 0.6
-    else:
-        phi_ = phi
+        if N == 16384:
+            k = 64
+        elif N == 4096:
+            k = 32
+        elif N == 500:
+            k = 10
+        lattice = None
+    elif lattice == 'stealthydual':
+        a = 0.0
+        if N == 16384:
+            k = 64
+            N = 8192
+        elif N == 4096:
+            k = 32
+            N = 2048
+        elif N == 500:
+            k = 10
+            N = 250
+        suffix = '_dual'
+        lattice = None
+    elif lattice == 'stealthynetwork':
+        a = 0.0
+        if N == 4096:
+            k = 32
+            N = 2048
+        elif N == 500:
+            N = 250
+            k = 10
+        elif N == 16384:
+            N = 3200
+            k = 31
+            phi_ = 0.6
+        suffix = '_network1_dual'
+        lattice = None
+    elif lattice == 'donut_ellipse':
+        a = -2.1
+        k = 160
+        lattice = None
+    elif lattice == 'donut_new':
+        a = -1.1
+        k = 200
+        lattice = None
+    elif lattice == 'donut3d':
+        a = -1.0
+        k = 30
+        lattice=None
+    elif lattice == 'stealthy3d':
+        a = 0.0
+        k = 20
+        lattice=None
+    elif lattice == 'checkerboard':
+        a = -4.0
+        if N == 16384:
+            k = 120
+        elif N == 4096:
+            k = 32
+        lattice=None
+    elif lattice == 'checker2':
+        a = -4.1
+        if N == 16384:
+            k = 120
+        lattice=None
+    elif lattice == 'checker2small':
+        a = -4.1
+        if N == 16384:
+            k = 60
+        lattice=None
+    elif lattice == 'checker8':
+        a = -4.2
+        if N == 16384:
+            k = 120
+        lattice=None
+    elif lattice == 'rose':
+        a = -3.0
+        if N == 16384:
+            k = 120
+        elif N == 4096:
+            k = 80
+        lattice=None
+    elif lattice == 'pinwheel':
+        a = -3.1
+        if N == 16384:
+            k = 160
+        lattice=None
+    elif lattice == 'pinwheel6':
+        a = -3.2
+        if N == 16384:
+            k = 160
+        lattice=None
+    elif lattice == 'spiral':
+        a = -5.0
+        if N == 16384:
+            k = 160
+        elif N == 4096:
+            k = 80
+        lattice=None
+    elif lattice == 'limitedspiral':
+        a = -5.1
+        if N == 16384:
+            k = 160
+        lattice = None 
+    elif lattice == 'lowspiral':
+        a = -5.2
+        if N == 16384:
+            k = 160
+        lattice=None
+    elif lattice == 'highspiral':
+        a = -5.3
+        if N == 16384:
+            k = 160
+        lattice=None
+    elif lattice == 'stealthyspiral':
+        a = -5.4
+        if N == 16384:
+            k = 160
+        lattice=None
+
+    #Todo: finish sending these to options with more uh, transparent names
+    phi_ = phi
 
     # Name the output directory in a human-readable way containing the three physical parameters: raw number of particles, volume fraction and refractive index
     output_directory = output_directory+"N"+str(N_raw)+"/"
+    
     output_directory = output_directory+"phi_"+str(phi)+"/"
     if cold_atoms:
         output_directory = output_directory+"cold_atoms"
@@ -91,21 +213,14 @@ def main(head_directory, ndim, # Required arguments
         if lattice == None:
             dname = head_directory+'HPY'+str(ndim)+'D/phi'+str(phi_)+'/a'+str(a)+'/'
             file_name = 'HPY'+str(ndim)+'D_phi'+str(phi_)+'_a'+str(a)+'_N'+str(N_raw)+'_K'+str(k)
-            if dual:
-                file_name += '_dual'
-            else:
-                file_name += '_points'
+            file_name += suffix
 
             points = hkl.load(dname+file_name+'_'+str(file_index)+'.hkl')
             points = np.tensor(points[:,0:ndim]-0.5,dtype=np.double)
-            idx = np.nonzero(np.linalg.norm(points,axis=-1)<=0.5)
-            points = np.squeeze(points[idx])
+            points = lattices.cut_circle(points)
             # add random kicks
             if kick != 0.0:
                 points = lattices.add_displacement(points, dr=kick)
-            points *= L
-            
-            N = points.shape[0]
         else:
 
             file_name = lattice
@@ -172,8 +287,18 @@ def main(head_directory, ndim, # Required arguments
                 exit()
         
             points = lattices.cut_circle(points)
-            N = points.shape[0]
-            points *= L
+        assert ndim == points.shape[1]
+        if annulus > 0:
+            points = lattices.exclude_circle(points,annulus)
+            file_name += '_annulus_'+str(annulus)
+        if composite:
+            comp = lattices.square(128)
+            comp = lattices.cut_circle(comp,annulus)
+            points = np.vstack([points,comp])
+            file_name += '_composite'
+        N = points.shape[0]
+        utils.plot_2d_points(points,file_name)
+        points *= L
         assert ndim == points.shape[1]
 
         file_name = output_directory+"/"+file_name
@@ -360,9 +485,6 @@ def main(head_directory, ndim, # Required arguments
                 utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TMtotal_ss, file_name, appended_string='_'+str(file_index)+'_TM_angle0_ss')
                 utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TEtotal_ss, file_name, appended_string='_'+str(file_index)+'_TE_angle0_ss')
 
-                
-            
-
             # Compute full fields
             # Pretty expensive!
             some_fields = intensity_fields+amplitude_fields+phase_fields
@@ -451,7 +573,6 @@ def main(head_directory, ndim, # Required arguments
                     dos_TE, dos_TM = solver.compute_eigenvalues_and_scatterer_LDOS( k0, alpha, radius, file_name, write_eigenvalues=write_eigenvalues)
                     DOSall_TE.append(dos_TE.numpy())
                     DOSall_TM.append(dos_TM.numpy())
-
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                     k0_range.append(k0_)
 
@@ -1013,11 +1134,9 @@ if __name__ == '__main__':
     parser.add_argument("-l", "--lattice", type=str, help="Use a simple lattice in lieu of datapoints as entry. \
         Options are 'square', 'triangular', 'honeycomb', 'quasicrystal', 'quasidual', 'quasivoro', 'poisson' in 2d, and 'cubic', 'fcc', 'bcc', 'diamond', 'poisson' in 3d. \
         default=None", default=None)
-    parser.add_argument("--donut", action="store_true", help="Use a donut initial condition \
-        default=False", default=False)
-    parser.add_argument("--stealthy", action="store_true", help="Use a stealthy hyperuniform initial condition\
-        default=False", default=False)
-    parser.add_argument("--dual", action="store_true", help="Use the dual configuration\
+    parser.add_argument("-a", "--annulus", type=float, help="radius of circular removal of points \
+        default=0", default=0)
+    parser.add_argument("-c","--composite", action='store_true', help="Whether to fill annulus vacancy with square lattice\
         default=False", default=False)
     parser.add_argument("--kick", type=float, help="Value of max amplitude of randomly oriented, random uniform length small kicks to add to all positions, in units of L\
         default = 0", default = 0.0)
@@ -1086,9 +1205,8 @@ if __name__ == '__main__':
     # Special cases
     cold_atoms                      = args.cold_atoms
     lattice                         = args.lattice
-    donut                           = args.donut
-    stealthy                        = args.stealthy
-    dual                            = args.dual
+    annulus                         = args.annulus
+    composite                       = args.composite
     kick                            = args.kick
     # Outputs
     compute_transmission            = args.compute_transmission
@@ -1116,7 +1234,7 @@ if __name__ == '__main__':
     main(head_directory, ndim,
         refractive_n = refractive_n,  phi=phi, regularize=regularize, N_raw=N, beam_waist=beam_waist, L=boxsize,
         k0range_args = k0range_args, thetarange_args=thetarange_args, file_index_args = file_index_args,
-        cold_atoms=cold_atoms, lattice=lattice, donut = donut, stealthy=stealthy, dual = dual, kick = kick,
+        cold_atoms=cold_atoms, lattice=lattice, annulus = annulus, composite = composite, kick = kick,
         compute_transmission = compute_transmission, plot_transmission=plot_transmission, single_scattering_transmission=single_scattering_transmission,
         compute_DOS=compute_DOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS,
         intensity_fields = intensity_fields, amplitude_fields=amplitude_fields, phase_fields=phase_fields, just_compute_averages=just_compute_averages,
