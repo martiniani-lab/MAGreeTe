@@ -124,7 +124,7 @@ class Transmission3D:
             else:
                 idx = np.nonzero(np.prod(self.r-points[j]==0,axis=-1))
                 Ek_[j] = Ek.reshape(points.shape[0],3,-1)[idx]
-        return Ek_
+        return Ek_, E0j
    
     def run(self, k0, alpha, u, p, radius, beam_waist, self_interaction=True):
         '''
@@ -155,6 +155,40 @@ class Transmission3D:
         # Solve M_tensor.Ek = E0j
         Ek = np.linalg.solve(M_tensor, E0j.reshape(3*self.N,-1)) 
         return Ek
+    
+    def calc_ss(self, points, k0, alpha, u, p, beam_waist, regularize = False, radius = 0.0):
+        '''
+        Calculates the EM field at a set of measurement points, using a single-scattering approximation
+
+        points     - (M,3)      coordinates of all measurement points
+        k0         - (1)        frequency being measured
+        alpha      - (1)        bare static polarizability at given k0
+        u          - (Ndirs, 3)    propagation directions for the source
+        p          - (Ndirs, 3)    polarization directions for the source
+        beam_waist - (1)        beam waist
+        regularize - bool       bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
+        radius     - (1)        considered scatterer radius, only used for regularization 
+        '''
+
+        points = np.tensor(points)
+        E0_meas = self.generate_source(points, k0, u, p, beam_waist, print_statement='calc_ss')
+        E0_scat = self.generate_source(self.r, k0, u, p, beam_waist, print_statement='calc_ss')
+        E0_scat = E0_scat.reshape(3*self.r.shape[0],-1)        
+        Ek_ = np.matmul(alpha*k0*k0* self.G0(points, k0, print_statement='calc_ss', regularize=regularize, radius=radius), E0_scat).reshape(points.shape[0],3,-1) + E0_meas
+        
+        # Take care of cases in which measurement points are exactly scatterer positions
+        for j in np.argwhere(np.isnan(Ek_[:,0,0])):
+            if regularize:
+                # If overlap, will just return the closest one
+                possible_idx = np.nonzero(np.linalg.norm(self.r-points[j], axis = -1) <= radius)
+                if possible_idx.shape[0] > 1:
+                    idx = np.argmin(np.linalg.norm(self.r-points[j], axis = -1))
+                else:
+                    idx = possible_idx
+                Ek_[j] = E0_meas[idx]
+            else:
+                Ek_[j] = E0_meas[np.nonzero(np.prod(self.r-points[j]==0,axis=-1))]
+        return Ek_, E0_meas
 
     def G0(self, points, k0, print_statement='', regularize = False, radius = 0.0):
         '''

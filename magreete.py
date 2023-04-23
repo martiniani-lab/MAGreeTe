@@ -23,7 +23,7 @@ def main(head_directory, ndim, # Required arguments
         lattice=None, cold_atoms=False, annulus = 0, composite = False, kick = 0.0, # Special cases
         k0range_args = None, thetarange_args = None, file_index_args = None,# Range of values to use
         compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, compute_DOS=False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, intensity_fields = False, amplitude_fields = False, phase_fields = False, just_compute_averages = False,# Computations to perform
-        dospoints=1, spacing_factor = 1.0,  write_eigenvalues=False, write_ldos= False,  gridsize=(301,301), window_width=1.2, batch_size = 101*101, output_directory="" # Parameters for outputs
+        dospoints=1, spacing_factor = 1.0,  write_eigenvalues=False, write_ldos= False,  gridsize=(301,301), window_width=1.2, angular_width = 0.0,batch_size = 101*101, output_directory="" # Parameters for outputs
         ):
     '''
     Simple front-end for MAGreeTe
@@ -193,6 +193,8 @@ def main(head_directory, ndim, # Required arguments
             Ntheta = len(thetas)
     # Keep a copy of the thetas used to plot if thetas get overwritten when loading files
     thetas_plot = thetas 
+    # Figure out how many angles around the central one to use for the definition of transmission
+    n_thetas_trans = int(onp.floor(angular_width * 0.5 * len(thetas)))
 
     # Beam waist
     w = beam_waist * L
@@ -227,21 +229,21 @@ def main(head_directory, ndim, # Required arguments
             
             if ndim==2:
                 if lattice == 'square':
-                    Nside = onp.int(onp.round(onp.sqrt(N_raw)))
+                    Nside = int(onp.round(onp.sqrt(N_raw)))
                     if Nside%2==0:
                         Nside += 1
                     points = lattices.square(Nside=Nside, disp=kick)
                 elif lattice == 'triangular':
-                    Nx = onp.int(onp.round(onp.sqrt(N_raw / onp.sqrt(3.0))))
-                    Ny = onp.int(onp.round(onp.sqrt(3.0) * Nx))
+                    Nx = int(onp.round(onp.sqrt(N_raw / onp.sqrt(3.0))))
+                    Ny = int(onp.round(onp.sqrt(3.0) * Nx))
                     if Nx%2==0:
                         Nx += 1
                     if Ny%2 == 0:
                         Ny += 1
                     points = lattices.triangular(Nx=Nx, Ny=Ny, disp=kick)
                 elif lattice == 'honeycomb':
-                    Nx = onp.int(onp.round(onp.sqrt(N_raw / onp.sqrt(3.0))))
-                    Ny = onp.int(onp.round(onp.sqrt(3.0) * Nx))
+                    Nx = int(onp.round(onp.sqrt(N_raw / onp.sqrt(3.0))))
+                    Ny = int(onp.round(onp.sqrt(3.0) * Nx))
                     if Nx%2==0:
                         Nx += 1
                     if Ny%2 == 0:
@@ -262,19 +264,19 @@ def main(head_directory, ndim, # Required arguments
 
             elif ndim == 3:
                 if lattice == 'cubic':
-                    Nside  = onp.int(onp.round(onp.cbrt(N_raw)))
+                    Nside  = int(onp.round(onp.cbrt(N_raw)))
                     points = lattices.cubic(Nside=Nside, disp=kick)
                 elif lattice == 'bcc':
                     # bcc has two atoms per unit cell
-                    Nside  = onp.int(onp.round(onp.cbrt(N_raw/2)))
+                    Nside  = int(onp.round(onp.cbrt(N_raw/2)))
                     points = lattices.bcc(Nside=Nside, disp=kick)
                 elif lattice == 'fcc':
                     # fcc has four atoms per unit cell
-                    Nside  = onp.int(onp.round(onp.cbrt(N_raw/4)))
+                    Nside  = int(onp.round(onp.cbrt(N_raw/4)))
                     points = lattices.fcc(Nside=Nside, disp=kick)
                 elif lattice == 'diamond':
                     # diamond has two atoms per unit cell
-                    Nside  = onp.int(onp.round(onp.cbrt(N_raw/2)))
+                    Nside  = int(onp.round(onp.cbrt(N_raw/2)))
                     points = lattices.diamond(Nside=Nside, disp=kick)
                 elif lattice == 'poisson':
                     points = lattices.poisson(N_raw, ndim)
@@ -422,7 +424,7 @@ def main(head_directory, ndim, # Required arguments
                         EjTE, EjTM, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
                         EjTE = np.tensor(EjTE, dtype=np.complex128)
                         EjTM = np.tensor(EjTM, dtype=np.complex128)
-                        points = np.tensor(points, dtype=np.complex128)
+                        points = np.tensor(points, dtype=np.float64)
                         thetas = onp.float64(thetas)
                         alpha, k0 = params
                         k0 = onp.float64(k0)
@@ -444,14 +446,14 @@ def main(head_directory, ndim, # Required arguments
                     TEtotal = onp.absolute(ETEall)**2
                     TMtotal = onp.absolute(ETMall)**2
                     # Produce plots
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal, file_name, appended_string='_'+str(file_index)+'_TM')
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, TEtotal, file_name, appended_string='_'+str(file_index)+'_TE')
-                    utils.plot_transmission_flat(k0range, L, thetas, TMtotal, file_name, appended_string='_'+str(file_index)+'_TM')
-                    utils.plot_transmission_flat(k0range, L, thetas, TEtotal, file_name, appended_string='_'+str(file_index)+'_TE')
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM')
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, TEtotal, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE')
+                    utils.plot_transmission_flat(k0range, L, thetas, TMtotal, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM')
+                    utils.plot_transmission_flat(k0range, L, thetas, TEtotal, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE')
                     utils.plot_angular_averaged_transmission(k0range, L, TMtotal, file_name, appended_string='_'+str(file_index)+'_TM')
                     utils.plot_angular_averaged_transmission(k0range, L, TEtotal, file_name, appended_string='_'+str(file_index)+'_TE')
-                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TMtotal, file_name, appended_string='_'+str(file_index)+'_TM_angle0')
-                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TEtotal, file_name, appended_string='_'+str(file_index)+'_TE_angle0')
+                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TMtotal, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_angle0')
+                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TEtotal, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_angle0')
 
 
                             
@@ -476,14 +478,14 @@ def main(head_directory, ndim, # Required arguments
                 TMtotal_ss = onp.absolute(ETMall_ss)**2
                 
                 # Produce plots
-                utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal_ss, file_name, appended_string='_'+str(file_index)+'_TM_ss')
-                utils.plot_transmission_angularbeam(k0range, L, thetas, TEtotal_ss, file_name, appended_string='_'+str(file_index)+'_TE_ss')
-                utils.plot_transmission_flat(k0range, L, thetas, TMtotal_ss, file_name, appended_string='_'+str(file_index)+'_TM_ss')
-                utils.plot_transmission_flat(k0range, L, thetas, TEtotal_ss, file_name, appended_string='_'+str(file_index)+'_TE_ss')
+                utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal_ss, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_ss')
+                utils.plot_transmission_angularbeam(k0range, L, thetas,  TEtotal_ss, file_name, n_thetas_trans = n_thetas_trans,  appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_ss')
+                utils.plot_transmission_flat(k0range, L, thetas, TMtotal_ss, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_ss')
+                utils.plot_transmission_flat(k0range, L, thetas, TEtotal_ss, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_ss')
                 utils.plot_angular_averaged_transmission(k0range, L, TMtotal_ss, file_name, appended_string='_'+str(file_index)+'_TM_ss')
                 utils.plot_angular_averaged_transmission(k0range, L, TEtotal_ss, file_name, appended_string='_'+str(file_index)+'_TE_ss')
-                utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TMtotal_ss, file_name, appended_string='_'+str(file_index)+'_TM_angle0_ss')
-                utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TEtotal_ss, file_name, appended_string='_'+str(file_index)+'_TE_angle0_ss')
+                utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TMtotal_ss, file_name, n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_angle0_ss')
+                utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas,  TEtotal_ss, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_angle0_ss')
 
             # Compute full fields
             # Pretty expensive!
@@ -732,24 +734,27 @@ def main(head_directory, ndim, # Required arguments
                     solver = Transmission3D(points)
                     u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
                     u = np.tensor(u)
-                    print(points.shape)
                     p = np.zeros(u.shape)
                     p[:,2] = 1
-                    Eall = []
+                    Eall  = []
+                    E0all = []
                     for k0, alpha in zip(k0range,alpharange):
                         Ej = solver.run(k0, alpha, u, p, radius, w, self_interaction=self_interaction)
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                         params = [alpha, k0]
                         hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
 
-                        Ek = solver.calc(meas_points, Ej, k0, alpha, u, p, w, regularize = regularize, radius=radius)
+                        Ek, E0_meas = solver.calc(meas_points, Ej, k0, alpha, u, p, w, regularize = regularize, radius=radius)
                         Ek = np.linalg.norm(Ek,axis=1)
-                        Eall.append(Ek.numpy())       
+                        E0_meas = np.linalg.norm(E0_meas,axis=1)
+                        Eall.append(Ek.numpy())
+                        E0all.append(E0_meas.numpy())
 
                 # A computation has already been performed
                 elif plot_transmission:
 
-                    Eall = []
+                    Eall  = []
+                    E0all = []
                     u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
                     u = np.tensor(u)
                     print(points.shape)
@@ -760,16 +765,18 @@ def main(head_directory, ndim, # Required arguments
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                         Ej, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
                         Ej = np.tensor(Ej, dtype=np.complex128)
-                        points = np.tensor(points, dtype=np.complex128)
+                        points = np.tensor(points, dtype=np.float64)
                         thetas = onp.float64(thetas)
                         alpha, k0 = params
                         k0 = onp.float64(k0)
                         alpha = onp.complex128(alpha)
                         solver = Transmission3D(points)
 
-                        Ek = solver.calc(meas_points, Ej, k0, alpha, u, p, w, regularize=regularize, radius = radius)
+                        Ek, E0_meas = solver.calc(meas_points, Ej, k0, alpha, u, p, w, regularize=regularize, radius = radius)
                         Ek = np.linalg.norm(Ek,axis=1)
-                        Eall.append(Ek.numpy())   
+                        E0_meas = np.linalg.norm(E0_meas, axis = 1)
+                        Eall.append(Ek.numpy())
+                        E0all.append(E0_meas.numpy())
 
             hkl.dump([onp.array(Eall), onp.array(k0range), onp.array(thetas)],file_name+'_transmission_'+str(file_index)+'.hkl')
         
@@ -778,10 +785,45 @@ def main(head_directory, ndim, # Required arguments
                 # Compute intensities at measurement points
                 Eall = onp.array(Eall)
                 Etotal = onp.absolute(Eall)**2
+                E0all = onp.array(E0all)
+                E0total = onp.absolute(E0all)**2
                 # Produce the plots
-                utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name, appended_string = '_'+str(file_index)) 
-                utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name, appended_string = '_'+str(file_index)) 
+                utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name, normalization = [], appended_string = '_'+str(file_index)) 
+                utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name, normalization = [], appended_string = '_'+str(file_index)) 
                 utils.plot_angular_averaged_transmission(k0range, L, Etotal, file_name, appended_string = '_'+str(file_index))
+                utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, Etotal, file_name, appended_string='_'+str(file_index)+'_angle0')
+
+                
+            # Single-scattering transmission
+            if single_scattering_transmission:
+                # Define the list of measurement points for transmission plots
+                meas_points = 2*L*onp.vstack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
+                solver = Transmission3D(points)
+                u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
+                u = np.tensor(u)
+                p = np.zeros(u.shape)
+                p[:,2] = 1
+                Eall_ss = []
+                E0all = []
+                for k0, alpha in zip(k0range,alpharange):
+                    Ek_ss, E0_meas = solver.calc_ss(meas_points, k0, alpha, u, p, w, regularize=regularize, radius=radius)
+                    Ek_ss = np.linalg.norm(Ek_ss,axis=1)
+                    E0_meas = np.linalg.norm(E0_meas, axis=1)
+                    Eall_ss.append(Ek_ss.numpy())
+                    E0all.append(E0_meas.numpy())
+
+                # Compute intensities at measurement points
+                Eall_ss = onp.array(Eall_ss)
+                Etotal_ss = onp.absolute(Eall_ss)**2
+                E0all = onp.array(E0all)
+                E0total = onp.absolute(E0all)**2
+                
+                # Produce plots
+                utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_ss, file_name, n_thetas_trans = n_thetas_trans, normalization = [], appended_string = '_'+str(file_index)+"_ss") 
+                utils.plot_transmission_flat(k0range, L, thetas, Etotal_ss, file_name, n_thetas_trans = n_thetas_trans, normalization = [], appended_string = '_'+str(file_index)+"_ss") 
+                utils.plot_angular_averaged_transmission(k0range, L, Etotal_ss, file_name, appended_string = '_'+str(file_index)+"_ss")
+                utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, Etotal_ss, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_'+str(file_index)+'_angle0_ss')
+
 
             # Compute full fields
             # Pretty expensive!
@@ -1176,6 +1218,8 @@ if __name__ == '__main__':
         default = (301,301)", default=(301,301))
     parser.add_argument("-w","--window_width", type=float, help="Width of the viewfield for real-space plots, in units of system diameters, \
         default = 1.2", default = 1.2)
+    parser.add_argument("-aw", "--angular_width", type = float, help="Angular width used in the definition of transmission, as a fraction of half the number of used angles: 0 is a single-point and 1 is the full half-space. Warning: this only uses angles defined in the list of computed angles!\
+        Default = 0", default = 0.0)
     parser.add_argument("-o", "--output", type=str, help="Output directory\
         default = ./refractive_n_$Value/", default='')
 
@@ -1227,6 +1271,7 @@ if __name__ == '__main__':
     write_ldos                      = args.write_ldos
     gridsize                        = tuple(args.gridsize)
     window_width                    = args.window_width
+    angular_width                   = args.angular_width
     output_directory                = args.output
 
     np.set_num_threads(n_cpus)
@@ -1238,7 +1283,7 @@ if __name__ == '__main__':
         compute_transmission = compute_transmission, plot_transmission=plot_transmission, single_scattering_transmission=single_scattering_transmission,
         compute_DOS=compute_DOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS,
         intensity_fields = intensity_fields, amplitude_fields=amplitude_fields, phase_fields=phase_fields, just_compute_averages=just_compute_averages,
-        dospoints=dospoints, spacing_factor=spacing_factor, write_eigenvalues=write_eigenvalues, write_ldos=write_ldos, gridsize=gridsize, window_width=window_width,
+        dospoints=dospoints, spacing_factor=spacing_factor, write_eigenvalues=write_eigenvalues, write_ldos=write_ldos, gridsize=gridsize, window_width=window_width, angular_width=angular_width,
         output_directory=output_directory
         )
     sys.exit()

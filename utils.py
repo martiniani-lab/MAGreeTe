@@ -90,9 +90,9 @@ def uniform_unit_ball_picking(n_points, dim):
     return points
 
 
-def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root, appended_string=''):
+def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,  n_thetas_trans = 0.0, normalization = [], appended_string=''):
     """
-    Plots one a radial version of the frequency-angle transmission plot given 
+    Plots a radial version of the frequency-angle transmission plot given 
     k0range: list of wave vector moduli, in rad/m
     L: system sidelength, in m
     thetas: list of angles used for the orientation of the laser, in radians
@@ -101,7 +101,23 @@ def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,
     appended_string: possible postfix for the name of the file, e.g. "TM" or "TE"
     """
     freqs = onp.real(k0range*L/(2*onp.pi))
-    total_ = onp.sum(intensity*onp.diag(onp.ones(intensity.shape[-1])),axis=1)
+    # Define a matrix that encodes the width of the detector as a number of 1s every line around the central angle
+    anglewidth_matrix = onp.diag(onp.ones(intensity.shape[-1]))
+    # XXX Not very optimal...
+    if n_thetas_trans > 0:
+        half_width = onp.int(onp.floor(n_thetas_trans/2))
+        for value in range(1,half_width):
+            anglewidth_matrix += onp.eye(intensity.shape[-1], k=value)
+            anglewidth_matrix += onp.eye(intensity.shape[-1], k=-value)
+    total_ = onp.sum(intensity*anglewidth_matrix,axis=1)
+    
+    if normalization != []:
+        total_norm = onp.sum(normalization,axis=1)
+        total_ /= total_norm
+    else:
+        total_ /= n_thetas_trans + 1
+    #     total_ /= onp.max(total_)
+    
     fig, ax = plt.subplots(subplot_kw={'projection':'polar'})
     pc = ax.pcolormesh(thetas,freqs,total_,norm=clr.LogNorm(vmin=1e-2,vmax=1e0), cmap=cmr.ember)#cmap=cmr.torch) #cmap='inferno')
     #ax.set_rmin(10.0)
@@ -112,7 +128,7 @@ def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,
     plt.savefig(file_name_root+'_transmission_angularbeam_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
     plt.close()
 
-def plot_transmission_flat(k0range, L, thetas, intensity, file_name_root, appended_string=''):
+def plot_transmission_flat(k0range, L, thetas, intensity, file_name_root,  n_thetas_trans = 0.0, normalization = [], appended_string=''):
     """
     Plots one a flattened version of the frequency-angle transmission plot given 
     k0range: list of wave vector moduli, in rad/m
@@ -123,7 +139,22 @@ def plot_transmission_flat(k0range, L, thetas, intensity, file_name_root, append
     appended_string: possible postfix for the name of the file, e.g. "TM" or "TE"
     """
     freqs = onp.real(k0range*L/(2*onp.pi))
-    total_ = onp.sum(intensity*onp.diag(onp.ones(intensity.shape[-1])),axis=1)
+    anglewidth_matrix = onp.diag(onp.ones(intensity.shape[-1]))
+    # XXX Not very optimal...
+    if n_thetas_trans > 0:
+        half_width = onp.int(onp.floor(n_thetas_trans/2))
+        for value in range(1,half_width):
+            anglewidth_matrix += onp.eye(intensity.shape[-1], k=value)
+            anglewidth_matrix += onp.eye(intensity.shape[-1], k=-value)
+    total_ = onp.sum(intensity*anglewidth_matrix,axis=1)
+    
+    if normalization != []:
+        total_norm = onp.sum(normalization,axis=1)
+        total_ /= total_norm
+    else:
+        total_ /= n_thetas_trans + 1
+    #     total_ /= onp.max(total_)
+        
     fig = plt.figure()
     ax = fig.gca()
     pc = ax.imshow(total_[:,:int(total_.shape[1]/2)], norm=clr.LogNorm(vmin=1e-2,vmax=1e0), cmap=cmr.ember, extent =[0,180,freqs[0],freqs[-1]], origin='lower')
@@ -158,7 +189,7 @@ def plot_transmission_linear(k0range, L,x, intensity, file_name_root,cmap='virid
     plt.savefig(file_name_root+'_transmission_linear_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
     plt.close()
 
-def plot_singlebeam_angular_frequency_plot(k0range, L, thetas, intensity, file_name_root, appended_string=''):
+def plot_singlebeam_angular_frequency_plot(k0range, L, thetas, intensity, file_name_root, n_thetas_trans = 0, appended_string=''):
     """
     Plots specific intensity for a single beam, in a radial frequency-angle plot 
     k0range: list of wave vector moduli, in rad/m
@@ -171,6 +202,7 @@ def plot_singlebeam_angular_frequency_plot(k0range, L, thetas, intensity, file_n
     fig, ax = plt.subplots(subplot_kw={'projection':'polar'})
     freqs = onp.real(k0range*L/(2*onp.pi))
     total_ = intensity[:,:,0]
+    # XXX Use n_thetas_trans here as well on second dim if needed. Useful?
     pc = ax.pcolormesh(thetas,freqs,total_,norm=clr.LogNorm(vmin=total_.min(),vmax=total_.max()), cmap=cmr.ember)
     fig.colorbar(pc)
     plt.savefig(file_name_root+'_transmission_angular'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
