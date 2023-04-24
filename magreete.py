@@ -30,10 +30,7 @@ def main(head_directory, ndim, # Required arguments
     Simple front-end for MAGreeTe
     '''
     N = N_raw
-    a = -1.0
-    k = 80#32
-    w = 0.2*L
-    phi_ = 0.1
+    phi_ = 0.6
     suffix = ''
     if lattice == 'donut':
         a = -1.0
@@ -50,6 +47,7 @@ def main(head_directory, ndim, # Required arguments
             k = 32
         elif N == 500:
             k = 10
+        suffix = '_points'
         lattice = None
     elif lattice == 'stealthydual':
         a = 0.0
@@ -161,8 +159,8 @@ def main(head_directory, ndim, # Required arguments
             k = 160
         lattice=None
 
-    #By default, particle exclusion phi = scatterer phi
-    phi_ = phi
+    # #By default, particle exclusion phi = scatterer phi
+    # phi_ = phi
 
     # Name the output directory in a human-readable way containing the three physical parameters: raw number of particles, volume fraction and refractive index
     output_directory = output_directory+"N"+str(N_raw)+"/"
@@ -420,11 +418,9 @@ def main(head_directory, ndim, # Required arguments
                             E0TE = E0TM.reshape(meas_points.shape[0],1,len(thetas))*u_meas
                             EkTM_scat = EkTM - E0TM
                             EkTE_scat = EkTE - E0TE
-                            # EkTE_scat = np.linalg.norm(EkTE_scat, axis=1)
                             ETEall_scat.append(EkTE_scat.numpy())
                             ETMall_scat.append(EkTM_scat.numpy())
                         
-                        # EkTE = np.linalg.norm(EkTE,axis=1) # Keep the full vector field instead of the 2-norm
                         ETEall.append(EkTE.numpy())
                         ETMall.append(EkTM.numpy())
 
@@ -456,11 +452,9 @@ def main(head_directory, ndim, # Required arguments
                             E0TE = E0TM.reshape(meas_points.shape[0],1,len(thetas))*u_meas
                             EkTM_scat = EkTM - E0TM
                             EkTE_scat = EkTE - E0TE
-                            # EkTE_scat = np.linalg.norm(EkTE_scat, axis=1)
                             ETEall_scat.append(EkTE_scat.numpy())
                             ETMall_scat.append(EkTM_scat.numpy())
                         
-                        # EkTE = np.linalg.norm(EkTE,axis=1)
                         ETEall.append(EkTE.numpy())
                         ETMall.append(EkTM.numpy())
 
@@ -471,9 +465,10 @@ def main(head_directory, ndim, # Required arguments
                     # Compute intensities at measurement points
                     ETEall = onp.array(ETEall)
                     ETMall = onp.array(ETMall)
-                    TEtotal = onp.linalg.norm(ETEall, axis=2)
-                    TEtotal = onp.absolute(TEtotal)**2
+                    TEtotal = onp.absolute(ETEall)**2
+                    TEtotal = onp.sum(TEtotal, axis=2)
                     TMtotal = onp.absolute(ETMall)**2
+
                     # Produce plots
                     utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM')
                     utils.plot_transmission_angularbeam(k0range, L, thetas, TEtotal, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE')
@@ -489,9 +484,8 @@ def main(head_directory, ndim, # Required arguments
                         # Compute scattered intensities at measurement points
                         ETEall_scat = onp.array(ETEall_scat)
                         ETMall_scat = onp.array(ETMall_scat)
-                        print(ETEall_scat.shape)
-                        TEtotal_scat = onp.linalg.norm(ETEall_scat, axis=2)
-                        TEtotal_scat = onp.absolute(TEtotal_scat)**2
+                        TEtotal_scat = onp.absolute(ETEall_scat)**2
+                        TEtotal_scat = onp.sum(TEtotal_scat, axis=2)
                         TMtotal_scat = onp.absolute(ETMall_scat)**2
                         
                         # Produce plots
@@ -527,19 +521,17 @@ def main(head_directory, ndim, # Required arguments
                         E0TE = E0TM.reshape(meas_points.shape[0],1,len(thetas))*u_meas
                         EkTM_scat_ss = EkTM_ss - E0TM
                         EkTE_scat_ss = EkTE_ss - E0TE
-                        # EkTE_scat_ss = np.linalg.norm(EkTE_scat_ss, axis=1)
                         ETEall_scat_ss.append(EkTE_scat_ss.numpy())
                         ETMall_scat_ss.append(EkTM_scat_ss.numpy())
                     
-                    # EkTE_ss = np.linalg.norm(EkTE_ss,axis=1)
                     ETEall_ss.append(EkTE_ss.numpy())
                     ETMall_ss.append(EkTM_ss.numpy())
                     
                 # Compute intensities at measurement points
                 ETEall_ss = onp.array(ETEall_ss)
                 ETMall_ss = onp.array(ETMall_ss)
-                TEtotal_ss = onp.linalg.norm(ETEall_ss, axis=2)
-                TEtotal_ss = onp.absolute(TEtotal_ss)**2
+                TEtotal_ss = onp.absolute(ETEall_ss)**2
+                TEtotal_ss = onp.sum(TEtotal_ss, axis=2)
                 TMtotal_ss = onp.absolute(ETMall_ss)**2
                 
                 # Produce plots
@@ -557,8 +549,8 @@ def main(head_directory, ndim, # Required arguments
                     # Compute scattered intensities at measurement points
                     ETEall_scat_ss = onp.array(ETEall_scat_ss)
                     ETMall_scat_ss = onp.array(ETMall_scat_ss)
-                    TEtotal_scat_ss = onp.linalg.norm(ETEall_scat_ss, axis=2)
-                    TEtotal_scat_ss = onp.absolute(TEtotal_scat_ss)**2
+                    TEtotal_scat_ss = onp.absolute(ETEall_scat_ss)**2
+                    TEtotal_scat_ss = onp.sum(TEtotal_scat_ss, axis=2)
                     TMtotal_scat_ss = onp.absolute(ETMall_scat_ss)**2
                     
                     # Produce plots
@@ -835,10 +827,8 @@ def main(head_directory, ndim, # Required arguments
                         if scattered_fields:
                             E0meas = solver.generate_source(np.tensor(meas_points), k0, u, p, beam_waist, print_statement='calc') #(M,3,Ndirs)
                             Ekscat = Ek - E0meas
-                            # Ekscat = np.linalg.norm(Ekscat, axis=1)
                             Eall_scat.append(Ekscat.numpy())
                         
-                        # Ek = np.linalg.norm(Ek,axis=1)
                         Eall.append(Ek.numpy())
 
                 # A computation has already been performed
@@ -868,10 +858,8 @@ def main(head_directory, ndim, # Required arguments
                         if scattered_fields:
                             E0meas = solver.generate_source(np.tensor(meas_points), k0, u, p, beam_waist, print_statement='calc') #(M,3,Ndirs)
                             Ekscat = Ek - E0meas
-                            # Ekscat = np.linalg.norm(Ekscat, axis=1)
                             Eall_scat.append(Ekscat.numpy())
                         
-                        # Ek = np.linalg.norm(Ek,axis=1)
                         Eall.append(Ek.numpy())
 
             hkl.dump([onp.array(Eall), onp.array(k0range), onp.array(thetas)],file_name+'_transmission_'+str(file_index)+'.hkl')
@@ -880,9 +868,9 @@ def main(head_directory, ndim, # Required arguments
             if plot_transmission:
                 # Compute intensities at measurement points
                 Eall = onp.array(Eall)
-                Etotal = onp.linalg.norm(Eall, axis=2)
-                Etotal = onp.absolute(Etotal)**2
-                
+                Etotal = onp.absolute(Eall)**2
+                Etotal = onp.sum(Etotal, axis=2)
+
                 # Produce the plots
                 utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name, normalization = [], n_thetas_trans = n_thetas_trans, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)) 
                 utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name, normalization = [], n_thetas_trans = n_thetas_trans, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)) 
@@ -892,8 +880,9 @@ def main(head_directory, ndim, # Required arguments
                 
                 if scattered_fields:
                     Eall_scat = onp.array(Eall_scat)
-                    Etotal_scat = onp.linalg.norm(Eall_scat, axis = 2)
-                    Etotal_scat = onp.absolute(Etotal_scat)**2
+                    Etotal_scat = onp.absolute(Eall_scat)**2
+                    Etotal_scat = onp.sum(Etotal_scat, axis=2)
+
                     # Produce the plots
                     utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_scat, file_name, normalization = [], n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat") 
                     utils.plot_transmission_flat(k0range, L, thetas, Etotal_scat, file_name, normalization = [], n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat") 
@@ -921,16 +910,14 @@ def main(head_directory, ndim, # Required arguments
                     if scattered_fields:
                         E0meas = solver.generate_source(np.tensor(meas_points), k0, u, p, beam_waist, print_statement='calc') #(M,3,Ndirs)
                         Ekscat_ss = Ek_ss - E0meas
-                        #Ekscat_ss = np.linalg.norm(Ekscat_ss, axis=1)
                         Eall_scat_ss.append(Ekscat_ss.numpy())
                     
-                    #Ek_ss = np.linalg.norm(Ek_ss,axis=1)
                     Eall_ss.append(Ek_ss.numpy())
 
                 # Compute intensities at measurement points
                 Eall_ss = onp.array(Eall_ss)
-                Etotal_ss = onp.linalg.norm(Eall_ss, axis = 2)
-                Etotal_ss = onp.absolute(Etotal_ss)**2
+                Etotal_ss = onp.absolute(Eall_ss)**2
+                Etotal_ss = onp.sum(Etotal_ss, axis=2)
                 
                 # Produce plots
                 utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_ss, file_name, n_thetas_trans = n_thetas_trans, normalization = [], appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_ss") 
@@ -941,8 +928,8 @@ def main(head_directory, ndim, # Required arguments
                 
                 if scattered_fields:
                     Eall_scat_ss = onp.array(Eall_scat_ss)
-                    Etotal_scat_ss = onp.linalg.norm(Eall_scat_ss, axis = 2)
-                    Etotal_scat_ss = onp.absolute(Etotal_scat_ss)**2
+                    Etotal_scat_ss = onp.absolute(Eall_scat_ss)**2
+                    Etotal_scat_ss = onp.sum(Etotal_scat_ss, axis=2)
                     
                     # Produce plots
                     utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_scat_ss, file_name, n_thetas_trans = n_thetas_trans, normalization = [], adapt_scale = True, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat_ss") 
@@ -1196,9 +1183,6 @@ def main(head_directory, ndim, # Required arguments
                 # Also define the average fluctuating intensity field
                 ITE_fluct = ITE_mean - ITE_ball
                 ITM_fluct = ITM_mean - ITM_ball
-
-                print(ETE_onecopy.shape)
-                print(ETE_mean.shape)
 
                 # If required: plot results
                 if plot_transmission:

@@ -241,7 +241,6 @@ class Transmission2D:
                 EkTM_[j] = E0_meas[np.nonzero(np.prod(self.r-points[j]==0,axis=-1))]
                 EkTE_[j] = E0_meas[np.nonzero(np.prod(self.r-points[j]==0,axis=-1))]
                 
-        
         return EkTE_, EkTM_
 
     def G0_TM(self, points, k0, print_statement='', regularize = False, radius=0.0):
