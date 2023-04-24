@@ -82,19 +82,20 @@ class Transmission3D:
         
         return E0j.reshape(points.shape[0],1,-1)*pvec.reshape(1,3,-1)
  
-    def calc(self, points, Ek, k0, alpha, u, p, beam_waist, regularize = False, radius=0.0):
+    def calc(self, points, Ek, k0, alpha, u, p, beam_waist, regularize = False, radius=0.0, scattered_fields = False):
         '''
         Calculates the EM field at a set of measurement points
 
-        points - (M,3)      coordinates of all measurement points
-        Ek     - (N*3)      electromagnetic field at each scatterer
-        k0     - (1)        frequency being measured
-        alpha  - (1)        bare static polarizability at given k0
-        u      - (Ndirs, 3) propagation directions for the source
-        p      - (Ndirs, 3) polarization directions for the source
-        beam_waist - (1)    beam waist
-        regularize - bool       bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
-        radius     - (1)        considered scatterer radius, only used for regularization 
+        points           - (M,3)         coordinates of all measurement points
+        Ek               - (N*3)         electromagnetic field at each scatterer
+        k0               - (1)           frequency being measured
+        alpha            - (1)           bare static polarizability at given k0
+        u                - (Ndirs, 3)    propagation directions for the source
+        p                - (Ndirs, 3)    polarization directions for the source
+        beam_waist       - (1)           beam waist
+        regularize       - bool          bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
+        radius           - (1)           considered scatterer radius, only used for regularization 
+        scattered_fields - bool          returned scattered fields instead of full fields
         '''
         points = np.tensor(points)
         
@@ -124,7 +125,11 @@ class Transmission3D:
             else:
                 idx = np.nonzero(np.prod(self.r-points[j]==0,axis=-1))
                 Ek_[j] = Ek.reshape(points.shape[0],3,-1)[idx]
-        return Ek_, E0j
+                
+        if scattered_fields:
+            Ek_ -= E0j
+                
+        return Ek_
    
     def run(self, k0, alpha, u, p, radius, beam_waist, self_interaction=True):
         '''
@@ -156,18 +161,19 @@ class Transmission3D:
         Ek = np.linalg.solve(M_tensor, E0j.reshape(3*self.N,-1)) 
         return Ek
     
-    def calc_ss(self, points, k0, alpha, u, p, beam_waist, regularize = False, radius = 0.0):
+    def calc_ss(self, points, k0, alpha, u, p, beam_waist, regularize = False, radius = 0.0, scattered_fields = False):
         '''
         Calculates the EM field at a set of measurement points, using a single-scattering approximation
 
-        points     - (M,3)      coordinates of all measurement points
-        k0         - (1)        frequency being measured
-        alpha      - (1)        bare static polarizability at given k0
-        u          - (Ndirs, 3)    propagation directions for the source
-        p          - (Ndirs, 3)    polarization directions for the source
-        beam_waist - (1)        beam waist
-        regularize - bool       bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
-        radius     - (1)        considered scatterer radius, only used for regularization 
+        points           - (M,3)         coordinates of all measurement points
+        k0               - (1)           frequency being measured
+        alpha            - (1)           bare static polarizability at given k0
+        u                - (Ndirs, 3)    propagation directions for the source
+        p                - (Ndirs, 3)    polarization directions for the source
+        beam_waist       - (1)           beam waist
+        regularize       - bool          bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
+        radius           - (1)           considered scatterer radius, only used for regularization 
+        scattered_fields - bool          returned scattered fields instead of full fields
         '''
 
         points = np.tensor(points)
@@ -188,7 +194,11 @@ class Transmission3D:
                 Ek_[j] = E0_meas[idx]
             else:
                 Ek_[j] = E0_meas[np.nonzero(np.prod(self.r-points[j]==0,axis=-1))]
-        return Ek_, E0_meas
+                
+        if scattered_fields:
+            Ek_ -= E0_meas
+                
+        return Ek_
 
     def G0(self, points, k0, print_statement='', regularize = False, radius = 0.0):
         '''

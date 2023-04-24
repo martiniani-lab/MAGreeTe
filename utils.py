@@ -189,7 +189,7 @@ def plot_transmission_linear(k0range, L,x, intensity, file_name_root,cmap='virid
     plt.savefig(file_name_root+'_transmission_linear_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
     plt.close()
 
-def plot_singlebeam_angular_frequency_plot(k0range, L, thetas, intensity, file_name_root, n_thetas_trans = 0, appended_string=''):
+def plot_singlebeam_angular_frequency_plot(k0range, L, thetas, intensity, file_name_root, n_thetas_trans = 0, plot_theta_index = 0, appended_string=''):
     """
     Plots specific intensity for a single beam, in a radial frequency-angle plot 
     k0range: list of wave vector moduli, in rad/m
@@ -201,7 +201,7 @@ def plot_singlebeam_angular_frequency_plot(k0range, L, thetas, intensity, file_n
     """
     fig, ax = plt.subplots(subplot_kw={'projection':'polar'})
     freqs = onp.real(k0range*L/(2*onp.pi))
-    total_ = intensity[:,:,0]
+    total_ = intensity[:,:,plot_theta_index]
     # XXX Use n_thetas_trans here as well on second dim if needed. Useful?
     pc = ax.pcolormesh(thetas,freqs,total_,norm=clr.LogNorm(vmin=total_.min(),vmax=total_.max()), cmap=cmr.ember)
     fig.colorbar(pc)

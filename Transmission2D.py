@@ -124,23 +124,25 @@ class Transmission2D:
                 E0j[:,idx] = np.exp(1j*rrot[:,0]*k0)
         return E0j, u
  
-    def calc_EM(self,points, EkTE, EkTM, k0, alpha, thetas, beam_waist, regularize = False, radius = 0.0):
+    def calc_EM(self,points, EkTE, EkTM, k0, alpha, thetas, beam_waist, regularize = False, radius = 0.0, scattered_fields = False):
         '''
         Calculates the EM field at a set of measurement points
 
-        points     - (M,2)      coordinates of all measurement points
-        EkTE       - (N*2)      TE polarization component of the electromagnetic field at each scatterer
-        EkTM       - (N)        TM polarization component of the electromagnetic field at each scatterer
-        k0         - (1)        frequency being measured
-        alpha      - (1)        bare static polarizability at given k0
-        thetas     - (Ndirs)    propagation directions for the source
-        beam_waist - (1)        beam waist
-        regularize - bool       bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
-        radius     - (1)        considered scatterer radius, only used for regularization 
+        points           - (M,2)         coordinates of all measurement points
+        EkTE             - (N*2)         TE polarization component of the electromagnetic field at each scatterer
+        EkTM             - (N)           TM polarization component of the electromagnetic field at each scatterer
+        k0               - (1)           frequency being measured
+        alpha            - (1)           bare static polarizability at given k0
+        thetas           - (Ndirs)       propagation directions for the source
+        beam_waist       - (1)           beam waist
+        regularize       - bool          bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
+        radius           - (1)           considered scatterer radius, only used for regularization
+        scattered_fields - bool          returned scattered fields instead of full fields
         '''
 
         points = np.tensor(points)
         E0j, u = self.generate_source(points, k0, thetas, beam_waist, print_statement='calc')
+        E0jTM = E0j
 
         EkTM_ = np.matmul(alpha*k0*k0* self.G0_TM(points, k0, print_statement='calc', regularize=regularize, radius=radius), EkTM) + E0j
         E0j = E0j.reshape(points.shape[0],1,len(thetas))*u
@@ -160,6 +162,11 @@ class Transmission2D:
             else:
                 EkTM_[j] = EkTM[np.nonzero(np.prod(self.r-points[j]==0,axis=-1))]
                 EkTE_[j] = EkTE[np.nonzero(np.prod(self.r-points[j]==0,axis=-1))]
+                
+        if scattered_fields:
+            EkTM_ -= E0jTM
+            EkTE_ -= E0j
+                
         return EkTE_, EkTM_
    
     def run_EM(self, k0, alpha, thetas, radius, beam_waist, self_interaction=True):
@@ -202,23 +209,25 @@ class Transmission2D:
         EkTE = np.linalg.solve(M_tensor, E0j.reshape(2*self.N,-1)) 
         return EkTE, EkTM
     
-    def calc_EM_ss(self, points, k0, alpha, thetas, beam_waist, regularize = False, radius = 0.0):
+    def calc_EM_ss(self, points, k0, alpha, thetas, beam_waist, regularize = False, radius = 0.0, scattered_fields=False):
         '''
         Calculates the EM field at a set of measurement points, using a single-scattering approximation
 
-        points     - (M,2)      coordinates of all measurement points
-        k0         - (1)        frequency being measured
-        alpha      - (1)        bare static polarizability at given k0
-        thetas     - (Ndirs)    propagation directions for the source
-        beam_waist - (1)        beam waist
-        regularize - bool       bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
-        radius     - (1)        considered scatterer radius, only used for regularization 
+        points           - (M,2)      coordinates of all measurement points
+        k0               - (1)        frequency being measured
+        alpha            - (1)        bare static polarizability at given k0
+        thetas           - (Ndirs)    propagation directions for the source
+        beam_waist       - (1)        beam waist
+        regularize       - bool       bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
+        radius           - (1)        considered scatterer radius, only used for regularization
+        scattered_fields - bool       returned scattered fields instead of full fields
         '''
 
         points = np.tensor(points)
         E0_meas, u_meas = self.generate_source(points, k0, thetas, beam_waist, print_statement='calc_ss')
         E0_scat, u_scat = self.generate_source(self.r, k0, thetas, beam_waist, print_statement='calc_ss')
         EkTM_ = np.matmul(alpha*k0*k0* self.G0_TM(points, k0, print_statement='calc_ss', regularize=regularize, radius=radius), E0_scat) + E0_meas
+        E0_meas_TM = E0_meas
         
         E0_meas = E0_meas.reshape(points.shape[0],1,len(thetas))*u_meas
         E0_scat = E0_scat.reshape(self.r.shape[0],1,len(thetas))*u_scat
@@ -239,6 +248,11 @@ class Transmission2D:
             else:
                 EkTM_[j] = E0_meas[np.nonzero(np.prod(self.r-points[j]==0,axis=-1))]
                 EkTE_[j] = E0_meas[np.nonzero(np.prod(self.r-points[j]==0,axis=-1))]
+                
+        if scattered_fields:
+            EkTM_ -= E0_meas_TM
+            EkTE_ -= E0_meas
+        
         return EkTE_, EkTM_
 
     def G0_TM(self, points, k0, print_statement='', regularize = False, radius=0.0):
