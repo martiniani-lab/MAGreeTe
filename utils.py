@@ -106,7 +106,7 @@ def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,
     # XXX Not very optimal...
     if n_thetas_trans > 0:
         half_width = onp.int(onp.floor(n_thetas_trans/2))
-        for value in range(1,half_width):
+        for value in range(1,half_width+1):
             anglewidth_matrix += onp.eye(intensity.shape[-1], k=value)
             anglewidth_matrix += onp.eye(intensity.shape[-1], k=-value)
     total_ = onp.sum(intensity*anglewidth_matrix,axis=1)

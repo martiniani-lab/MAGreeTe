@@ -298,7 +298,6 @@ def main(head_directory, ndim, # Required arguments
             points = np.vstack([points,comp])
             file_name += '_composite'
         N = points.shape[0]
-        utils.plot_2d_points(points,file_name)
         points *= L
         assert ndim == points.shape[1]
 
@@ -330,6 +329,9 @@ def main(head_directory, ndim, # Required arguments
                     k0range = onp.arange(k0range_args[0],k0range_args[1]+1,1)* 2*onp.pi/L
                 else:
                     k0range = onp.arange(k0range_args[0],k0range_args[1]+k0range_args[2],k0range_args[2])* 2*onp.pi/L
+
+            # Consistency check: plot set of scatterers
+            utils.plot_2d_points(points,file_name)
 
             # Polarizability list
             if cold_atoms:
@@ -535,16 +537,36 @@ def main(head_directory, ndim, # Required arguments
                 TMtotal_ss = onp.absolute(ETMall_ss)**2
                 
                 # Produce plots
-                utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal_ss, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_ss')
-                utils.plot_transmission_angularbeam(k0range, L, thetas,  TEtotal_ss, file_name, n_thetas_trans = n_thetas_trans,  appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_ss')
-                utils.plot_transmission_flat(k0range, L, thetas, TMtotal_ss, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_ss')
-                utils.plot_transmission_flat(k0range, L, thetas, TEtotal_ss, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_ss')
+                utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_ss')
+                utils.plot_transmission_angularbeam(k0range, L, thetas,  TEtotal_ss, file_name, n_thetas_trans = n_thetas_trans, adapt_scale = True,  appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_ss')
+                utils.plot_transmission_flat(k0range, L, thetas, TMtotal_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_ss')
+                utils.plot_transmission_flat(k0range, L, thetas, TEtotal_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_ss')
                 utils.plot_angular_averaged_transmission(k0range, L, TMtotal_ss, file_name, appended_string='_'+str(file_index)+'_TM_ss')
                 utils.plot_angular_averaged_transmission(k0range, L, TEtotal_ss, file_name, appended_string='_'+str(file_index)+'_TE_ss')
                 theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
                 utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TMtotal_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TM_angle_'+str(theta_plot)+'_ss')
                 utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas,  TEtotal_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TE_angle_'+str(theta_plot)+'_ss')
                 
+                if plot_transmission:
+                    # Also compute the intensity associated to the multiple-scattering contribution of the field, if the full field was computed
+                    ETEall_multiple = ETEall - ETEall_ss
+                    ETMall_multiple = ETMall - ETMall_ss
+                    TEtotal_multiple = onp.absolute(ETEall_multiple)**2
+                    TEtotal_multiple = onp.sum(TEtotal_multiple, axis=2)
+                    TMtotal_multiple = onp.absolute(ETMall_multiple)**2
+
+                    # Produce plots
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal_multiple, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_multiple')
+                    utils.plot_transmission_angularbeam(k0range, L, thetas,  TEtotal_multiple, file_name, n_thetas_trans = n_thetas_trans, adapt_scale = True,  appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_multiple')
+                    utils.plot_transmission_flat(k0range, L, thetas, TMtotal_multiple, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_multiple')
+                    utils.plot_transmission_flat(k0range, L, thetas, TEtotal_multiple, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_multiple')
+                    utils.plot_angular_averaged_transmission(k0range, L, TMtotal_multiple, file_name, appended_string='_'+str(file_index)+'_TM_multiple')
+                    utils.plot_angular_averaged_transmission(k0range, L, TEtotal_multiple, file_name, appended_string='_'+str(file_index)+'_TE_multiple')
+                    theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
+                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TMtotal_multiple, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TM_angle_'+str(theta_plot)+'_multiple')
+                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas,  TEtotal_multiple, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TE_angle_'+str(theta_plot)+'_multiple')
+
+
                 if scattered_fields:
                     # Compute scattered intensities at measurement points
                     ETEall_scat_ss = onp.array(ETEall_scat_ss)
@@ -568,6 +590,7 @@ def main(head_directory, ndim, # Required arguments
             # Pretty expensive!
             some_fields = intensity_fields+amplitude_fields+phase_fields
             if some_fields:
+                # XXX CHECK: DEFINITION OF TE INTENSITY! 
                 # Expensive computation
                 ngridx = gridsize[0]
                 ngridy = gridsize[1]
@@ -628,7 +651,7 @@ def main(head_directory, ndim, # Required arguments
                         ETEall = np.cat(ETEall, dim=0).squeeze(-1)
                         ETMall = np.cat(ETMall, dim=0)
 
-                        ETEall_amplitude         = np.sqrt(ETEall[:,0]**2 + ETEall[:,1]**2)
+                        ETEall_amplitude         = np.sqrt(ETEall[:,0]**2 + ETEall[:,1]**2) #XXX Wrong?
                         ETEall_longitudinal      = ETEall[:,0]*onp.cos(angle) - ETEall[:,1]*onp.sin(angle)
                         ETEall_transverse        = ETEall[:,0]*onp.sin(angle) + ETEall[:,1]*onp.cos(angle)
 
@@ -926,6 +949,20 @@ def main(head_directory, ndim, # Required arguments
                 theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
                 utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, Etotal_ss, file_name,  plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_ss')
                 
+                if plot_transmission:
+                    # Also compute the intensity associated to the multiple-scattering contribution of the field, if the full field was computed
+                    Eall_multiple = Eall - Eall_ss
+                    Etotal_multiple = onp.absolute(Eall_multiple)**2
+                    Etotal_multiple = onp.sum(Etotal_multiple, axis=2)
+
+                     # Produce plots
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_multiple, file_name, n_thetas_trans = n_thetas_trans, normalization = [], appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_multiple") 
+                    utils.plot_transmission_flat(k0range, L, thetas, Etotal_multiple, file_name, n_thetas_trans = n_thetas_trans, normalization = [], appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_multiple") 
+                    utils.plot_angular_averaged_transmission(k0range, L, Etotal_multiple, file_name, appended_string = '_'+str(file_index)+"_multiple")
+                    theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
+                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, Etotal_multiple, file_name,  plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_multiple')
+
+
                 if scattered_fields:
                     Eall_scat_ss = onp.array(Eall_scat_ss)
                     Etotal_scat_ss = onp.absolute(Eall_scat_ss)**2
