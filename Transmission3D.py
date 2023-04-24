@@ -82,7 +82,7 @@ class Transmission3D:
         
         return E0j.reshape(points.shape[0],1,-1)*pvec.reshape(1,3,-1)
  
-    def calc(self, points, Ek, k0, alpha, u, p, beam_waist, regularize = False, radius=0.0, scattered_fields = False):
+    def calc(self, points, Ek, k0, alpha, u, p, beam_waist, regularize = False, radius=0.0):
         '''
         Calculates the EM field at a set of measurement points
 
@@ -95,7 +95,6 @@ class Transmission3D:
         beam_waist       - (1)           beam waist
         regularize       - bool          bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
         radius           - (1)           considered scatterer radius, only used for regularization 
-        scattered_fields - bool          returned scattered fields instead of full fields
         '''
         points = np.tensor(points)
         
@@ -126,8 +125,6 @@ class Transmission3D:
                 idx = np.nonzero(np.prod(self.r-points[j]==0,axis=-1))
                 Ek_[j] = Ek.reshape(points.shape[0],3,-1)[idx]
                 
-        if scattered_fields:
-            Ek_ -= E0j
                 
         return Ek_
    
@@ -161,7 +158,7 @@ class Transmission3D:
         Ek = np.linalg.solve(M_tensor, E0j.reshape(3*self.N,-1)) 
         return Ek
     
-    def calc_ss(self, points, k0, alpha, u, p, beam_waist, regularize = False, radius = 0.0, scattered_fields = False):
+    def calc_ss(self, points, k0, alpha, u, p, beam_waist, regularize = False, radius = 0.0):
         '''
         Calculates the EM field at a set of measurement points, using a single-scattering approximation
 
@@ -173,7 +170,6 @@ class Transmission3D:
         beam_waist       - (1)           beam waist
         regularize       - bool          bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
         radius           - (1)           considered scatterer radius, only used for regularization 
-        scattered_fields - bool          returned scattered fields instead of full fields
         '''
 
         points = np.tensor(points)
@@ -194,9 +190,6 @@ class Transmission3D:
                 Ek_[j] = E0_meas[idx]
             else:
                 Ek_[j] = E0_meas[np.nonzero(np.prod(self.r-points[j]==0,axis=-1))]
-                
-        if scattered_fields:
-            Ek_ -= E0_meas
                 
         return Ek_
 

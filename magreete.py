@@ -176,8 +176,6 @@ def main(head_directory, ndim, # Required arguments
         output_directory = output_directory+"_kicked_"+str(kick)
     if regularize:
         output_directory = output_directory+"_reg"
-    if scattered_fields:
-        output_directory = output_directory + "/scattered_fields/"
     utils.trymakedir(output_directory)
 
     # Angles to use for transmission and fields
@@ -306,6 +304,8 @@ def main(head_directory, ndim, # Required arguments
         points *= L
         assert ndim == points.shape[1]
 
+        output_directory = output_directory+"/"+file_name
+        utils.trymakedir(output_directory)
         file_name = output_directory+"/"+file_name
 
         # Define wave-vector list here to avoid defining it again when averaging
@@ -404,13 +404,26 @@ def main(head_directory, ndim, # Required arguments
                     solver = Transmission2D(points)
                     ETEall = []
                     ETMall = []
+                    ETEall_scat = []
+                    ETMall_scat = []
+                    
                     for k0, alpha in zip(k0range,alpharange):
                         EjTE, EjTM = solver.run_EM(k0, alpha, thetas, radius, w, self_interaction=self_interaction)
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                         params = [alpha, k0]
                         hkl.dump([onp.array(EjTE), onp.array(EjTM), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
 
-                        EkTE, EkTM = solver.calc_EM(meas_points, EjTE, EjTM, k0, alpha, thetas, w, regularize = regularize, radius=radius, scattered_fields=scattered_fields)
+                        EkTE, EkTM = solver.calc_EM(meas_points, EjTE, EjTM, k0, alpha, thetas, w, regularize = regularize, radius=radius)
+                        
+                        if scattered_fields:
+                            E0TM, u_meas = solver.generate_source(np.tensor(meas_points), k0, thetas, beam_waist, print_statement='scattered_fields')
+                            E0TE = E0TM.reshape(meas_points.shape[0],1,len(thetas))*u_meas
+                            EkTM_scat = EkTM - E0TM
+                            EkTE_scat = EkTE - E0TE
+                            EkTE_scat = np.linalg.norm(EkTE_scat, axis=1)
+                            ETEall_scat.append(EkTE_scat.numpy())
+                            ETMall_scat.append(EkTM_scat.numpy())
+                        
                         EkTE = np.linalg.norm(EkTE,axis=1)
                         ETEall.append(EkTE.numpy())
                         ETMall.append(EkTM.numpy())
@@ -420,6 +433,8 @@ def main(head_directory, ndim, # Required arguments
 
                     ETEall = []
                     ETMall = []
+                    ETEall_scat = []
+                    ETMall_scat = []
 
                     for k0, alpha in zip(k0range,alpharange):
                         
@@ -434,7 +449,17 @@ def main(head_directory, ndim, # Required arguments
                         alpha = onp.complex128(alpha)
                         solver = Transmission2D(points)
 
-                        EkTE, EkTM = solver.calc_EM(meas_points, EjTE, EjTM, k0, alpha, thetas, w, regularize=regularize, radius=radius, scattered_fields=scattered_fields)
+                        EkTE, EkTM = solver.calc_EM(meas_points, EjTE, EjTM, k0, alpha, thetas, w, regularize=regularize, radius=radius)
+                        
+                        if scattered_fields:
+                            E0TM, u_meas = solver.generate_source(meas_points, k0, thetas, beam_waist, print_statement='scattered_fields')
+                            E0TE = E0TM.reshape(meas_points.shape[0],1,len(thetas))*u_meas
+                            EkTM_scat = EkTM - E0TM
+                            EkTE_scat = EkTE - E0TE
+                            EkTE_scat = np.linalg.norm(EkTE_scat, axis=1)
+                            ETEall_scat.append(EkTE_scat.numpy())
+                            ETMall_scat.append(EkTM_scat.numpy())
+                        
                         EkTE = np.linalg.norm(EkTE,axis=1)
                         ETEall.append(EkTE.numpy())
                         ETMall.append(EkTM.numpy())
@@ -458,7 +483,25 @@ def main(head_directory, ndim, # Required arguments
                     plot_theta = onp.round(180 * thetas[plot_theta_index]/onp.pi)
                     utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TMtotal, file_name,  n_thetas_trans = n_thetas_trans,  plot_theta_index = plot_theta_index, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_angle_'+str(plot_theta)+'_')
                     utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TEtotal, file_name,  n_thetas_trans = n_thetas_trans,  plot_theta_index = plot_theta_index, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_angle_'+str(plot_theta)+'_')
-
+                    
+                    if scattered_fields:
+                        ETEall_scat = onp.array(ETEall_scat)
+                        ETMall_scat = onp.array(ETMall_scat)
+                        TEtotal_scat = onp.absolute(ETEall_scat)**2
+                        TMtotal_scat = onp.absolute(ETMall_scat)**2
+                        
+                        # Produce plots
+                        utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal_scat, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_scat')
+                        utils.plot_transmission_angularbeam(k0range, L, thetas, TEtotal_scat, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_scat')
+                        utils.plot_transmission_flat(k0range, L, thetas, TMtotal_scat, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_scat')
+                        utils.plot_transmission_flat(k0range, L, thetas, TEtotal_scat, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_scat')
+                        utils.plot_angular_averaged_transmission(k0range, L, TMtotal_scat, file_name, appended_string='_'+str(file_index)+'_TM_scat')
+                        utils.plot_angular_averaged_transmission(k0range, L, TEtotal_scat, file_name, appended_string='_'+str(file_index)+'_TE_scat')
+                        plot_theta = onp.round(180 * thetas[plot_theta_index]/onp.pi)
+                        utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TMtotal_scat, file_name,  n_thetas_trans = n_thetas_trans,  plot_theta_index = plot_theta_index, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_angle_'+str(plot_theta)+'_scat')
+                        utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TEtotal_scat, file_name,  n_thetas_trans = n_thetas_trans,  plot_theta_index = plot_theta_index, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_angle_'+str(plot_theta)+'_scat')
+                 
+                        
 
                             
             # Single-scattering transmission
@@ -468,9 +511,22 @@ def main(head_directory, ndim, # Required arguments
                 solver = Transmission2D(points)
                 ETEall_ss = []
                 ETMall_ss = []
+                ETEall_scat_ss = []
+                ETMall_scat_ss = []
                 
                 for k0, alpha in zip(k0range,alpharange):
-                    EkTE_ss, EkTM_ss = solver.calc_EM_ss(meas_points, k0, alpha, thetas, w, regularize=regularize, radius=radius, scattered_fields = scattered_fields)
+                    
+                    EkTE_ss, EkTM_ss = solver.calc_EM_ss(meas_points, k0, alpha, thetas, w, regularize=regularize, radius=radius)
+                    
+                    if scattered_fields:
+                        E0TM, u_meas = solver.generate_source(np.tensor(meas_points), k0, thetas, beam_waist, print_statement='scattered_fields')
+                        E0TE = E0TM.reshape(meas_points.shape[0],1,len(thetas))*u_meas
+                        EkTM_scat_ss = EkTM_ss - E0TM
+                        EkTE_scat_ss = EkTE_ss - E0TE
+                        EkTE_scat_ss = np.linalg.norm(EkTE_scat_ss, axis=1)
+                        ETEall_scat_ss.append(EkTE_scat_ss.numpy())
+                        ETMall_scat_ss.append(EkTM_scat_ss.numpy())
+                    
                     EkTE_ss = np.linalg.norm(EkTE_ss,axis=1)
                     ETEall_ss.append(EkTE_ss.numpy())
                     ETMall_ss.append(EkTM_ss.numpy())
@@ -491,6 +547,25 @@ def main(head_directory, ndim, # Required arguments
                 theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
                 utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TMtotal_ss, file_name, n_thetas_trans = n_thetas_trans, plot_theta_index = plot_theta_index, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_angle_'+str(theta_plot)+'_ss')
                 utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas,  TEtotal_ss, file_name,  n_thetas_trans = n_thetas_trans, plot_theta_index = plot_theta_index, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_angle_'+str(theta_plot)+'_ss')
+                
+                if scattered_fields:
+                    # Compute intensities at measurement points
+                    ETEall_scat_ss = onp.array(ETEall_scat_ss)
+                    ETMall_scat_ss = onp.array(ETMall_scat_ss)
+                    TEtotal_scat_ss = onp.absolute(ETEall_scat_ss)**2
+                    TMtotal_scat_ss = onp.absolute(ETMall_scat_ss)**2
+                    
+                    # Produce plots
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_scat_ss')
+                    utils.plot_transmission_angularbeam(k0range, L, thetas,  TEtotal_scat_ss, file_name, n_thetas_trans = n_thetas_trans,  appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_scat_ss')
+                    utils.plot_transmission_flat(k0range, L, thetas, TMtotal_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_scat_ss')
+                    utils.plot_transmission_flat(k0range, L, thetas, TEtotal_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_scat_ss')
+                    utils.plot_angular_averaged_transmission(k0range, L, TMtotal_scat_ss, file_name, appended_string='_'+str(file_index)+'_TM_scat_ss')
+                    utils.plot_angular_averaged_transmission(k0range, L, TEtotal_scat_ss, file_name, appended_string='_'+str(file_index)+'_TE_scat_ss')
+                    theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
+                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TMtotal_scat_ss, file_name, n_thetas_trans = n_thetas_trans, plot_theta_index = plot_theta_index, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_angle_'+str(theta_plot)+'_scat_ss')
+                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas,  TEtotal_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, plot_theta_index = plot_theta_index, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_angle_'+str(theta_plot)+'_scat_ss')
+                
 
             # Compute full fields
             # Pretty expensive!
@@ -547,7 +622,7 @@ def main(head_directory, ndim, # Required arguments
                             print("Batch "+str(batch+1))
                             batch_points = batches[batch]
 
-                            EkTE, EkTM = solver.calc_EM(batch_points, EjTE[:,index], EjTM[:,index].unsqueeze(-1), k0, alpha, [angle], w, regularize=regularize, radius=radius, scattered_fields=scattered_fields)
+                            EkTE, EkTM = solver.calc_EM(batch_points, EjTE[:,index], EjTM[:,index].unsqueeze(-1), k0, alpha, [angle], w, regularize=regularize, radius=radius)
 
                             ETEall.append(EkTE)
                             ETMall.append(EkTM)
@@ -748,7 +823,7 @@ def main(head_directory, ndim, # Required arguments
                         params = [alpha, k0]
                         hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
 
-                        Ek = solver.calc(meas_points, Ej, k0, alpha, u, p, w, regularize = regularize, radius=radius, scattered_fields=scattered_fields)
+                        Ek = solver.calc(meas_points, Ej, k0, alpha, u, p, w, regularize = regularize, radius=radius)
                         Ek = np.linalg.norm(Ek,axis=1)
                         Eall.append(Ek.numpy())
 
@@ -773,7 +848,7 @@ def main(head_directory, ndim, # Required arguments
                         alpha = onp.complex128(alpha)
                         solver = Transmission3D(points)
 
-                        Ek = solver.calc(meas_points, Ej, k0, alpha, u, p, w, regularize=regularize, radius = radius, scattered_fields=scattered_fields)
+                        Ek = solver.calc(meas_points, Ej, k0, alpha, u, p, w, regularize=regularize, radius = radius)
                         Ek = np.linalg.norm(Ek,axis=1)
                         Eall.append(Ek.numpy())
 
@@ -804,7 +879,7 @@ def main(head_directory, ndim, # Required arguments
                 p[:,2] = 1
                 Eall_ss = []
                 for k0, alpha in zip(k0range,alpharange):
-                    Ek_ss = solver.calc_ss(meas_points, k0, alpha, u, p, w, regularize=regularize, radius=radius, scattered_fields=scattered_fields)
+                    Ek_ss = solver.calc_ss(meas_points, k0, alpha, u, p, w, regularize=regularize, radius=radius)
                     Ek_ss = np.linalg.norm(Ek_ss,axis=1)
                     Eall_ss.append(Ek_ss.numpy())
 
@@ -879,7 +954,7 @@ def main(head_directory, ndim, # Required arguments
                             print("Batch "+str(batch+1))
                             batch_points = batches[batch]
 
-                            E = solver.calc_EM(batch_points, Ej[:,index], k0, alpha, u[index], p[index], w, regularize=regularize, radius=radius, scattered_fields=scattered_fields)
+                            E = solver.calc_EM(batch_points, Ej[:,index], k0, alpha, u[index], p[index], w, regularize=regularize, radius=radius)
 
                             Eall.append(E)
 
@@ -1255,7 +1330,7 @@ if __name__ == '__main__':
     compute_transmission            = args.compute_transmission
     plot_transmission               = args.plot_transmission
     single_scattering_transmission  = args.single_scattering_transmission
-    scattered_fields           = args.scattered_fields
+    scattered_fields                = args.scattered_fields
     compute_DOS                     = args.compute_DOS
     compute_interDOS                = args.compute_interDOS
     compute_SDOS                    = args.compute_SDOS
