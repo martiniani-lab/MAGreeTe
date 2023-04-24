@@ -125,7 +125,6 @@ class Transmission3D:
                 idx = np.nonzero(np.prod(self.r-points[j]==0,axis=-1))
                 Ek_[j] = Ek.reshape(points.shape[0],3,-1)[idx]
                 
-                
         return Ek_
    
     def run(self, k0, alpha, u, p, radius, beam_waist, self_interaction=True):

@@ -90,7 +90,7 @@ def uniform_unit_ball_picking(n_points, dim):
     return points
 
 
-def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,  n_thetas_trans = 0.0, normalization = [], appended_string=''):
+def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,  n_thetas_trans = 0.0, adapt_scale = False, normalization = [], appended_string=''):
     """
     Plots a radial version of the frequency-angle transmission plot given 
     k0range: list of wave vector moduli, in rad/m
@@ -118,8 +118,15 @@ def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,
         total_ /= n_thetas_trans + 1
     #     total_ /= onp.max(total_)
     
+    if adapt_scale:
+        vmin = None
+        vmax = None
+    else: 
+        vmin = 1e-2
+        vmax = 1e0
+    
     fig, ax = plt.subplots(subplot_kw={'projection':'polar'})
-    pc = ax.pcolormesh(thetas,freqs,total_,norm=clr.LogNorm(vmin=1e-2,vmax=1e0), cmap=cmr.ember)#cmap=cmr.torch) #cmap='inferno')
+    pc = ax.pcolormesh(thetas,freqs,total_,norm=clr.LogNorm(vmin=vmin,vmax=vmax), cmap=cmr.ember)#cmap=cmr.torch) #cmap='inferno')
     #ax.set_rmin(10.0)
     #ax.set_rticks([20,40])
     ax.set_axis_off()
@@ -128,7 +135,7 @@ def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,
     plt.savefig(file_name_root+'_transmission_angularbeam_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
     plt.close()
 
-def plot_transmission_flat(k0range, L, thetas, intensity, file_name_root,  n_thetas_trans = 0.0, normalization = [], appended_string=''):
+def plot_transmission_flat(k0range, L, thetas, intensity, file_name_root,  n_thetas_trans = 0.0, adapt_scale = False, normalization = [], appended_string=''):
     """
     Plots one a flattened version of the frequency-angle transmission plot given 
     k0range: list of wave vector moduli, in rad/m
@@ -155,9 +162,16 @@ def plot_transmission_flat(k0range, L, thetas, intensity, file_name_root,  n_the
         total_ /= n_thetas_trans + 1
     #     total_ /= onp.max(total_)
         
+    if adapt_scale:
+        vmin = None
+        vmax = None
+    else: 
+        vmin = 1e-2
+        vmax = 1e0
+        
     fig = plt.figure()
     ax = fig.gca()
-    pc = ax.imshow(total_[:,:int(total_.shape[1]/2)], norm=clr.LogNorm(vmin=1e-2,vmax=1e0), cmap=cmr.ember, extent =[0,180,freqs[0],freqs[-1]], origin='lower')
+    pc = ax.imshow(total_[:,:int(total_.shape[1]/2)], norm=clr.LogNorm(vmin=vmin,vmax=vmax), cmap=cmr.ember, extent =[0,180,freqs[0],freqs[-1]], origin='lower')
     ax.set_xlabel(r'$\theta$')
     ax.set_ylabel(r'k_0L/2\pi')
     ax.set_aspect(180/(freqs[-1] - freqs[0]))
