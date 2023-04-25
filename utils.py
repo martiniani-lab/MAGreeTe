@@ -100,17 +100,18 @@ def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,
     file_name_root: prepended to the name of the file
     appended_string: possible postfix for the name of the file, e.g. "TM" or "TE"
     """
+
     freqs = onp.real(k0range*L/(2*onp.pi))
+
     # Define a matrix that encodes the width of the detector as a number of 1s every line around the central angle
-    anglewidth_matrix = onp.diag(onp.ones(intensity.shape[-1]))
-    # XXX Not very optimal...
+    n_angles = intensity.shape[-1]
+    anglewidth_matrix = onp.diag(onp.ones(n_angles))
     if n_thetas_trans > 0:
         half_width = onp.int(onp.floor(n_thetas_trans/2))
-        for value in range(1,half_width+1):
-            anglewidth_matrix += onp.eye(intensity.shape[-1], k=value)
-            anglewidth_matrix += onp.eye(intensity.shape[-1], k=-value)
+        anglewidth_matrix = onp.fromfunction(lambda i, j: onp.abs( (i - j + n_angles/2)%n_angles - n_angles/2) <= half_width, (n_angles, n_angles))
     total_ = onp.sum(intensity*anglewidth_matrix,axis=1)
-    
+
+    #Normalize the field differently if needed
     if normalization != []:
         total_norm = onp.sum(normalization,axis=1)
         total_ /= total_norm
@@ -146,13 +147,13 @@ def plot_transmission_flat(k0range, L, thetas, intensity, file_name_root,  n_the
     appended_string: possible postfix for the name of the file, e.g. "TM" or "TE"
     """
     freqs = onp.real(k0range*L/(2*onp.pi))
-    anglewidth_matrix = onp.diag(onp.ones(intensity.shape[-1]))
-    # XXX Not very optimal...
+
+    # Define a matrix that encodes the width of the detector as a number of 1s every line around the central angle
+    n_angles = intensity.shape[-1]
+    anglewidth_matrix = onp.diag(onp.ones(n_angles))
     if n_thetas_trans > 0:
         half_width = onp.int(onp.floor(n_thetas_trans/2))
-        for value in range(1,half_width):
-            anglewidth_matrix += onp.eye(intensity.shape[-1], k=value)
-            anglewidth_matrix += onp.eye(intensity.shape[-1], k=-value)
+        anglewidth_matrix = onp.fromfunction(lambda i, j: onp.abs( (i - j + n_angles/2)%n_angles - n_angles/2) <= half_width, (n_angles, n_angles))
     total_ = onp.sum(intensity*anglewidth_matrix,axis=1)
     
     if normalization != []:
