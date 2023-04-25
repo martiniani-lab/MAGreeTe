@@ -586,6 +586,10 @@ def main(head_directory, ndim, # Required arguments
                     utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TMtotal_scat_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TM_angle_'+str(theta_plot)+'_scat_ss')
                     utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas,  TEtotal_scat_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TE_angle_'+str(theta_plot)+'_scat_ss')
 
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = TMtotal_scat_ss, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_scat_ss_norm')
+                    utils.plot_transmission_angularbeam(k0range, L, thetas,  TEtotal_scat_ss, file_name, n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = TEtotal_scat_ss, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_scat_ss_norm')
+
+
             # Compute full fields
             # Pretty expensive!
             some_fields = intensity_fields+amplitude_fields+phase_fields
@@ -1310,7 +1314,7 @@ if __name__ == '__main__':
     parser.add_argument("-r", "--regularize", action='store_true', help="Regularize the fields and DOS inside of scatterers\
         default=False", default=False)
     parser.add_argument("-N", "--number_particles", type = int, help="Number of particles in the system, before cutting a circle\
-        default = 4096", default=4096)
+        default = 4096", default=16384)
     parser.add_argument("-bw", "--beam_waist", type = float, help="Waist of the beam used for transmission plots and full fields, in units of L\
         default = 0.2", default=0.2)
     parser.add_argument("--boxsize", type=float, help="Set physical units for the box size: the results are dimensionless so that default=1", default = 1)

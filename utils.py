@@ -96,7 +96,7 @@ def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,
     k0range: list of wave vector moduli, in rad/m
     L: system sidelength, in m
     thetas: list of angles used for the orientation of the laser, in radians
-    intensity: the relevant field intensity
+    intensity: the relevant field intensity (dimensions: ks, detection angles, beam angles)
     file_name_root: prepended to the name of the file
     appended_string: possible postfix for the name of the file, e.g. "TM" or "TE"
     """
@@ -104,7 +104,7 @@ def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,
     freqs = onp.real(k0range*L/(2*onp.pi))
 
     # Define a matrix that encodes the width of the detector as a number of 1s every line around the central angle
-    n_angles = intensity.shape[-1]
+    n_angles = intensity.shape[1]
     anglewidth_matrix = onp.diag(onp.ones(n_angles))
     if n_thetas_trans > 0:
         half_width = onp.int(onp.floor(n_thetas_trans/2))
@@ -142,14 +142,14 @@ def plot_transmission_flat(k0range, L, thetas, intensity, file_name_root,  n_the
     k0range: list of wave vector moduli, in rad/m
     L: system sidelength, in m
     thetas: list of angles used for the orientation of the laser, in radians
-    intensity: the relevant field intensity
+    intensity: the relevant field intensity (dimensions: ks, detection angles, beam angles)
     file_name_root: prepended to the name of the file
     appended_string: possible postfix for the name of the file, e.g. "TM" or "TE"
     """
     freqs = onp.real(k0range*L/(2*onp.pi))
 
     # Define a matrix that encodes the width of the detector as a number of 1s every line around the central angle
-    n_angles = intensity.shape[-1]
+    n_angles = intensity.shape[1]
     anglewidth_matrix = onp.diag(onp.ones(n_angles))
     if n_thetas_trans > 0:
         half_width = onp.int(onp.floor(n_thetas_trans/2))
@@ -186,7 +186,7 @@ def plot_transmission_linear(k0range, L,x, intensity, file_name_root,cmap='virid
     k0range: list of wave vector moduli, in rad/m
     L: system sidelength, in m
     thetas: list of angles used for the orientation of the laser, in radians
-    intensity: the relevant field intensity
+    intensity: the relevant field intensity (dimensions: ks, detection angles, beam angles)
     file_name_root: prepended to the name of the file
     appended_string: possible postfix for the name of the file, e.g. "TM" or "TE"
     """
@@ -210,7 +210,7 @@ def plot_singlebeam_angular_frequency_plot(k0range, L, thetas, intensity, file_n
     k0range: list of wave vector moduli, in rad/m
     L: system sidelength, in m
     thetas: list of angles used for the orientation of the laser, in radians
-    intensity: the relevant field intensity
+    intensity: the relevant field intensity (dimensions: ks, detection angles, beam angles)
     file_name_root: prepended to the name of the file
     appended_string: possible postfix for the name of the file, e.g. "TM" or "TE"
     """
