@@ -22,7 +22,7 @@ def main(head_directory, ndim, # Required arguments
         refractive_n = 1.65 - 0.025j, phi = 0.1, regularize = True, N_raw = 16384, beam_waist = 0.2, L = 1, # Physical parameters
         lattice=None, cold_atoms=False, annulus = 0, composite = False, kick = 0.0, # Special cases
         k0range_args = None, thetarange_args = None, file_index_args = None,# Range of values to use
-        compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, scattered_fields=False,
+        compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, scattered_fields=False, transmission_radius = 2.0,
         compute_DOS=False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, intensity_fields = False, amplitude_fields = False, phase_fields = False, just_compute_averages = False,# Computations to perform
         dospoints=1, spacing_factor = 1.0,  write_eigenvalues=False, write_ldos= False,  gridsize=(301,301), window_width=1.2, angular_width = 0.0, plot_theta_index = 0, batch_size = 101*101, output_directory="" # Parameters for outputs
         ):
@@ -396,7 +396,7 @@ def main(head_directory, ndim, # Required arguments
             if compute_transmission or plot_transmission:
 
                 # Define the list of measurement points for transmission plots
-                meas_points = 2*L*onp.vstack([onp.cos(thetas),onp.sin(thetas)]).T
+                measurement_points = transmission_radius*L*onp.vstack([onp.cos(thetas),onp.sin(thetas)]).T
 
                 
                 # A fresh computation is required
@@ -413,11 +413,11 @@ def main(head_directory, ndim, # Required arguments
                         params = [alpha, k0]
                         hkl.dump([onp.array(EjTE), onp.array(EjTM), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
 
-                        EkTE, EkTM = solver.calc_EM(meas_points, EjTE, EjTM, k0, alpha, thetas, w, regularize = regularize, radius=radius)
+                        EkTE, EkTM = solver.calc_EM(measurement_points, EjTE, EjTM, k0, alpha, thetas, w, regularize = regularize, radius=radius)
                         
                         if scattered_fields:
-                            E0TM, u_meas = solver.generate_source(np.tensor(meas_points), k0, thetas, beam_waist, print_statement='scattered_fields')
-                            E0TE = E0TM.reshape(meas_points.shape[0],1,len(thetas))*u_meas
+                            E0TM, u_meas = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='scattered_fields')
+                            E0TE = E0TM.reshape(measurement_points.shape[0],1,len(thetas))*u_meas
                             EkTM_scat = EkTM - E0TM
                             EkTE_scat = EkTE - E0TE
                             ETEall_scat.append(EkTE_scat.numpy())
@@ -447,11 +447,11 @@ def main(head_directory, ndim, # Required arguments
                         alpha = onp.complex128(alpha)
                         solver = Transmission2D(points)
 
-                        EkTE, EkTM = solver.calc_EM(meas_points, EjTE, EjTM, k0, alpha, thetas, w, regularize=regularize, radius=radius)
+                        EkTE, EkTM = solver.calc_EM(measurement_points, EjTE, EjTM, k0, alpha, thetas, w, regularize=regularize, radius=radius)
                         
                         if scattered_fields:
-                            E0TM, u_meas = solver.generate_source(np.tensor(meas_points), k0, thetas, beam_waist, print_statement='scattered_fields')
-                            E0TE = E0TM.reshape(meas_points.shape[0],1,len(thetas))*u_meas
+                            E0TM, u_meas = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='scattered_fields')
+                            E0TE = E0TM.reshape(measurement_points.shape[0],1,len(thetas))*u_meas
                             EkTM_scat = EkTM - E0TM
                             EkTE_scat = EkTE - E0TE
                             ETEall_scat.append(EkTE_scat.numpy())
@@ -501,13 +501,15 @@ def main(head_directory, ndim, # Required arguments
                         utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TMtotal_scat, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TM_angle_'+str(plot_theta)+'_scat')
                         utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TEtotal_scat, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TE_angle_'+str(plot_theta)+'_scat')
                  
+                        utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = TMtotal_scat, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_scat_norm')
+                        utils.plot_transmission_angularbeam(k0range, L, thetas,  TEtotal_scat, file_name, n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = TEtotal_scat, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_scat_norm')
                         
 
                             
             # Single-scattering transmission
             if single_scattering_transmission:
                 # Define the list of measurement points for transmission plots
-                meas_points = 2*L*onp.vstack([onp.cos(thetas),onp.sin(thetas)]).T
+                measurement_points = transmission_radius*L*onp.vstack([onp.cos(thetas),onp.sin(thetas)]).T
                 solver = Transmission2D(points)
                 ETEall_ss = []
                 ETMall_ss = []
@@ -516,11 +518,11 @@ def main(head_directory, ndim, # Required arguments
                 
                 for k0, alpha in zip(k0range,alpharange):
                     
-                    EkTE_ss, EkTM_ss = solver.calc_EM_ss(meas_points, k0, alpha, thetas, w, regularize=regularize, radius=radius)
+                    EkTE_ss, EkTM_ss = solver.calc_EM_ss(measurement_points, k0, alpha, thetas, w, regularize=regularize, radius=radius)
                     
                     if scattered_fields:
-                        E0TM, u_meas = solver.generate_source(np.tensor(meas_points), k0, thetas, beam_waist, print_statement='scattered_fields')
-                        E0TE = E0TM.reshape(meas_points.shape[0],1,len(thetas))*u_meas
+                        E0TM, u_meas = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='scattered_fields')
+                        E0TE = E0TM.reshape(measurement_points.shape[0],1,len(thetas))*u_meas
                         EkTM_scat_ss = EkTM_ss - E0TM
                         EkTE_scat_ss = EkTE_ss - E0TE
                         ETEall_scat_ss.append(EkTE_scat_ss.numpy())
@@ -600,9 +602,9 @@ def main(head_directory, ndim, # Required arguments
                 ngridy = gridsize[1]
                 xyratio = ngridx/ngridy
                 x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5)
-                meas_points = np.tensor((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
+                measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
 
-                batches = np.split(meas_points, batch_size)
+                batches = np.split(measurement_points, batch_size)
                 n_batches = len(batches)
 
                 extra_string=""
@@ -830,7 +832,7 @@ def main(head_directory, ndim, # Required arguments
             if compute_transmission or plot_transmission:
                 
                 # Define the list of measurement points for transmission plots
-                meas_points = 2*L*onp.vstack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
+                measurement_points = transmission_radius*L*onp.vstack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
 
                 # A fresh computation is required
                 if compute_transmission:
@@ -849,10 +851,10 @@ def main(head_directory, ndim, # Required arguments
                         params = [alpha, k0]
                         hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
 
-                        Ek = solver.calc(meas_points, Ej, k0, alpha, u, p, w, regularize = regularize, radius=radius)
+                        Ek = solver.calc(measurement_points, Ej, k0, alpha, u, p, w, regularize = regularize, radius=radius)
                         
                         if scattered_fields:
-                            E0meas = solver.generate_source(np.tensor(meas_points), k0, u, p, beam_waist, print_statement='calc') #(M,3,Ndirs)
+                            E0meas = solver.generate_source(np.tensor(measurement_points), k0, u, p, beam_waist, print_statement='calc') #(M,3,Ndirs)
                             Ekscat = Ek - E0meas
                             Eall_scat.append(Ekscat.numpy())
                         
@@ -880,10 +882,10 @@ def main(head_directory, ndim, # Required arguments
                         alpha = onp.complex128(alpha)
                         solver = Transmission3D(points)
 
-                        Ek = solver.calc(meas_points, Ej, k0, alpha, u, p, w, regularize=regularize, radius = radius)
+                        Ek = solver.calc(measurement_points, Ej, k0, alpha, u, p, w, regularize=regularize, radius = radius)
                         
                         if scattered_fields:
-                            E0meas = solver.generate_source(np.tensor(meas_points), k0, u, p, beam_waist, print_statement='calc') #(M,3,Ndirs)
+                            E0meas = solver.generate_source(np.tensor(measurement_points), k0, u, p, beam_waist, print_statement='calc') #(M,3,Ndirs)
                             Ekscat = Ek - E0meas
                             Eall_scat.append(Ekscat.numpy())
                         
@@ -917,12 +919,13 @@ def main(head_directory, ndim, # Required arguments
                     theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
                     utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, Etotal_scat, file_name, plot_theta_index = plot_theta_index,  appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_scat')
 
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = Etotal_scat, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_norm')
 
                 
             # Single-scattering transmission
             if single_scattering_transmission:
                 # Define the list of measurement points for transmission plots
-                meas_points = 2*L*onp.vstack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
+                measurement_points = transmission_radius*L*onp.vstack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
                 solver = Transmission3D(points)
                 u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
                 u = np.tensor(u)
@@ -932,10 +935,10 @@ def main(head_directory, ndim, # Required arguments
                 Eall_scat_ss = []
                 
                 for k0, alpha in zip(k0range,alpharange):
-                    Ek_ss = solver.calc_ss(meas_points, k0, alpha, u, p, w, regularize=regularize, radius=radius)
+                    Ek_ss = solver.calc_ss(measurement_points, k0, alpha, u, p, w, regularize=regularize, radius=radius)
                     
                     if scattered_fields:
-                        E0meas = solver.generate_source(np.tensor(meas_points), k0, u, p, beam_waist, print_statement='calc') #(M,3,Ndirs)
+                        E0meas = solver.generate_source(np.tensor(measurement_points), k0, u, p, beam_waist, print_statement='calc') #(M,3,Ndirs)
                         Ekscat_ss = Ek_ss - E0meas
                         Eall_scat_ss.append(Ekscat_ss.numpy())
                     
@@ -979,6 +982,7 @@ def main(head_directory, ndim, # Required arguments
                     theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
                     utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, Etotal_scat_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_scat_ss')
                 
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = Etotal_scat_ss, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss_norm')
 
 
             # Compute full fields
@@ -990,9 +994,9 @@ def main(head_directory, ndim, # Required arguments
                 ngridy = gridsize[1]
                 xyratio = ngridx/ngridy
                 x,y,z = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5, [0.0])
-                meas_points = np.tensor((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T)*L*window_width)
+                measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T)*L*window_width)
 
-                batches = np.split(meas_points, batch_size)
+                batches = np.split(measurement_points, batch_size)
                 n_batches = len(batches)
 
                 extra_string=""
@@ -1314,7 +1318,7 @@ if __name__ == '__main__':
     parser.add_argument("-r", "--regularize", action='store_true', help="Regularize the fields and DOS inside of scatterers\
         default=False", default=False)
     parser.add_argument("-N", "--number_particles", type = int, help="Number of particles in the system, before cutting a circle\
-        default = 4096", default=16384)
+        default = 16384", default=16384)
     parser.add_argument("-bw", "--beam_waist", type = float, help="Waist of the beam used for transmission plots and full fields, in units of L\
         default = 0.2", default=0.2)
     parser.add_argument("--boxsize", type=float, help="Set physical units for the box size: the results are dimensionless so that default=1", default = 1)
@@ -1344,6 +1348,8 @@ if __name__ == '__main__':
         default=False", default=False)
     parser.add_argument("--scattered_fields", action="store_true", help="Plot scattered fields instead of total fields wherever applicable \
         default=False", default=False)
+    parser.add_argument("-trad","--transmission_radius", type = float, help = "Radius of the sphere on which transmission measurements are performed, in units of L,\
+        default=2.0", default = 2.0)
     parser.add_argument("-dos","--compute_DOS", action='store_true', help="Compute the mean DOS of the medium  \
         default=False", default=False)
     parser.add_argument("-idos","--compute_interDOS", action='store_true', help="Compute the mean DOS of the medium away from scatterers  \
@@ -1414,6 +1420,7 @@ if __name__ == '__main__':
     plot_transmission               = args.plot_transmission
     single_scattering_transmission  = args.single_scattering_transmission
     scattered_fields                = args.scattered_fields
+    transmission_radius             = args.transmission_radius
     compute_DOS                     = args.compute_DOS
     compute_interDOS                = args.compute_interDOS
     compute_SDOS                    = args.compute_SDOS
@@ -1439,7 +1446,7 @@ if __name__ == '__main__':
         refractive_n = refractive_n,  phi=phi, regularize=regularize, N_raw=N, beam_waist=beam_waist, L=boxsize,
         k0range_args = k0range_args, thetarange_args=thetarange_args, file_index_args = file_index_args,
         cold_atoms=cold_atoms, lattice=lattice, annulus = annulus, composite = composite, kick = kick,
-        compute_transmission = compute_transmission, plot_transmission=plot_transmission, single_scattering_transmission=single_scattering_transmission, scattered_fields=scattered_fields,
+        compute_transmission = compute_transmission, plot_transmission=plot_transmission, single_scattering_transmission=single_scattering_transmission, scattered_fields=scattered_fields, transmission_radius=transmission_radius,
         compute_DOS=compute_DOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS,
         intensity_fields = intensity_fields, amplitude_fields=amplitude_fields, phase_fields=phase_fields, just_compute_averages=just_compute_averages,
         dospoints=dospoints, spacing_factor=spacing_factor, write_eigenvalues=write_eigenvalues, write_ldos=write_ldos, gridsize=gridsize, window_width=window_width, angular_width=angular_width, plot_theta_index=plot_theta_index,
