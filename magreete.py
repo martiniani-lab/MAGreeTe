@@ -404,6 +404,8 @@ def main(head_directory, ndim, # Required arguments
                     solver = Transmission2D(points)
                     ETEall = []
                     ETMall = []
+                    E0TEall = []
+                    E0TMall = []
                     ETEall_scat = []
                     ETMall_scat = []
                     
@@ -415,13 +417,17 @@ def main(head_directory, ndim, # Required arguments
 
                         EkTE, EkTM = solver.calc_EM(measurement_points, EjTE, EjTM, k0, alpha, thetas, w, regularize = regularize, radius=radius)
                         
+                        E0TM, u_meas = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='scattered_fields')
+                        E0TE = E0TM.reshape(measurement_points.shape[0],1,len(thetas))*u_meas
+
                         if scattered_fields:
-                            E0TM, u_meas = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='scattered_fields')
-                            E0TE = E0TM.reshape(measurement_points.shape[0],1,len(thetas))*u_meas
                             EkTM_scat = EkTM - E0TM
                             EkTE_scat = EkTE - E0TE
                             ETEall_scat.append(EkTE_scat.numpy())
                             ETMall_scat.append(EkTM_scat.numpy())
+
+                        E0TEall.append(E0TE.numpy())
+                        E0TMall.append(E0TM.numpy())
                         
                         ETEall.append(EkTE.numpy())
                         ETMall.append(EkTM.numpy())
@@ -431,6 +437,8 @@ def main(head_directory, ndim, # Required arguments
 
                     ETEall = []
                     ETMall = []
+                    E0TEall = []
+                    E0TMall = []
                     ETEall_scat = []
                     ETMall_scat = []
 
@@ -449,14 +457,18 @@ def main(head_directory, ndim, # Required arguments
 
                         EkTE, EkTM = solver.calc_EM(measurement_points, EjTE, EjTM, k0, alpha, thetas, w, regularize=regularize, radius=radius)
                         
+                        E0TM, u_meas = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='scattered_fields')
+                        E0TE = E0TM.reshape(measurement_points.shape[0],1,len(thetas))*u_meas
                         if scattered_fields:
-                            E0TM, u_meas = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='scattered_fields')
-                            E0TE = E0TM.reshape(measurement_points.shape[0],1,len(thetas))*u_meas
                             EkTM_scat = EkTM - E0TM
                             EkTE_scat = EkTE - E0TE
                             ETEall_scat.append(EkTE_scat.numpy())
                             ETMall_scat.append(EkTM_scat.numpy())
                         
+
+                        E0TEall.append(E0TE.numpy())
+                        E0TMall.append(E0TM.numpy())
+
                         ETEall.append(EkTE.numpy())
                         ETMall.append(EkTM.numpy())
 
@@ -482,6 +494,24 @@ def main(head_directory, ndim, # Required arguments
                     utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TMtotal, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TM_angle_'+str(plot_theta))
                     utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TEtotal, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TE_angle_'+str(plot_theta))
                     
+                    # Produce transmission normalized by total intensity of the INCIDENT FIELD on the sphere
+                    I0TMall = onp.absolute(E0TMall)**2
+                    I0TEall = onp.absolute(E0TEall)**2
+                    I0TEall = onp.sum(I0TEall, axis = 2)
+
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0TMall, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_incnorm')
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, TEtotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0TEall, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_incnorm')
+                    utils.plot_transmission_flat(k0range, L, thetas, TMtotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0TMall, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_incnorm')
+                    utils.plot_transmission_flat(k0range, L, thetas, TEtotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0TEall, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_incnorm')
+
+                    # Same but with total field
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = TMtotal, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_norm')
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, TEtotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = TEtotal, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_norm')
+                    utils.plot_transmission_flat(k0range, L, thetas, TMtotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = TMtotal, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_norm')
+                    utils.plot_transmission_flat(k0range, L, thetas, TEtotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = TEtotal, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_norm')
+
+
+
                     if scattered_fields:
                         # Compute scattered intensities at measurement points
                         ETEall_scat = onp.array(ETEall_scat)
@@ -501,6 +531,7 @@ def main(head_directory, ndim, # Required arguments
                         utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TMtotal_scat, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TM_angle_'+str(plot_theta)+'_scat')
                         utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TEtotal_scat, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TE_angle_'+str(plot_theta)+'_scat')
                  
+                        # Also produce scattered field normalised by total scattered intensity
                         utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = TMtotal_scat, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_scat_norm')
                         utils.plot_transmission_angularbeam(k0range, L, thetas,  TEtotal_scat, file_name, n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = TEtotal_scat, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_scat_norm')
                         
@@ -588,8 +619,12 @@ def main(head_directory, ndim, # Required arguments
                     utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TMtotal_scat_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TM_angle_'+str(theta_plot)+'_scat_ss')
                     utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas,  TEtotal_scat_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TE_angle_'+str(theta_plot)+'_scat_ss')
 
+                    # Also produce scattered field normalised by total scattered intensity
                     utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = TMtotal_scat_ss, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_scat_ss_norm')
                     utils.plot_transmission_angularbeam(k0range, L, thetas,  TEtotal_scat_ss, file_name, n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = TEtotal_scat_ss, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_scat_ss_norm')
+                    utils.plot_transmission_flat(k0range, L, thetas, TMtotal_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = TMtotal_scat_ss, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_scat_ss_norm')
+                    utils.plot_transmission_flat(k0range, L, thetas, TEtotal_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = TEtotal_scat_ss, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_scat_ss_norm')
+                    
 
 
             # Compute full fields
@@ -657,7 +692,7 @@ def main(head_directory, ndim, # Required arguments
                         ETEall = np.cat(ETEall, dim=0).squeeze(-1)
                         ETMall = np.cat(ETMall, dim=0)
 
-                        ETEall_amplitude         = np.sqrt(ETEall[:,0]**2 + ETEall[:,1]**2) #XXX Wrong?
+                        ETEall_amplitude         = np.sqrt(ETEall[:,0]**2 + ETEall[:,1]**2) #XXX Wrong? 
                         ETEall_longitudinal      = ETEall[:,0]*onp.cos(angle) - ETEall[:,1]*onp.sin(angle)
                         ETEall_transverse        = ETEall[:,0]*onp.sin(angle) + ETEall[:,1]*onp.cos(angle)
 
@@ -843,6 +878,7 @@ def main(head_directory, ndim, # Required arguments
                     p = np.zeros(u.shape)
                     p[:,2] = 1
                     Eall  = []
+                    E0all = []
                     Eall_scat = []
                     
                     for k0, alpha in zip(k0range,alpharange):
@@ -852,18 +888,22 @@ def main(head_directory, ndim, # Required arguments
                         hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
 
                         Ek = solver.calc(measurement_points, Ej, k0, alpha, u, p, w, regularize = regularize, radius=radius)
-                        
+
+                        E0meas = solver.generate_source(np.tensor(measurement_points), k0, u, p, beam_waist, print_statement='calc') #(M,3,Ndirs)
+
                         if scattered_fields:
-                            E0meas = solver.generate_source(np.tensor(measurement_points), k0, u, p, beam_waist, print_statement='calc') #(M,3,Ndirs)
                             Ekscat = Ek - E0meas
                             Eall_scat.append(Ekscat.numpy())
                         
+                        E0all.append(E0meas.numpy())
+
                         Eall.append(Ek.numpy())
 
                 # A computation has already been performed
                 elif plot_transmission:
 
                     Eall  = []
+                    E0all = []
                     Eall_scat = []
                     u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
                     u = np.tensor(u)
@@ -884,14 +924,16 @@ def main(head_directory, ndim, # Required arguments
 
                         Ek = solver.calc(measurement_points, Ej, k0, alpha, u, p, w, regularize=regularize, radius = radius)
                         
+                        E0meas = solver.generate_source(np.tensor(measurement_points), k0, u, p, beam_waist, print_statement='calc') #(M,3,Ndirs)
+
                         if scattered_fields:
-                            E0meas = solver.generate_source(np.tensor(measurement_points), k0, u, p, beam_waist, print_statement='calc') #(M,3,Ndirs)
                             Ekscat = Ek - E0meas
                             Eall_scat.append(Ekscat.numpy())
                         
+                        E0all.append(E0meas.numpy())
                         Eall.append(Ek.numpy())
 
-            hkl.dump([onp.array(Eall), onp.array(k0range), onp.array(thetas)],file_name+'_transmission_'+str(file_index)+'.hkl')
+                hkl.dump([onp.array(Eall), onp.array(k0range), onp.array(thetas)],file_name+'_transmission_'+str(file_index)+'.hkl')
         
             # If required: plot results
             if plot_transmission:
@@ -901,24 +943,37 @@ def main(head_directory, ndim, # Required arguments
                 Etotal = onp.sum(Etotal, axis=2)
 
                 # Produce the plots
-                utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name, normalization = [], n_thetas_trans = n_thetas_trans, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)) 
-                utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name, normalization = [], n_thetas_trans = n_thetas_trans, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)) 
+                utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name, n_thetas_trans = n_thetas_trans, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)) 
+                utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name, n_thetas_trans = n_thetas_trans, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)) 
                 utils.plot_angular_averaged_transmission(k0range, L, Etotal, file_name, appended_string = '_'+str(file_index))
                 theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
                 utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, Etotal, file_name, plot_theta_index = plot_theta_index,  appended_string='_'+str(file_index)+'_angle_'+str(theta_plot))
                 
+                # Produce transmission normalized by total intensity of the INCIDENT FIELD on the sphere
+                E0all = onp.array(E0all)
+                I0all = onp.absolute(E0all)**2
+                I0all = onp.sum(I0all, axis = 2)
+
+                utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0all, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
+                utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0all, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
+
+                # Same but with total field
+                utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = Etotal, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
+                utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = Etotal, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
+
                 if scattered_fields:
                     Eall_scat = onp.array(Eall_scat)
                     Etotal_scat = onp.absolute(Eall_scat)**2
                     Etotal_scat = onp.sum(Etotal_scat, axis=2)
 
                     # Produce the plots
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_scat, file_name, normalization = [], n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat") 
-                    utils.plot_transmission_flat(k0range, L, thetas, Etotal_scat, file_name, normalization = [], n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat") 
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_scat, file_name, n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat") 
+                    utils.plot_transmission_flat(k0range, L, thetas, Etotal_scat, file_name, n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat") 
                     utils.plot_angular_averaged_transmission(k0range, L, Etotal_scat, file_name, appended_string = '_'+str(file_index)+"_scat")
                     theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
                     utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, Etotal_scat, file_name, plot_theta_index = plot_theta_index,  appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_scat')
 
+                    # Also produce scattered field normalised by total scattered intensity on the circle. XXX Should make it a sphere
                     utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = Etotal_scat, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_norm')
 
                 
@@ -950,8 +1005,8 @@ def main(head_directory, ndim, # Required arguments
                 Etotal_ss = onp.sum(Etotal_ss, axis=2)
                 
                 # Produce plots
-                utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_ss, file_name, n_thetas_trans = n_thetas_trans, normalization = [], appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_ss") 
-                utils.plot_transmission_flat(k0range, L, thetas, Etotal_ss, file_name, n_thetas_trans = n_thetas_trans, normalization = [], appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_ss") 
+                utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_ss, file_name, n_thetas_trans = n_thetas_trans, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_ss") 
+                utils.plot_transmission_flat(k0range, L, thetas, Etotal_ss, file_name, n_thetas_trans = n_thetas_trans, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_ss") 
                 utils.plot_angular_averaged_transmission(k0range, L, Etotal_ss, file_name, appended_string = '_'+str(file_index)+"_ss")
                 theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
                 utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, Etotal_ss, file_name,  plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_ss')
@@ -963,8 +1018,8 @@ def main(head_directory, ndim, # Required arguments
                     Etotal_multiple = onp.sum(Etotal_multiple, axis=2)
 
                      # Produce plots
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_multiple, file_name, n_thetas_trans = n_thetas_trans, normalization = [], appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_multiple") 
-                    utils.plot_transmission_flat(k0range, L, thetas, Etotal_multiple, file_name, n_thetas_trans = n_thetas_trans, normalization = [], appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_multiple") 
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_multiple, file_name, n_thetas_trans = n_thetas_trans, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_multiple") 
+                    utils.plot_transmission_flat(k0range, L, thetas, Etotal_multiple, file_name, n_thetas_trans = n_thetas_trans, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_multiple") 
                     utils.plot_angular_averaged_transmission(k0range, L, Etotal_multiple, file_name, appended_string = '_'+str(file_index)+"_multiple")
                     theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
                     utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, Etotal_multiple, file_name,  plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_multiple')
@@ -976,13 +1031,16 @@ def main(head_directory, ndim, # Required arguments
                     Etotal_scat_ss = onp.sum(Etotal_scat_ss, axis=2)
                     
                     # Produce plots
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_scat_ss, file_name, n_thetas_trans = n_thetas_trans, normalization = [], adapt_scale = True, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat_ss") 
-                    utils.plot_transmission_flat(k0range, L, thetas, Etotal_scat_ss, file_name, n_thetas_trans = n_thetas_trans, normalization = [],  adapt_scale = True, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat_ss") 
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_scat_ss, file_name, n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat_ss") 
+                    utils.plot_transmission_flat(k0range, L, thetas, Etotal_scat_ss, file_name, n_thetas_trans = n_thetas_trans,  adapt_scale = True, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat_ss") 
                     utils.plot_angular_averaged_transmission(k0range, L, Etotal_scat_ss, file_name, appended_string = '_'+str(file_index)+"_scat_ss")
                     theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
                     utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, Etotal_scat_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_scat_ss')
                 
+                    # Also produce scattered field normalised by total scattered intensity on the circle. XXX Should make it a sphere
                     utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = Etotal_scat_ss, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss_norm')
+                    utils.plot_transmission_flat(k0range, L, thetas, Etotal_scat_ss, file_name, n_thetas_trans = n_thetas_trans, normalization = Etotal_scat_ss,  adapt_scale = True, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat_ss_norm") 
+
 
 
             # Compute full fields
