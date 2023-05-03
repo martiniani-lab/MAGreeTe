@@ -38,6 +38,7 @@ def main(head_directory, ndim, # Required arguments
             k = 160
         elif N == 4096:
             k = 80
+        suffix = '_points'
         lattice = None
     elif lattice == 'stealthy':
         a = 0.0
@@ -79,40 +80,50 @@ def main(head_directory, ndim, # Required arguments
     elif lattice == 'donut_ellipse':
         a = -2.1
         k = 160
+        suffix = '_points'
         lattice = None
     elif lattice == 'donut_new':
         a = -1.1
         k = 200
+        suffix = '_points'
         lattice = None
     elif lattice == 'donut3d':
         a = -1.0
         k = 30
+        suffix = '_points'
         lattice=None
     elif lattice == 'stealthy3d':
         a = 0.0
         k = 20
+        suffix = '_points'
         lattice=None
     elif lattice == 'checkerboard':
         a = -4.0
-        if N == 16384:
+        if N == 50_000_000:
+            k = 5050
+        elif N == 16384:
             k = 120
         elif N == 4096:
             k = 32
+        suffix = '_points'
         lattice=None
     elif lattice == 'checker2':
         a = -4.1
         if N == 16384:
             k = 120
+        suffix = '_points'
         lattice=None
     elif lattice == 'checker2small':
         a = -4.1
         if N == 16384:
             k = 60
+        suffix = '_points'
         lattice=None
     elif lattice == 'checker8':
         a = -4.2
         if N == 16384:
             k = 120
+        suffix = '_points'
         lattice=None
     elif lattice == 'rose':
         a = -3.0
@@ -120,16 +131,19 @@ def main(head_directory, ndim, # Required arguments
             k = 120
         elif N == 4096:
             k = 80
+        suffix = '_points'
         lattice=None
     elif lattice == 'pinwheel':
         a = -3.1
         if N == 16384:
             k = 160
+        suffix = '_points'
         lattice=None
     elif lattice == 'pinwheel6':
         a = -3.2
         if N == 16384:
             k = 160
+        suffix = '_points'
         lattice=None
     elif lattice == 'spiral':
         a = -5.0
@@ -137,26 +151,31 @@ def main(head_directory, ndim, # Required arguments
             k = 160
         elif N == 4096:
             k = 80
+        suffix = '_points'
         lattice=None
     elif lattice == 'limitedspiral':
         a = -5.1
         if N == 16384:
             k = 160
+        suffix = '_points'
         lattice = None 
     elif lattice == 'lowspiral':
         a = -5.2
         if N == 16384:
             k = 160
+        suffix = '_points'
         lattice=None
     elif lattice == 'highspiral':
         a = -5.3
         if N == 16384:
             k = 160
+        suffix = '_points'
         lattice=None
     elif lattice == 'stealthyspiral':
         a = -5.4
         if N == 16384:
             k = 160
+        suffix = '_points'
         lattice=None
 
     # #By default, particle exclusion phi = scatterer phi
