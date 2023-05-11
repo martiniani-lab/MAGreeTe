@@ -1,5 +1,6 @@
 import numpy as onp
 import torch as np
+import sys
 from scipy.spatial import Delaunay, Voronoi
 from utils import uniform_unit_disk_picking, uniform_unit_ball_picking
 
@@ -75,6 +76,9 @@ def honeycomb(Nx=71,Ny=41,disp=0):
 
 
 def quasicrystal(N = 4096, nspan=46, ndirs=5, mode=None,disp=0):
+    if ndirs < 5:
+        print("A quasicrystal needs at least 5-fold symmetry!")
+        sys.exit()
     if mode != None:
         nspan=33
     dirs = onp.arange(ndirs).reshape(-1,1)
@@ -134,6 +138,19 @@ def quasicrystal(N = 4096, nspan=46, ndirs=5, mode=None,disp=0):
     rabs = onp.absolute(r)
     points = r[onp.nonzero((rabs[:,0]<=0.5)*(rabs[:,1]<=0.5))]+0.5
     r = np.tensor(r)
+
+    # Get smaller numbers
+    # XXX could make the construction above a bit more flexible, but need some logic in the nspan
+    N_measured = points.shape[0]
+    ratio = onp.sqrt(N/N_measured)
+    if ratio > 1:
+        print("Can't currently make a quasicrystal that big!")
+        # sys.exit()
+        print("Capping to "+str(N_measured)+" particles")
+    else:
+        #Multiply the surface area by ratio, or the max radius by sqrt(ratio)
+        r = cut_circle(r, rad = ratio * 0.5)
+        r *= 0.5/ratio
     if disp != 0:
         r = add_displacement(r,dr=disp)
     return r

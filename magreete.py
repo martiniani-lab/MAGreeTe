@@ -29,154 +29,12 @@ def main(head_directory, ndim, # Required arguments
     '''
     Simple front-end for MAGreeTe
     '''
-    N = N_raw
+
     phi_ = 0.6
-    suffix = ''
-    if lattice == 'donut':
-        a = -1.0
-        if N == 16384:
-            k = 160
-        elif N == 4096:
-            k = 80
-        suffix = '_points'
-        lattice = None
-    elif lattice == 'stealthy':
-        a = 0.0
-        if N == 16384:
-            k = 64
-        elif N == 4096:
-            k = 32
-        elif N == 500:
-            k = 10
-        suffix = '_points'
-        lattice = None
-    elif lattice == 'stealthydual':
-        a = 0.0
-        if N == 16384:
-            k = 64
-            N = 8192
-        elif N == 4096:
-            k = 32
-            N = 2048
-        elif N == 500:
-            k = 10
-            N = 250
-        suffix = '_dual'
-        lattice = None
-    elif lattice == 'stealthynetwork':
-        a = 0.0
-        if N == 4096:
-            k = 32
-            N = 2048
-        elif N == 500:
-            N = 250
-            k = 10
-        elif N == 16384:
-            N = 3200
-            k = 31
-            phi_ = 0.6
-        suffix = '_network1_dual'
-        lattice = None
-    elif lattice == 'donut_ellipse':
-        a = -2.1
-        k = 160
-        suffix = '_points'
-        lattice = None
-    elif lattice == 'donut_new':
-        a = -1.1
-        k = 200
-        suffix = '_points'
-        lattice = None
-    elif lattice == 'donut3d':
-        a = -1.0
-        k = 30
-        suffix = '_points'
-        lattice=None
-    elif lattice == 'stealthy3d':
-        a = 0.0
-        k = 20
-        suffix = '_points'
-        lattice=None
-    elif lattice == 'checkerboard':
-        a = -4.0
-        if N == 50_000_000:
-            k = 5050
-        elif N == 16384:
-            k = 120
-        elif N == 4096:
-            k = 32
-        suffix = '_points'
-        lattice=None
-    elif lattice == 'checker2':
-        a = -4.1
-        if N == 16384:
-            k = 120
-        suffix = '_points'
-        lattice=None
-    elif lattice == 'checker2small':
-        a = -4.1
-        if N == 16384:
-            k = 60
-        suffix = '_points'
-        lattice=None
-    elif lattice == 'checker8':
-        a = -4.2
-        if N == 16384:
-            k = 120
-        suffix = '_points'
-        lattice=None
-    elif lattice == 'rose':
-        a = -3.0
-        if N == 16384:
-            k = 120
-        elif N == 4096:
-            k = 80
-        suffix = '_points'
-        lattice=None
-    elif lattice == 'pinwheel':
-        a = -3.1
-        if N == 16384:
-            k = 160
-        suffix = '_points'
-        lattice=None
-    elif lattice == 'pinwheel6':
-        a = -3.2
-        if N == 16384:
-            k = 160
-        suffix = '_points'
-        lattice=None
-    elif lattice == 'spiral':
-        a = -5.0
-        if N == 16384:
-            k = 160
-        elif N == 4096:
-            k = 80
-        suffix = '_points'
-        lattice=None
-    elif lattice == 'limitedspiral':
-        a = -5.1
-        if N == 16384:
-            k = 160
-        suffix = '_points'
-        lattice = None 
-    elif lattice == 'lowspiral':
-        a = -5.2
-        if N == 16384:
-            k = 160
-        suffix = '_points'
-        lattice=None
-    elif lattice == 'highspiral':
-        a = -5.3
-        if N == 16384:
-            k = 160
-        suffix = '_points'
-        lattice=None
-    elif lattice == 'stealthyspiral':
-        a = -5.4
-        if N == 16384:
-            k = 160
-        suffix = '_points'
-        lattice=None
+
+    # Get the parameters of special outputs of FReSCo from keywords in lattice
+    file_name = ''
+    lattice, head_directory, file_name = special_cases(lattice, N_raw, head_directory, file_name)
 
     # #By default, particle exclusion phi = scatterer phi
     # phi_ = phi
@@ -230,84 +88,24 @@ def main(head_directory, ndim, # Required arguments
     for file_index in file_index_list:
         print("____________________________________________________\nCopy #"+str(file_index)+"\n____________________________________________________")
 
+        # A custom file was provided
         if lattice == None:
-            dname = head_directory+'HPY'+str(ndim)+'D/phi'+str(phi_)+'/a'+str(a)+'/'
-            file_name = 'HPY'+str(ndim)+'D_phi'+str(phi_)+'_a'+str(a)+'_N'+str(N_raw)+'_K'+str(k)
-            file_name += suffix
 
-            points = hkl.load(dname+file_name+'_'+str(file_index)+'.hkl')
+            points = hkl.load(head_directory+file_name+'_'+str(file_index)+'.hkl')
             points = np.tensor(points[:,0:ndim]-0.5,dtype=np.double)
             points = lattices.cut_circle(points)
-            # add random kicks
+            # Add random kicks
             if kick != 0.0:
                 points = lattices.add_displacement(points, dr=kick)
+
+        # A generative recipe was selected
         else:
 
             file_name = lattice
-            
-            if ndim==2:
-                if lattice == 'square':
-                    Nside = int(onp.round(onp.sqrt(N_raw)))
-                    if Nside%2==0:
-                        Nside += 1
-                    points = lattices.square(Nside=Nside, disp=kick)
-                elif lattice == 'triangular':
-                    Nx = int(onp.round(onp.sqrt(N_raw / onp.sqrt(3.0))))
-                    Ny = int(onp.round(onp.sqrt(3.0) * Nx))
-                    if Nx%2==0:
-                        Nx += 1
-                    if Ny%2 == 0:
-                        Ny += 1
-                    points = lattices.triangular(Nx=Nx, Ny=Ny, disp=kick)
-                elif lattice == 'honeycomb':
-                    Nx = int(onp.round(onp.sqrt(N_raw / onp.sqrt(3.0))))
-                    Ny = int(onp.round(onp.sqrt(3.0) * Nx))
-                    if Nx%2==0:
-                        Nx += 1
-                    if Ny%2 == 0:
-                        Ny += 1
-                    points = lattices.honeycomb(Nx=Nx, Ny=Ny, disp=kick)
-                elif lattice == 'quasicrystal':
-                    points = lattices.quasicrystal(N=N_raw, mode='quasicrystal', disp=kick)
-                elif lattice == 'quasidual':
-                    points = lattices.quasicrystal(N=N_raw, mode='quasidual', disp=kick)
-                elif lattice == 'quasivoro':
-                    points = lattices.quasicrystal(N=N_raw, mode='quasivoro', disp=kick)
-                elif lattice == 'poisson':
-                    points = lattices.poisson(N_raw, ndim)
-                    file_name = file_name+"_2d"
-                else:
-                    print("Not a valid lattice!")
-                    exit()
-
-            elif ndim == 3:
-                if lattice == 'cubic':
-                    Nside  = int(onp.round(onp.cbrt(N_raw)))
-                    points = lattices.cubic(Nside=Nside, disp=kick)
-                elif lattice == 'bcc':
-                    # bcc has two atoms per unit cell
-                    Nside  = int(onp.round(onp.cbrt(N_raw/2)))
-                    points = lattices.bcc(Nside=Nside, disp=kick)
-                elif lattice == 'fcc':
-                    # fcc has four atoms per unit cell
-                    Nside  = int(onp.round(onp.cbrt(N_raw/4)))
-                    points = lattices.fcc(Nside=Nside, disp=kick)
-                elif lattice == 'diamond':
-                    # diamond has two atoms per unit cell
-                    Nside  = int(onp.round(onp.cbrt(N_raw/2)))
-                    points = lattices.diamond(Nside=Nside, disp=kick)
-                elif lattice == 'poisson':
-                    points = lattices.poisson(N_raw, ndim)
-                    file_name = file_name+"_3d"
-                else: 
-                    print("Not a valid lattice!")
-                    exit()
-            else:
-                print("Not a valid dimensionality!")
-                exit()
-        
+            points = make_lattice(lattice, N_raw, kick, ndim)
             points = lattices.cut_circle(points)
-        assert ndim == points.shape[1]
+
+        # Cut configuration if needed
         if annulus > 0:
             points = lattices.exclude_circle(points,annulus)
             file_name += '_annulus_'+str(annulus)
@@ -316,9 +114,12 @@ def main(head_directory, ndim, # Required arguments
             comp = lattices.cut_circle(comp,annulus)
             points = np.vstack([points,comp])
             file_name += '_composite'
+
+        # After all this, write down the actual N and make the system the right size
         N = points.shape[0]
         points *= L
         assert ndim == points.shape[1]
+        print("\n\nLoaded a ("+str(lattice)+") system of N = "+str(N)+" points with sidelength L = "+str(L)+" in d = "+str(ndim)+"\n\n")
 
         output_directory = output_directory+"/"+file_name
         utils.trymakedir(output_directory)
@@ -333,12 +134,10 @@ def main(head_directory, ndim, # Required arguments
             
             if k0range_args == None:
                 #TODO: Clean this up
-                # old: fixed ks, dangerous because arbitrary and changing N, phi can break interval
-                # k0range = onp.arange(20,40.5,0.5)*2*onp.pi/L
                 # old: kmax fixed according to mean distance between centers, dangerous because might not be consistent with hypotheses
                 # mean_distance = 1 / onp.sqrt(phi/volume)
                 # k_max = 5.0 * L / mean_distance
-                # now: set the max to be the last one where the assumptions are still somewhat ok, 2pi / radius
+                # Set the max to be the last one where the assumptions are still somewhat ok, 2pi / radius
                 k_max = 0.25 * L /radius
                 k0range = onp.arange(1.0, k_max, 0.5)*2*onp.pi/L
             else:
@@ -370,12 +169,10 @@ def main(head_directory, ndim, # Required arguments
             
             if k0range_args == None:
                 #TODO: Adapt this to N, phi
-                # old: fixed ks, dangerous because arbitrary and changing N, phi can break interval
-                # k0range = onp.arange(5.0,20.5,0.5)*2*onp.pi/L
                 # old: kmax fixed according to mean distance between centers, dangerous because might not be consistent with hypotheses
                 # mean_distance = 1 / onp.cbrt(phi/volume)
                 # k_max = 5.0 * L / mean_distance
-                # now: set the max to be the last one where the assumptions are still somewhat ok, 2pi / radius
+                # Set the max to be the last one where the assumptions are still somewhat ok, 2pi / radius
                 k_max = 0.25 * L /radius
                 k0range = onp.arange(1.0, k_max, 0.5)*2*onp.pi/L
             else: 
@@ -1375,6 +1172,242 @@ def main(head_directory, ndim, # Required arguments
                     utils.plot_transmission_flat(k0range, L, thetas, I_fluct, file_name, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies')
                     utils.plot_angular_averaged_transmission(k0range, L, I_fluct, file_name, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies')
 
+
+def special_cases(lattice, N_raw, head_directory, file_name):
+
+    if lattice == 'donut':
+        a = -1.0
+        if N_raw == 16384:
+            k = 160
+        elif N_raw == 4096:
+            k = 80
+        suffix = '_points'
+        lattice = None
+    elif lattice == 'stealthy':
+        a = 0.0
+        if N_raw == 16384:
+            k = 64
+        elif N_raw == 4096:
+            k = 32
+        elif N_raw == 500:
+            k = 10
+        suffix = '_points'
+        lattice = None
+    elif lattice == 'stealthydual':
+        a = 0.0
+        if N_raw == 16384:
+            k = 64
+            N_raw = 8192
+        elif N_raw == 4096:
+            k = 32
+            N_raw = 2048
+        elif N_raw == 500:
+            k = 10
+            N_raw = 250
+        suffix = '_dual'
+        lattice = None
+    elif lattice == 'stealthynetwork':
+        a = 0.0
+        if N_raw == 4096:
+            k = 32
+            N_raw = 2048
+        elif N_raw == 500:
+            N_raw = 250
+            k = 10
+        elif N_raw == 16384:
+            N_raw = 3200
+            k = 31
+            phi_ = 0.6
+        suffix = '_network1_dual'
+        lattice = None
+    elif lattice == 'donut_ellipse':
+        a = -2.1
+        k = 160
+        suffix = '_points'
+        lattice = None
+    elif lattice == 'donut_new':
+        a = -1.1
+        k = 200
+        suffix = '_points'
+        lattice = None
+    elif lattice == 'donut3d':
+        a = -1.0
+        k = 30
+        suffix = '_points'
+        lattice=None
+    elif lattice == 'stealthy3d':
+        a = 0.0
+        k = 20
+        suffix = '_points'
+        lattice=None
+    elif lattice == 'checkerboard':
+        a = -4.0
+        if N_raw == 50_000_000:
+            k = 5050
+        elif N_raw == 16384:
+            k = 120
+        elif N_raw == 4096:
+            k = 32
+        suffix = '_points'
+        lattice=None
+    elif lattice == 'checker2':
+        a = -4.1
+        if N_raw == 16384:
+            k = 120
+        suffix = '_points'
+        lattice=None
+    elif lattice == 'checker2small':
+        a = -4.1
+        if N_raw == 16384:
+            k = 60
+        suffix = '_points'
+        lattice=None
+    elif lattice == 'checker8':
+        a = -4.2
+        if N_raw == 16384:
+            k = 120
+        suffix = '_points'
+        lattice=None
+    elif lattice == 'rose':
+        a = -3.0
+        if N_raw == 16384:
+            k = 120
+        elif N_raw == 4096:
+            k = 80
+        suffix = '_points'
+        lattice=None
+    elif lattice == 'pinwheel':
+        a = -3.1
+        if N_raw == 16384:
+            k = 160
+        suffix = '_points'
+        lattice=None
+    elif lattice == 'pinwheel6':
+        a = -3.2
+        if N_raw == 16384:
+            k = 160
+        suffix = '_points'
+        lattice=None
+    elif lattice == 'spiral':
+        a = -5.0
+        if N_raw == 16384:
+            k = 160
+        elif N_raw == 4096:
+            k = 80
+        suffix = '_points'
+        lattice=None
+    elif lattice == 'limitedspiral':
+        a = -5.1
+        if N_raw == 16384:
+            k = 160
+        suffix = '_points'
+        lattice = None 
+    elif lattice == 'lowspiral':
+        a = -5.2
+        if N_raw == 16384:
+            k = 160
+        suffix = '_points'
+        lattice=None
+    elif lattice == 'highspiral':
+        a = -5.3
+        if N_raw == 16384:
+            k = 160
+        suffix = '_points'
+        lattice=None
+    elif lattice == 'stealthyspiral':
+        a = -5.4
+        if N_raw == 16384:
+            k = 160
+        suffix = '_points'
+        lattice=None
+    else:
+        suffix = ''
+        a = None
+        k = None
+
+    if lattice == None and a != None:
+        head_directory = head_directory+'HPY'+str(ndim)+'D/phi'+str(phi_)+'/a'+str(a)+'/'
+        file_name = 'HPY'+str(ndim)+'D_phi'+str(phi_)+'_a'+str(a)+'_N'+str(N_raw)+'_K'+str(k)
+        file_name += suffix
+
+    return lattice, head_directory, file_name
+
+def make_lattice(lattice, N_raw, kick, ndim):
+
+    if ndim==2:
+        if lattice == 'square':
+            Nside = int(onp.round(onp.sqrt(N_raw)))
+            if Nside%2==0:
+                Nside += 1
+            points = lattices.square(Nside=Nside, disp=kick)
+        elif lattice == 'triangular':
+            Nx = int(onp.round(onp.sqrt(N_raw / onp.sqrt(3.0))))
+            Ny = int(onp.round(onp.sqrt(3.0) * Nx))
+            if Nx%2==0:
+                Nx += 1
+            if Ny%2 == 0:
+                Ny += 1
+            points = lattices.triangular(Nx=Nx, Ny=Ny, disp=kick)
+        elif lattice == 'honeycomb':
+            Nx = int(onp.round(onp.sqrt(N_raw / onp.sqrt(3.0))))
+            Ny = int(onp.round(onp.sqrt(3.0) * Nx))
+            if Nx%2==0:
+                Nx += 1
+            if Ny%2 == 0:
+                Ny += 1
+            points = lattices.honeycomb(Nx=Nx, Ny=Ny, disp=kick)
+        elif lattice.split("_")[0] == 'quasicrystal':
+            if len(lattice.split("_")) == 1:
+                qc_symmetry = 5
+            else:
+                qc_symmetry = int(lattice.split("_")[1])
+            points = lattices.quasicrystal(N=N_raw, mode='quasicrystal', disp=kick, ndirs = qc_symmetry)
+        elif lattice.split("_")[0] == 'quasivoro':
+            if len(lattice.split("_")) == 1:
+                qc_symmetry = 5
+            else:
+                qc_symmetry = int(lattice.split("_")[1])
+            points = lattices.quasicrystal(N=N_raw, mode='quasivoro', disp=kick, ndirs = qc_symmetry)
+        elif lattice.split("_")[0] == 'quasidual':
+            if len(lattice.split("_")) == 1:
+                qc_symmetry = 5
+            else:
+                qc_symmetry = int(lattice.split("_")[1])
+            points = lattices.quasicrystal(N=N_raw, mode='quasidual', disp=kick, ndirs = qc_symmetry)
+        elif lattice == 'poisson':
+            points = lattices.poisson(N_raw, ndim)
+            file_name = file_name+"_2d"
+        else:
+            print("Not a valid lattice!")
+            exit()
+
+    elif ndim == 3:
+        if lattice == 'cubic':
+            Nside  = int(onp.round(onp.cbrt(N_raw)))
+            points = lattices.cubic(Nside=Nside, disp=kick)
+        elif lattice == 'bcc':
+            # bcc has two atoms per unit cell
+            Nside  = int(onp.round(onp.cbrt(N_raw/2)))
+            points = lattices.bcc(Nside=Nside, disp=kick)
+        elif lattice == 'fcc':
+            # fcc has four atoms per unit cell
+            Nside  = int(onp.round(onp.cbrt(N_raw/4)))
+            points = lattices.fcc(Nside=Nside, disp=kick)
+        elif lattice == 'diamond':
+            # diamond has two atoms per unit cell
+            Nside  = int(onp.round(onp.cbrt(N_raw/2)))
+            points = lattices.diamond(Nside=Nside, disp=kick)
+        elif lattice == 'poisson':
+            points = lattices.poisson(N_raw, ndim)
+            file_name = file_name+"_3d"
+        else: 
+            print("Not a valid lattice!")
+            exit()
+    else:
+        print("Not a valid dimensionality!")
+        exit()
+
+    return points
 
 
 if __name__ == '__main__':

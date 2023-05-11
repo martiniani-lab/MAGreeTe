@@ -281,7 +281,7 @@ def plot_3d_points(points, file_name):
 
     ax.scatter(points[:,0], points[:,1], points[:,2])
 
-    plt.savefig(file_name+'_3dplot.png')
+    plt.savefig(file_name+'_3dplot.png', dpi = 300)
 
 def plot_2d_points(points, file_name):
     fig = plt.figure(figsize=(10,10),dpi=300)
@@ -289,7 +289,7 @@ def plot_2d_points(points, file_name):
 
     ax.scatter(points[:,0], points[:,1], s = 2)
 
-    plt.savefig(file_name+'_2dplot.png')
+    plt.savefig(file_name+'_2dplot.png', dpi = 300)
 
 def plot_LDOS_2D(ldos_change,k0_,ngridx,ngridy,file_name,my_dpi=1, appended_string=''):
 
