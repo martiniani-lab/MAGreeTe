@@ -82,7 +82,10 @@ def quasicrystal(N = 4096, nspan=46, ndirs=5, mode=None,disp=0):
     if mode != None:
         nspan=33
     dirs = onp.arange(ndirs).reshape(-1,1)
-    angles = dirs*2*onp.pi/ndirs
+    if ndirs % 2 == 0:
+        angles = dirs*onp.pi/ndirs + 0.5*onp.pi/ndirs
+    else:
+        angles = dirs*2*onp.pi/ndirs
     vx = onp.cos(angles)
     vy = onp.sin(angles)
     mm = vy/vx
