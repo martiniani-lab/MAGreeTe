@@ -76,8 +76,8 @@ def honeycomb(Nx=71,Ny=41,disp=0):
 
 
 def quasicrystal(N = 4096, nspan=46, ndirs=5, mode=None,disp=0, shiftfactor=0.2):
-    if ndirs < 5:
-        print("A quasicrystal needs at least 5-fold symmetry!")
+    if ndirs < 4:
+        print("A quasicrystal needs at least 4-fold symmetry!")
         sys.exit()
     if mode != None:
         nspan=33
