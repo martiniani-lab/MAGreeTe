@@ -34,7 +34,7 @@ def main(head_directory, ndim, # Required arguments
 
     # Get the parameters of special outputs of FReSCo from keywords in lattice
     file_name = ''
-    lattice, head_directory, file_name = special_cases(lattice, N_raw, head_directory, file_name)
+    lattice, head_directory, file_name = special_cases(lattice, N_raw, head_directory, file_name, phi_)
 
     # #By default, particle exclusion phi = scatterer phi
     # phi_ = phi
@@ -93,6 +93,11 @@ def main(head_directory, ndim, # Required arguments
 
             points = hkl.load(head_directory+file_name+'_'+str(file_index)+'.hkl')
             points = np.tensor(points[:,0:ndim]-0.5,dtype=np.double)
+            shape_before = points.shape
+            points = np.unique(points, dim=0)
+            shape_after = points.shape
+            if shape_before[0] != shape_after[0]:
+                print("There were {} points overlapping with others! Removing.".format(shape_before[0]-shape_after[0]))
             points = lattices.cut_circle(points)
             # Add random kicks
             if kick != 0.0:
@@ -434,6 +439,9 @@ def main(head_directory, ndim, # Required arguments
                     theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
                     utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TMtotal_scat_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TM_angle_'+str(theta_plot)+'_scat_ss')
                     utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas,  TEtotal_scat_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TE_angle_'+str(theta_plot)+'_scat_ss')
+
+                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TMtotal_scat_ss, file_name, plot_theta_index = plot_theta_index, normalization=TMtotal_scat_ss, appended_string='_'+str(file_index)+'_TM_angle_'+str(theta_plot)+'_scat_ss_norm')
+                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas,  TEtotal_scat_ss, file_name, plot_theta_index = plot_theta_index, normalization=TEtotal_scat_ss, appended_string='_'+str(file_index)+'_TE_angle_'+str(theta_plot)+'_scat_ss_norm')
 
                     # Also produce scattered field normalised by total scattered intensity
                     utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = TMtotal_scat_ss, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_scat_ss_norm')
@@ -1173,7 +1181,7 @@ def main(head_directory, ndim, # Required arguments
                     utils.plot_angular_averaged_transmission(k0range, L, I_fluct, file_name, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies')
 
 
-def special_cases(lattice, N_raw, head_directory, file_name):
+def special_cases(lattice, N_raw, head_directory, file_name, phi_):
 
     if lattice == 'donut':
         a = -1.0
@@ -1187,6 +1195,8 @@ def special_cases(lattice, N_raw, head_directory, file_name):
         a = 0.0
         if N_raw == 16384:
             k = 64
+        elif N_raw == 10000:
+            k = 71.42
         elif N_raw == 4096:
             k = 32
         elif N_raw == 500:
@@ -1376,7 +1386,6 @@ def make_lattice(lattice, N_raw, kick, ndim):
             points = lattices.quasicrystal(N=N_raw, mode='quasidual', disp=kick, ndirs = qc_symmetry)
         elif lattice == 'poisson':
             points = lattices.poisson(N_raw, ndim)
-            file_name = file_name+"_2d"
         else:
             print("Not a valid lattice!")
             exit()
@@ -1399,7 +1408,6 @@ def make_lattice(lattice, N_raw, kick, ndim):
             points = lattices.diamond(Nside=Nside, disp=kick)
         elif lattice == 'poisson':
             points = lattices.poisson(N_raw, ndim)
-            file_name = file_name+"_3d"
         else: 
             print("Not a valid lattice!")
             exit()
