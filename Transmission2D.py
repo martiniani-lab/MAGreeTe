@@ -1,6 +1,7 @@
 import sys
 import numpy as onp
 import torch as np
+import cola
 import scipy as sp
 from scipy.special import hankel1
 import hickle as hkl
@@ -53,7 +54,7 @@ class Transmission2D:
             r[:,:,0] += 0.5
             r[:,:,0] %= 1
             r[:,:,0] -= 0.5
-            
+        
         R = np.linalg.norm(r,axis=-1)
         RxR = r[:,:,0:2].reshape(N,M,1,2)*r[:,:,0:2].reshape(N,M,2,1)
         RxR /= (R*R).reshape(N,M,1,1)
@@ -142,6 +143,7 @@ class Transmission2D:
         points = np.tensor(points)
         E0j, u = self.generate_source(points, k0, thetas, beam_waist, print_statement='calc')
 
+        # XXX cola here for G
         EkTM_ = np.matmul(alpha*k0*k0* self.G0_TM(points, k0, print_statement='calc', regularize=regularize, radius=radius), EkTM) + E0j
         E0j = E0j.reshape(points.shape[0],1,len(thetas))*u
         EkTE_ = np.matmul(alpha*k0*k0* self.G0_TE(points, k0, print_statement='calc', regularize=regularize, radius=radius), EkTE).reshape(points.shape[0],2,-1) + E0j 
@@ -186,8 +188,13 @@ class Transmission2D:
             dims = M_tensor.shape[0]
             self_int_TM = np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
             M_tensor -= alpha*k0*k0*self_int_TM
-        # Solve M_tensor.Ek = E0j
+        # XXX big cola time
         EkTM = np.linalg.solve(M_tensor,E0j)
+        print(EkTM)
+        M_tensor_cola = cola.ops.Dense(M_tensor) # Should actually define the tensor as an abstract cola object BUT the torch_hankel is annoying
+        # Solve M_tensor.Ek = E0j
+        EkTM = cola.linalg.solve(M_tensor_cola,E0j)
+        print(EkTM)
         
         ### TE calculation
         # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
@@ -200,7 +207,16 @@ class Transmission2D:
             self_int_TE = np.eye(dims) * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
             M_tensor -= alpha*k0*k0*self_int_TE
         # Solve M_tensor.Ek = E0j
+        # XXX big cola time
         EkTE = np.linalg.solve(M_tensor, E0j.reshape(2*self.N,-1)) 
+        print(EkTE)
+        print(E0j.shape)
+        print(E0j.reshape(2*self.N,-1).shape)
+        print(E0j.reshape(2*self.N,-1)[:,0].shape)
+        M_tensor_cola = cola.ops.Dense(M_tensor)  # Should actually define the tensor as an abstract cola object BUT the torch_hankel is annoying
+        print("cola-ified M")
+        EkTE = cola.linalg.solve(M_tensor_cola, E0j.reshape(2*self.N,-1)[:,0]) 
+        print(EkTE)
         return EkTE, EkTM
     
     def calc_EM_ss(self, points, k0, alpha, thetas, beam_waist, regularize = False, radius = 0.0):
@@ -219,11 +235,13 @@ class Transmission2D:
         points = np.tensor(points)
         E0_meas, u_meas = self.generate_source(points, k0, thetas, beam_waist, print_statement='calc_ss')
         E0_scat, u_scat = self.generate_source(self.r, k0, thetas, beam_waist, print_statement='calc_ss')
+        # XXX big cola time
         EkTM_ = np.matmul(alpha*k0*k0* self.G0_TM(points, k0, print_statement='calc_ss', regularize=regularize, radius=radius), E0_scat) + E0_meas
         
         E0_meas = E0_meas.reshape(points.shape[0],1,len(thetas))*u_meas
         E0_scat = E0_scat.reshape(self.r.shape[0],1,len(thetas))*u_scat
-        E0_scat = E0_scat.reshape(2*self.r.shape[0],-1)        
+        E0_scat = E0_scat.reshape(2*self.r.shape[0],-1)    
+        # XXX big cola time    
         EkTE_ = np.matmul(alpha*k0*k0* self.G0_TE(points, k0, print_statement='calc_ss', regularize=regularize, radius=radius), E0_scat).reshape(points.shape[0],2,-1) + E0_meas
         
         # Take care of cases in which measurement points are exactly scatterer positions
@@ -250,6 +268,20 @@ class Transmission2D:
         #Green's function
         k0_ = onp.round(k0/(2.0*onp.pi),1)
         print("Calculating TM Green's function at k0L/2pi = "+str(k0_)+' ('+print_statement+')')
+        # XXX big cola time
+        # print((points.reshape(-1,1,2) - self.r.reshape(1,-1,2)).shape)
+        # flat_points = points.reshape(points.shape[0]*points.shape[1],1)
+        # flat_r = self.r.reshape(self.r.shape[0]*self.r.shape[1],1)
+        # test = flat_points@np.ones(flat_r.reshape(1,-1).shape, dtype = np.double)
+        # testbis = np.ones(flat_r.shape, dtype = np.double)@flat_r.reshape(1,-1)
+        # print(test.shape)
+        # print(testbis.shape)
+        # print(test-testbis)
+        # print(points.reshape(-1,1,2) - self.r.reshape(1,-1,2))
+        # cola_points = cola.lazify(points.reshape(-1,1,2))
+        # cola_r = cola.lazify(self.r.reshape(1,-1,2).unsqueeze(0))
+        # print((cola_points - cola_r).shape)
+        # exit()
         G0 = self.torch_greensTM(points.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0, regularize=regularize, radius=radius)
         return G0
 
@@ -264,6 +296,7 @@ class Transmission2D:
             points_ = points
         k0_ = onp.round(k0/(2.0*onp.pi),1)
         print("Calculating TE Green's function at k0L/2pi = "+str(k0_)+' ('+print_statement+')')
+        # XXX big cola time
         G0 = self.torch_greensTE(points_.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0, regularize=regularize, radius=radius)
         #Construct matrix form
         if points == None:
@@ -301,7 +334,8 @@ class Transmission2D:
             self_int_TM = np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
             M_tensor -= alpha*k0*k0*self_int_TM
         # Compute W_tensor = inverse(M_tensor)
-        W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
+        M_tensor = cola.ops.Dense(M_tensor)
+        W_tensor = cola.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
         G0_measure = self.G0_TM(measure_points, k0, print_statement='DOS measure', regularize=regularize, radius=radius)
@@ -338,7 +372,8 @@ class Transmission2D:
             self_int_TE = np.eye(dims) * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
             M_tensor -= alpha*k0*k0*self_int_TE
         # Compute W_tensor = inverse(M_tensor)
-        W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
+        M_tensor = cola.ops.Dense(M_tensor)
+        W_tensor = cola.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
         G0_measure = self.G0_TE(measure_points, k0, print_statement='DOS measure', regularize=regularize, radius=radius)
@@ -392,7 +427,7 @@ class Transmission2D:
             self_int_TM = np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
             M_tensor -= alpha*k0*k0*self_int_TM
         # Compute W_tensor = inverse(M_tensor)
-        W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
+        W_tensor = cola.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
         G0_measure = self.G0_TM(measure_points, k0, print_statement='LDOS measure', regularize=regularize, radius=radius)
@@ -427,7 +462,7 @@ class Transmission2D:
             self_int_TE = np.eye(dims) * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
             M_tensor -= alpha*k0*k0*self_int_TE
         # Compute W_tensor = inverse(M_tensor)
-        W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
+        W_tensor = cola.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
         G0_measure = self.G0_TE(measure_points, k0, print_statement='LDOS measure', regularize=regularize, radius=radius)
