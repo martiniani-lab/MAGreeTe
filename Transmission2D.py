@@ -178,6 +178,13 @@ class Transmission2D:
         ### TM calculation
         # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
         E0j, u = self.generate_source(self.r, k0, thetas, beam_waist, print_statement='run')
+        # XXX DEBUG
+        local_storage = True
+        if local_storage:
+            print("Using disk instead of RAM to store matrix")
+            print("THIS IS EXCRUCIATINGLY SLOW")
+            fname = "TM_tensor.pt"
+            M_tensor = np.tensor(np.Storage.from_file(fname, shared=True, size=(self.r.shape[0]*self.r.shape[1])**2)).reshape(self.r.shape[0]*self.r.shape[1], self.r.shape[0]*self.r.shape[1])
         M_tensor = -alpha*k0*k0* self.G0_TM(self.r, k0, print_statement='run')
         M_tensor.fill_diagonal_(1)
         if self_interaction:

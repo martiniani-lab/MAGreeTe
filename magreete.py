@@ -56,16 +56,16 @@ def main(head_directory, ndim, # Required arguments
     # Angles to use for transmission and fields
     if thetarange_args == None:
         Ntheta = 360
-        thetas = onp.arange(Ntheta)/Ntheta*2*np.pi
+        thetas = onp.arange(Ntheta)/Ntheta*2*onp.pi
     else:
         if len(thetarange_args)==1:
             Ntheta = 1
-            thetas = onp.array(thetarange_args)*np.pi / 180.0
+            thetas = onp.array(thetarange_args)*onp.pi / 180.0
         elif len(thetarange_args)==2:
-            thetas = onp.arange(thetarange_args[0],thetarange_args[1]+1,1) * np.pi / 180.0
+            thetas = onp.arange(thetarange_args[0],thetarange_args[1]+1,1) * onp.pi / 180.0
             Ntheta = len(thetas)
         else:
-            thetas = onp.arange(thetarange_args[0],thetarange_args[1]+thetarange_args[2],thetarange_args[2]) * np.pi / 180.0
+            thetas = onp.arange(thetarange_args[0],thetarange_args[1]+thetarange_args[2],thetarange_args[2]) * onp.pi / 180.0
             Ntheta = len(thetas)
     # Keep a copy of the thetas used to plot if thetas get overwritten when loading files
     thetas_plot = thetas 
