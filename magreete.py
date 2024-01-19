@@ -18,9 +18,9 @@ import lattices
 import argparse
 
 
-def main(head_directory, ndim, # Required arguments
+def main(ndim, # Required arguments
         refractive_n = 1.65 - 0.025j, phi = 0.1, regularize = True, N_raw = 16384, beam_waist = 0.2, L = 1, # Physical parameters
-        lattice=None, cold_atoms=False, annulus = 0, composite = False, kick = 0.0, # Special cases
+        lattice=None, cold_atoms=False, annulus = 0, composite = False, kick = 0.0, input_files_args = None, method = "torch", # Special cases
         k0range_args = None, thetarange_args = None, file_index_args = None,# Range of values to use
         compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, scattered_fields=False, transmission_radius = 2.0,
         compute_DOS=False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, intensity_fields = False, amplitude_fields = False, phase_fields = False, just_compute_averages = False,# Computations to perform
@@ -30,28 +30,20 @@ def main(head_directory, ndim, # Required arguments
     Simple front-end for MAGreeTe
     '''
 
-    phi_ = 0.6
-
-    # Get the parameters of special outputs of FReSCo from keywords in lattice
-    file_name = ''
-    lattice, head_directory, file_name = special_cases(lattice, N_raw, head_directory, file_name, phi_)
 
     # #By default, particle exclusion phi = scatterer phi
     # phi_ = phi
 
     # Name the output directory in a human-readable way containing the three physical parameters: raw number of particles, volume fraction and refractive index
-    output_directory = output_directory+"N"+str(N_raw)+"/"
-    
-    output_directory = output_directory+"phi_"+str(phi)+"/"
+    output_directory_suffix = "phi_"+str(phi)+"/"
     if cold_atoms:
-        output_directory = output_directory+"cold_atoms"
+        output_directory_suffix += "cold_atoms"
     else:
-        output_directory = output_directory+"refractive_n_"+str(refractive_n)
+        output_directory_suffix += "refractive_n_"+str(refractive_n)
     if kick != 0.0:
-        output_directory = output_directory+"_kicked_"+str(kick)
+        output_directory_suffix +="_kicked_"+str(kick)
     if regularize:
-        output_directory = output_directory+"_reg"
-    utils.trymakedir(output_directory)
+        output_directory_suffix += "_reg"
 
     # Angles to use for transmission and fields
     if thetarange_args == None:
@@ -75,14 +67,15 @@ def main(head_directory, ndim, # Required arguments
     # Beam waist
     w = beam_waist * L
 
-    # Indices of files to use
-    if file_index_args == None:
+    # Check number of configurations to go over
+    if input_files_args != None:
+        number_copies = len(input_files_args)
+        file_index_list = onp.arange(number_copies)
+    elif lattice != None:
         file_index_list = [0]
     else:
-        if len(file_index_args)==1:
-            file_index_list = [file_index_args[0]]
-        else:
-            file_index_list = onp.arange(file_index_args[0],file_index_args[1]+1)
+        print("Please provide a valid input either as an input file or as a lattice option")
+        sys.exit()
 
     # Loop over copies
     for file_index in file_index_list:
@@ -91,9 +84,21 @@ def main(head_directory, ndim, # Required arguments
         # A custom file was provided
         if lattice == None:
 
-            points = hkl.load(head_directory+file_name+'_'+str(file_index)+'.hkl')
+            file_name = input_files_args[file_index]
+            points = hkl.load(file_name)
             points = np.tensor(points[:,0:ndim]-0.5,dtype=np.double)
             shape_before = points.shape
+            
+            # Make output dir
+            N_raw = shape_before[0]
+            output_directory += "N"+str(N_raw)+"/"
+            output_directory += output_directory_suffix
+            utils.trymakedir(output_directory)
+            
+            # Override filename so that output files are well-behaved
+            file_name = file_name.split("/")[-1]
+            
+            # Adjust point pattern by removing overlap, cutting, kicking
             points = np.unique(points, dim=0)
             shape_after = points.shape
             if shape_before[0] != shape_after[0]:
@@ -107,6 +112,9 @@ def main(head_directory, ndim, # Required arguments
         else:
 
             file_name = lattice
+            output_directory += "N"+str(N_raw)+"/"
+            output_directory += output_directory_suffix
+            utils.trymakedir(output_directory)
             points = make_lattice(lattice, N_raw, kick, ndim)
             points = lattices.cut_circle(points)
 
@@ -222,7 +230,15 @@ def main(head_directory, ndim, # Required arguments
                 
                 # A fresh computation is required
                 if compute_transmission: 
-                    solver = Transmission2D(points)
+                    if method == "torch":
+                        solver = Transmission2D(points)
+                    elif method == "hmatrices":
+                        #TODO
+                        print("Not implemented yet!")
+                        sys.exit()
+                    else:
+                        print("Choose a valid method")
+                        sys.exit()
                     ETEall = []
                     ETMall = []
                     E0TEall = []
@@ -274,7 +290,15 @@ def main(head_directory, ndim, # Required arguments
                         alpha, k0 = params
                         k0 = onp.float64(k0)
                         alpha = onp.complex128(alpha)
-                        solver = Transmission2D(points)
+                        if method == "torch":
+                            solver = Transmission2D(points)
+                        elif method == "hmatrices":
+                            #TODO
+                            print("Not implemented yet!")
+                            sys.exit()
+                        else:
+                            print("Choose a valid method")
+                            sys.exit()
 
                         EkTE, EkTM = solver.calc_EM(measurement_points, EjTE, EjTM, k0, alpha, thetas, w, regularize=regularize, radius=radius)
                         
@@ -362,7 +386,7 @@ def main(head_directory, ndim, # Required arguments
             if single_scattering_transmission:
                 # Define the list of measurement points for transmission plots
                 measurement_points = transmission_radius*L*onp.vstack([onp.cos(thetas),onp.sin(thetas)]).T
-                solver = Transmission2D(points)
+                solver = Transmission2D(points) # XXX Probably no need to change that one
                 ETEall_ss = []
                 ETMall_ss = []
                 ETEall_scat_ss = []
@@ -472,7 +496,15 @@ def main(head_directory, ndim, # Required arguments
                 print("Computing the full fields at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
 
                 thetas_plot_indices = onp.searchsorted(thetas, thetas_plot)
-                solver = Transmission2D(points)
+                if method == "torch":
+                    solver = Transmission2D(points)
+                elif method == "hmatrices":
+                    #TODO
+                    print("Not implemented yet!")
+                    sys.exit()
+                else:
+                    print("Choose a valid method")
+                    sys.exit()
 
                 for k0, alpha in zip(k0range,alpharange):
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
@@ -531,7 +563,15 @@ def main(head_directory, ndim, # Required arguments
                         utils.plot_full_fields(ETMall, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TM', my_dpi = 300)
 
             if compute_SDOS:
-                solver = Transmission2D(points)
+                if method == "torch":
+                    solver = Transmission2D(points)
+                elif method == "hmatrices":
+                    #TODO
+                    print("Not implemented yet!")
+                    sys.exit()
+                else:
+                    print("Choose a valid method")
+                    sys.exit()
                 DOSall_TE = []
                 DOSall_TM = []
                 k0_range = []
@@ -553,7 +593,15 @@ def main(head_directory, ndim, # Required arguments
                 utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'sdos', appended_string='_'+str(file_index)+'_TM')
 
             if compute_DOS:
-                solver = Transmission2D(points)
+                if method == "torch":
+                    solver = Transmission2D(points)
+                elif method == "hmatrices":
+                    #TODO
+                    print("Not implemented yet!")
+                    sys.exit()
+                else:
+                    print("Choose a valid method")
+                    sys.exit()
                 DOSall_TE = []
                 DOSall_TM = []
                 k0_range = []
@@ -582,7 +630,15 @@ def main(head_directory, ndim, # Required arguments
                 utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'dos', appended_string='_'+str(file_index)+'_TM')
 
             if compute_interDOS:
-                solver = Transmission2D(points)
+                if method == "torch":
+                    solver = Transmission2D(points)
+                elif method == "hmatrices":
+                    #TODO
+                    print("Not implemented yet!")
+                    sys.exit()
+                else:
+                    print("Choose a valid method")
+                    sys.exit()
                 DOSall_TE = []
                 DOSall_TM = []
                 k0_range = []
@@ -627,7 +683,15 @@ def main(head_directory, ndim, # Required arguments
                 utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'idos', appended_string='_'+str(file_index)+'_TM')
 
             if compute_LDOS:
-                solver = Transmission2D(points)
+                if method == "torch":
+                    solver = Transmission2D(points)
+                elif method == "hmatrices":
+                    #TODO
+                    print("Not implemented yet!")
+                    sys.exit()
+                else:
+                    print("Choose a valid method")
+                    sys.exit()
                 # Expensive computation
                 ngridx = gridsize[0]
                 ngridy = gridsize[1]
@@ -696,7 +760,15 @@ def main(head_directory, ndim, # Required arguments
                 # A fresh computation is required
                 if compute_transmission:
 
-                    solver = Transmission3D(points)
+                    if method == "torch":
+                        solver = Transmission3D(points)
+                    elif method == "hmatrices":
+                        #TODO
+                        print("Not implemented yet!")
+                        sys.exit()
+                    else:
+                        print("Choose a valid method")
+                        sys.exit()
                     u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
                     u = np.tensor(u)
                     p = np.zeros(u.shape)
@@ -744,7 +816,15 @@ def main(head_directory, ndim, # Required arguments
                         alpha, k0 = params
                         k0 = onp.float64(k0)
                         alpha = onp.complex128(alpha)
-                        solver = Transmission3D(points)
+                        if method == "torch":
+                            solver = Transmission3D(points)
+                        elif method == "hmatrices":
+                            #TODO
+                            print("Not implemented yet!")
+                            sys.exit()
+                        else:
+                            print("Choose a valid method")
+                            sys.exit()
 
                         Ek = solver.calc(measurement_points, Ej, k0, alpha, u, p, w, regularize=regularize, radius = radius)
                         
@@ -805,7 +885,7 @@ def main(head_directory, ndim, # Required arguments
             if single_scattering_transmission:
                 # Define the list of measurement points for transmission plots
                 measurement_points = transmission_radius*L*onp.vstack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
-                solver = Transmission3D(points)
+                solver = Transmission3D(points) # Probably no need to change that
                 u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
                 u = np.tensor(u)
                 p = np.zeros(u.shape)
@@ -887,7 +967,15 @@ def main(head_directory, ndim, # Required arguments
                 print("Computing the full fields at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
 
                 thetas_plot_indices = onp.searchsorted(thetas, thetas_plot)
-                solver = Transmission3D(points)
+                if method == "torch":
+                    solver = Transmission3D(points)
+                elif method == "hmatrices":
+                    #TODO
+                    print("Not implemented yet!")
+                    sys.exit()
+                else:
+                    print("Choose a valid method")
+                    sys.exit()
 
                 for k0, alpha in zip(k0range,alpharange):
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
@@ -947,7 +1035,15 @@ def main(head_directory, ndim, # Required arguments
 
 
             if compute_SDOS:
-                solver = Transmission3D(points)
+                if method == "torch":
+                    solver = Transmission3D(points)
+                elif method == "hmatrices":
+                    #TODO
+                    print("Not implemented yet!")
+                    sys.exit()
+                else:
+                    print("Choose a valid method")
+                    sys.exit()
                 DOSall = []
                 k0_range = []
 
@@ -964,7 +1060,15 @@ def main(head_directory, ndim, # Required arguments
                 utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'sdos', appended_string='_'+str(file_index))
 
             if compute_DOS:
-                solver = Transmission3D(points)
+                if method == "torch":
+                    solver = Transmission3D(points)
+                elif method == "hmatrices":
+                    #TODO
+                    print("Not implemented yet!")
+                    sys.exit()
+                else:
+                    print("Choose a valid method")
+                    sys.exit()
                 DOSall = []
                 k0_range = []
 
@@ -988,7 +1092,15 @@ def main(head_directory, ndim, # Required arguments
                 utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'dos',appended_string='_'+str(file_index))
 
             if compute_interDOS:
-                solver = Transmission3D(points)
+                if method == "torch":
+                    solver = Transmission3D(points)
+                elif method == "hmatrices":
+                    #TODO
+                    print("Not implemented yet!")
+                    sys.exit()
+                else:
+                    print("Choose a valid method")
+                    sys.exit()
                 DOSall = []
                 k0_range = []
 
@@ -1029,7 +1141,15 @@ def main(head_directory, ndim, # Required arguments
 
             
             if compute_LDOS:
-                solver = Transmission3D(points)
+                if method == "torch":
+                    solver = Transmission3D(points)
+                elif method == "hmatrices":
+                    #TODO
+                    print("Not implemented yet!")
+                    sys.exit()
+                else:
+                    print("Choose a valid method")
+                    sys.exit()
                 # Expensive computation
                 # For now, taking the central plane z = 0
                 ngridx = gridsize[0]
@@ -1180,168 +1300,6 @@ def main(head_directory, ndim, # Required arguments
                     utils.plot_transmission_flat(k0range, L, thetas, I_fluct, file_name, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies')
                     utils.plot_angular_averaged_transmission(k0range, L, I_fluct, file_name, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies')
 
-
-def special_cases(lattice, N_raw, head_directory, file_name, phi_):
-
-    if lattice == 'donut':
-        a = -1.0
-        if N_raw == 16384:
-            k = 160
-        elif N_raw == 4096:
-            k = 80
-        suffix = '_points'
-        lattice = None
-    elif lattice == 'stealthy':
-        a = 0.0
-        if N_raw == 16384:
-            k = 64
-        elif N_raw == 10000:
-            k = 71.42
-        elif N_raw == 4096:
-            k = 32
-        elif N_raw == 500:
-            k = 10
-        suffix = '_points'
-        lattice = None
-    elif lattice == 'stealthydual':
-        a = 0.0
-        if N_raw == 16384:
-            k = 64
-            N_raw = 8192
-        elif N_raw == 4096:
-            k = 32
-            N_raw = 2048
-        elif N_raw == 500:
-            k = 10
-            N_raw = 250
-        suffix = '_dual'
-        lattice = None
-    elif lattice == 'stealthynetwork':
-        a = 0.0
-        if N_raw == 4096:
-            k = 32
-            N_raw = 2048
-        elif N_raw == 500:
-            N_raw = 250
-            k = 10
-        elif N_raw == 16384:
-            N_raw = 3200
-            k = 31
-            phi_ = 0.6
-        suffix = '_network1_dual'
-        lattice = None
-    elif lattice == 'donut_ellipse':
-        a = -2.1
-        k = 160
-        suffix = '_points'
-        lattice = None
-    elif lattice == 'donut_new':
-        a = -1.1
-        k = 200
-        suffix = '_points'
-        lattice = None
-    elif lattice == 'donut3d':
-        a = -1.0
-        k = 30
-        suffix = '_points'
-        lattice=None
-    elif lattice == 'stealthy3d':
-        a = 0.0
-        k = 20
-        suffix = '_points'
-        lattice=None
-    elif lattice == 'checkerboard':
-        a = -4.0
-        if N_raw == 50_000_000:
-            k = 5050
-        elif N_raw == 16384:
-            k = 120
-        elif N_raw == 4096:
-            k = 32
-        suffix = '_points'
-        lattice=None
-    elif lattice == 'checker2':
-        a = -4.1
-        if N_raw == 16384:
-            k = 120
-        suffix = '_points'
-        lattice=None
-    elif lattice == 'checker2small':
-        a = -4.1
-        if N_raw == 16384:
-            k = 60
-        suffix = '_points'
-        lattice=None
-    elif lattice == 'checker8':
-        a = -4.2
-        if N_raw == 16384:
-            k = 120
-        suffix = '_points'
-        lattice=None
-    elif lattice == 'rose':
-        a = -3.0
-        if N_raw == 16384:
-            k = 120
-        elif N_raw == 4096:
-            k = 80
-        suffix = '_points'
-        lattice=None
-    elif lattice == 'pinwheel':
-        a = -3.1
-        if N_raw == 16384:
-            k = 160
-        suffix = '_points'
-        lattice=None
-    elif lattice == 'pinwheel6':
-        a = -3.2
-        if N_raw == 16384:
-            k = 160
-        suffix = '_points'
-        lattice=None
-    elif lattice == 'spiral':
-        a = -5.0
-        if N_raw == 16384:
-            k = 160
-        elif N_raw == 4096:
-            k = 80
-        suffix = '_points'
-        lattice=None
-    elif lattice == 'limitedspiral':
-        a = -5.1
-        if N_raw == 16384:
-            k = 160
-        suffix = '_points'
-        lattice = None 
-    elif lattice == 'lowspiral':
-        a = -5.2
-        if N_raw == 16384:
-            k = 160
-        suffix = '_points'
-        lattice=None
-    elif lattice == 'highspiral':
-        a = -5.3
-        if N_raw == 16384:
-            k = 160
-        suffix = '_points'
-        lattice=None
-    elif lattice == 'stealthyspiral':
-        a = -5.4
-        if N_raw == 16384:
-            k = 160
-        suffix = '_points'
-        lattice=None
-    else:
-        suffix = ''
-        a = None
-        k = None
-
-    if lattice == None and a != None:
-        head_directory = head_directory+'HPY'+str(ndim)+'D/phi'+str(phi_)+'/a'+str(a)+'/'
-        file_name = 'HPY'+str(ndim)+'D_phi'+str(phi_)+'_a'+str(a)+'_N'+str(N_raw)+'_K'+str(k)
-        file_name += suffix
-
-    return lattice, head_directory, file_name
-
 def make_lattice(lattice, N_raw, kick, ndim):
 
     if ndim==2:
@@ -1422,8 +1380,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Run a full solving and plotting routine of MAGreeTe")
     # Required arguments
-    parser.add_argument("head_directory", type=str, help="parent directory containing all configurations")
-    parser.add_argument("ndim", type=int, help="Dimensionality of the problem at hand")
+    parser.add_argument("ndim", type=int, help="Dimensionality of space")
     parser.add_argument("--n_cpus", type=int, help="Number of cpus to use for computation\
         default = os.cpu_count", default=os.cpu_count())
     # Physical quantities
@@ -1445,9 +1402,9 @@ if __name__ == '__main__':
         default=(1,0.25 * L/scatterer_radius,0.5)*2pi/L ", default=None)
     parser.add_argument("-t","--thetas",  nargs = "+", type = float, help = "Angles to consider, in degrees. Can be a single-value argument, a theta_min and a theta_max (with default step 1), or theta_min, theta_max, and step\
         default=(0,359,1)", default = None)
-    parser.add_argument("-i", "--file_index_args", nargs='+', type = int, help = "Suffix integer of input files to use in case several realisations are provided. Can provided just one, or a min and a max with step 1.\
-        default=0", default = None)
     # Special systems
+    parser.add_argument("-i", "--input_files", nargs='+', type=str, help="Name of hkl files containing points. May contain several, that will be averaged over. \
+        default=None", default=None)
     parser.add_argument("-l", "--lattice", type=str, help="Use a simple lattice in lieu of datapoints as entry. \
         Options are 'square', 'triangular', 'honeycomb', 'quasicrystal', 'quasidual', 'quasivoro', 'poisson' in 2d, and 'cubic', 'fcc', 'bcc', 'diamond', 'poisson' in 3d. \
         default=None", default=None)
@@ -1457,6 +1414,9 @@ if __name__ == '__main__':
         default=False", default=False)
     parser.add_argument("--kick", type=float, help="Value of max amplitude of randomly oriented, random uniform length small kicks to add to all positions, in units of L\
         default = 0", default = 0.0)
+    parser.add_argument("--method", "-m", type=str, help="Method used to solve the linear system.\
+        Options = torch, hmatrices \
+        default = torch", default = "torch")
     # Computation type arguments
     parser.add_argument("--compute_transmission", action='store_true', help="Compute transmission for laser beams\
         default = False", default=False)
@@ -1507,7 +1467,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Required arguments
-    head_directory                  = args.head_directory
     ndim                            = args.ndim
     n_cpus                          = args.n_cpus
     # Physical quantities
@@ -1524,15 +1483,16 @@ if __name__ == '__main__':
     thetarange_args = args.thetas
     if thetarange_args     != None:
         thetarange_args             = tuple(thetarange_args)
-    file_index_args                 = args.file_index_args
-    if file_index_args     != None:
-        file_index_args             = tuple(file_index_args)
+    input_files_args                = args.input_files
+    if input_files_args     != None:
+        input_files_args            = tuple(input_files_args)
     # Special cases
     cold_atoms                      = args.cold_atoms
     lattice                         = args.lattice
     annulus                         = args.annulus
     composite                       = args.composite
     kick                            = args.kick
+    method                          = args.method
     # Outputs
     compute_transmission            = args.compute_transmission
     plot_transmission               = args.plot_transmission
@@ -1560,10 +1520,10 @@ if __name__ == '__main__':
 
     np.set_num_threads(n_cpus)
     np.device("cpu")
-    main(head_directory, ndim,
+    main(ndim,
         refractive_n = refractive_n,  phi=phi, regularize=regularize, N_raw=N, beam_waist=beam_waist, L=boxsize,
-        k0range_args = k0range_args, thetarange_args=thetarange_args, file_index_args = file_index_args,
-        cold_atoms=cold_atoms, lattice=lattice, annulus = annulus, composite = composite, kick = kick,
+        k0range_args = k0range_args, thetarange_args=thetarange_args, input_files_args = input_files_args,
+        cold_atoms=cold_atoms, lattice=lattice, annulus = annulus, composite = composite, kick = kick, method = method,
         compute_transmission = compute_transmission, plot_transmission=plot_transmission, single_scattering_transmission=single_scattering_transmission, scattered_fields=scattered_fields, transmission_radius=transmission_radius,
         compute_DOS=compute_DOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS,
         intensity_fields = intensity_fields, amplitude_fields=amplitude_fields, phase_fields=phase_fields, just_compute_averages=just_compute_averages,
