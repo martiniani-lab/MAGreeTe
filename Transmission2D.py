@@ -4,6 +4,8 @@ import torch as np
 import scipy as sp
 from scipy.special import hankel1
 import hickle as hkl
+from juliacall import Main as jl
+from juliacall import Pkg as jlPkg
 
 
 I = np.tensor(onp.identity(2)).reshape(1,1,2,2) #identity matrix
@@ -514,3 +516,158 @@ class Transmission2D:
         dos_factor_TE = np.imag(dos_factor_TE)
 
         return dos_factor_TE, dos_factor_TM
+    
+class Transmission2D_hmatrices:
+    
+
+    def __init__(self, points, source='beam'):
+        self.r = points.reshape(-1,2)
+        self.N = self.r.shape[0]
+        self.source = source
+        
+    
+    def generate_source(self, points, k0, thetas, w, print_statement=''):
+        '''
+        Generates the EM field of a source at a set of points
+
+        points      - (M,2)      coordinates of points
+        k0          - (1)        frequency of source beam
+        thetas      - (Ndirs)    propagation directions for the source
+        w           - (1)        beam waist for beam sources
+        '''
+        if self.source == 'beam':
+            k0_ = onp.round(k0/(2.0*onp.pi),1)
+            print('Calculating Beam Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
+            E0j = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
+            u = np.zeros((2,len(thetas)))
+            for idx, theta in enumerate(thetas):
+                cost, sint = onp.cos(-theta),onp.sin(-theta)
+                u[:,idx] = np.tensor([sint, cost])
+                rot = np.tensor([[cost,-sint],[sint,cost]])
+                rrot = np.matmul(rot,points.T).T #(rparallel, rperp)
+                a = 2*rrot[:,1]/(w*w*k0)
+                E0j[:,idx] = np.exp(1j*rrot[:,0]*k0-(rrot[:,1]**2/(w*w*(1+1j*a))))/np.sqrt(1+1j*a)
+        elif self.source == 'plane':
+            k0_ = onp.round(k0/(2.0*onp.pi),1)
+            print('Calculating Plane Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
+            E0j = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
+            u = np.zeros((2,len(thetas)))
+            for idx in range(len(thetas)):
+                theta = thetas[idx]
+                cost, sint = onp.cos(-theta),onp.sin(-theta)
+                u[:,idx] = np.tensor([sint, cost])
+                rot = np.tensor([[cost,-sint],[sint,cost]])
+                rrot = np.matmul(rot,points.T).T #(rparallel, rperp)
+                E0j[:,idx] = np.exp(1j*rrot[:,0]*k0)
+        return E0j, u
+
+    def run_EM(self, k0, alpha, thetas, radius, beam_waist, self_interaction=True):
+        '''
+        Solves the EM field at each scatterer
+
+        k0                  - (1)           frequency being measured
+        alpha               - (1)           bare static polarizability at given k0
+        thetas              - (Ndirs)       propagation directions for the source
+        radius              - (1)           radius of scatterers, used in self-interaction
+        beam_waist          - (1)           beam waist of Gaussian beam source
+        self_interaction    - (bool)        include or not self-interactions, defaults to True 
+        '''
+
+        ### TM calculation
+        # First, define the source
+        E0j, u = self.generate_source(self.r, k0, thetas, beam_waist, print_statement='run')
+        
+        print(E0j.shape)
+        
+        # XXX Julia goes here
+        jlPkg.activate("Transmission2D")
+        jl.seval("using Transmission2D")
+        regularize = False
+        EkTM = jl.Transmission2D.solve_TM(self.r.numpy(), E0j.numpy(), k0, alpha, radius, self_interaction, regularize)
+        
+        # XXX DEBUG
+        
+        M_tensor = -alpha*k0*k0* self.G0_TM(self.r, k0, print_statement='run')
+        M_tensor.fill_diagonal_(1)
+        if self_interaction:
+            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
+            volume = onp.pi*radius*radius
+            dims = M_tensor.shape[0]
+            self_int_TM = np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+            M_tensor -= alpha*k0*k0*self_int_TM
+        # Solve M_tensor.Ek = E0j
+        EkTM_torch = np.linalg.solve(M_tensor,E0j)
+        
+        print(EkTM[:,0])
+        print(EkTM_torch.numpy()[:,0])
+        print(EkTM[:,0] - EkTM_torch.numpy()[:,0])
+        exit()
+        # EkTM = np.linalg.solve(M_tensor,E0j)
+        
+        ### TE calculation
+        # Switch the source to TE polarization
+        E0j = E0j.reshape(self.N,1,len(thetas))*u
+        
+        M_tensor = -alpha*k0*k0* self.G0_TE(None, k0, print_statement='run')
+        M_tensor.fill_diagonal_(1)
+        if self_interaction:
+            # Add self-interaction
+            dims = M_tensor.shape[0]
+            self_int_TE = np.eye(dims) * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
+            M_tensor -= alpha*k0*k0*self_int_TE
+        # Solve M_tensor.Ek = E0j
+        EkTE = np.linalg.solve(M_tensor, E0j.reshape(2*self.N,-1)) 
+        return EkTE, EkTM
+    
+    # XXX DEBUG BELOW
+    
+    def torch_greensTM(self, r, k0, periodic='', regularize = False, radius = 0.0):
+        '''
+        Torch implementation of the TM Green's function, taking tensors as entries
+        r          - (M,2)      distances to propagate over
+        k0         - (1)        wave-vector of source beam in vacuum
+        periodic   - str        change boundary conditions: '' = free, ('x', 'y', 'xy') = choices of possible periodic directions
+        regularize - bool       bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
+        radius     - (1)        considered scatterer radius, only used for regularization
+        '''
+
+        if periodic == 'y':
+            r[:,:,1] += 0.5
+            r[:,:,1] %= 1
+            r[:,:,1] -= 0.5
+        elif periodic == 'x':
+            r[:,:,0] += 0.5
+            r[:,:,0] %= 1
+            r[:,:,0] -= 0.5
+        R = np.linalg.norm(r, axis = -1)
+
+        if regularize:
+            R = np.where(R < radius, 0.0, R)
+
+        return 0.25j*self.torch_hankel1(0,R*k0)
+    
+    def G0_TM(self, points, k0, print_statement='', regularize = False, radius=0.0):
+        '''
+        Returns a Green's tensor linking all points to all scatterers for the TM polarization
+        '''
+        #Green's function
+        k0_ = onp.round(k0/(2.0*onp.pi),1)
+        print("Calculating TM Green's function at k0L/2pi = "+str(k0_)+' ('+print_statement+')')
+        G0 = self.torch_greensTM(points.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0, regularize=regularize, radius=radius)
+        return G0
+    def torch_hankel1(self,nu, x):
+        '''
+        Torch implementation of hankel1(nu,x), for nu = 0 or 1.
+        Uses the fact that Hankel(nu,z) = J(nu,z) + i Y(nu,z).
+        Note: Y0 and Y1 do not appear in the official PyTorch documentation https://pytorch.org/docs/stable/special.html
+        However, they are actually implemented, https://pytorch.org/cppdocs/api/file_torch_csrc_api_include_torch_special.h.html
+        '''
+
+        if nu == 0:
+            # H0(z) = J0(z) + i Y0(z)
+            return np.special.bessel_j0(x) +1j*np.special.bessel_y0(x)
+        elif nu == 1:
+            # H1(z) = J1(z) + i Y1(z)
+            return np.special.bessel_j1(x) +1j*np.special.bessel_y1(x)
+        else:
+            exit("torch Hankel function only implemented for orders 0 and 1!")

@@ -10,7 +10,7 @@ import hickle as hkl
 import sys
 import os
 import utils
-from Transmission2D import Transmission2D
+from Transmission2D import Transmission2D, Transmission2D_hmatrices
 from Transmission3D import Transmission3D
 import lattices
 
@@ -132,7 +132,8 @@ def main(ndim, # Required arguments
         N = points.shape[0]
         points *= L
         assert ndim == points.shape[1]
-        print("\n\nLoaded a ("+str(lattice)+") system of N = "+str(N)+" points with sidelength L = "+str(L)+" in d = "+str(ndim)+"\n\n")
+        print("\n\nLoaded a ("+str(file_name)+") system of N = "+str(N_raw)+" points in d = "+str(ndim))
+        print("N = "+str(N)+" points remain after cutting to a disk and rescaling to L = "+str(L)+"\n\n")
 
         output_directory = output_directory+"/"+file_name
         utils.trymakedir(output_directory)
@@ -233,9 +234,7 @@ def main(ndim, # Required arguments
                     if method == "torch":
                         solver = Transmission2D(points)
                     elif method == "hmatrices":
-                        #TODO
-                        print("Not implemented yet!")
-                        sys.exit()
+                        solver = Transmission2D_hmatrices(points)
                     else:
                         print("Choose a valid method")
                         sys.exit()
@@ -293,9 +292,7 @@ def main(ndim, # Required arguments
                         if method == "torch":
                             solver = Transmission2D(points)
                         elif method == "hmatrices":
-                            #TODO
-                            print("Not implemented yet!")
-                            sys.exit()
+                            solver = Transmission2D_hmatrices(points)
                         else:
                             print("Choose a valid method")
                             sys.exit()
@@ -499,9 +496,7 @@ def main(ndim, # Required arguments
                 if method == "torch":
                     solver = Transmission2D(points)
                 elif method == "hmatrices":
-                    #TODO
-                    print("Not implemented yet!")
-                    sys.exit()
+                    solver = Transmission2D_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -566,9 +561,7 @@ def main(ndim, # Required arguments
                 if method == "torch":
                     solver = Transmission2D(points)
                 elif method == "hmatrices":
-                    #TODO
-                    print("Not implemented yet!")
-                    sys.exit()
+                    solver = Transmission2D_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -596,9 +589,7 @@ def main(ndim, # Required arguments
                 if method == "torch":
                     solver = Transmission2D(points)
                 elif method == "hmatrices":
-                    #TODO
-                    print("Not implemented yet!")
-                    sys.exit()
+                    solver = Transmission2D_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -633,9 +624,7 @@ def main(ndim, # Required arguments
                 if method == "torch":
                     solver = Transmission2D(points)
                 elif method == "hmatrices":
-                    #TODO
-                    print("Not implemented yet!")
-                    sys.exit()
+                    solver = Transmission2D_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -686,9 +675,7 @@ def main(ndim, # Required arguments
                 if method == "torch":
                     solver = Transmission2D(points)
                 elif method == "hmatrices":
-                    #TODO
-                    print("Not implemented yet!")
-                    sys.exit()
+                    solver = Transmission2D_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -763,9 +750,7 @@ def main(ndim, # Required arguments
                     if method == "torch":
                         solver = Transmission3D(points)
                     elif method == "hmatrices":
-                        #TODO
-                        print("Not implemented yet!")
-                        sys.exit()
+                        solver = Transmission2D_hmatrices(points)
                     else:
                         print("Choose a valid method")
                         sys.exit()
@@ -819,9 +804,7 @@ def main(ndim, # Required arguments
                         if method == "torch":
                             solver = Transmission3D(points)
                         elif method == "hmatrices":
-                            #TODO
-                            print("Not implemented yet!")
-                            sys.exit()
+                            solver = Transmission2D_hmatrices(points)
                         else:
                             print("Choose a valid method")
                             sys.exit()
@@ -970,9 +953,7 @@ def main(ndim, # Required arguments
                 if method == "torch":
                     solver = Transmission3D(points)
                 elif method == "hmatrices":
-                    #TODO
-                    print("Not implemented yet!")
-                    sys.exit()
+                    solver = Transmission2D_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -1038,9 +1019,7 @@ def main(ndim, # Required arguments
                 if method == "torch":
                     solver = Transmission3D(points)
                 elif method == "hmatrices":
-                    #TODO
-                    print("Not implemented yet!")
-                    sys.exit()
+                    solver = Transmission2D_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -1063,9 +1042,7 @@ def main(ndim, # Required arguments
                 if method == "torch":
                     solver = Transmission3D(points)
                 elif method == "hmatrices":
-                    #TODO
-                    print("Not implemented yet!")
-                    sys.exit()
+                    solver = Transmission2D_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -1095,9 +1072,7 @@ def main(ndim, # Required arguments
                 if method == "torch":
                     solver = Transmission3D(points)
                 elif method == "hmatrices":
-                    #TODO
-                    print("Not implemented yet!")
-                    sys.exit()
+                    solver = Transmission2D_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -1144,9 +1119,7 @@ def main(ndim, # Required arguments
                 if method == "torch":
                     solver = Transmission3D(points)
                 elif method == "hmatrices":
-                    #TODO
-                    print("Not implemented yet!")
-                    sys.exit()
+                    solver = Transmission2D_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
