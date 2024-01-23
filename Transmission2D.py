@@ -189,6 +189,7 @@ class Transmission2D:
             self_int_TM = np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
             M_tensor -= alpha*k0*k0*self_int_TM
         # Solve M_tensor.Ek = E0j
+        # NB: this uses an LU decomposition according to torch https://pytorch.org/docs/stable/generated/torch.linalg.lu.html
         EkTM = np.linalg.solve(M_tensor,E0j)
         
         ### TE calculation
@@ -524,7 +525,9 @@ class Transmission2D_hmatrices:
         self.r = points.reshape(-1,2)
         self.N = self.r.shape[0]
         self.source = source
-        
+        jlPkg.activate("Transmission2D")
+        jl.seval("using Transmission2D")
+    
     
     def generate_source(self, points, k0, thetas, w, print_statement=''):
         '''
@@ -577,20 +580,25 @@ class Transmission2D_hmatrices:
         # First, define the source
         E0j, u = self.generate_source(self.r, k0, thetas, beam_waist, print_statement='run')
         
-        # XXX Julia goes here
-        jlPkg.activate("Transmission2D")
-        jl.seval("using Transmission2D")
+        # Julia-side solver with Abstract Hierarchical Matrices
         regularize = False # Not needed for solve part, writing it as a variable to make it clear what it is
-        EkTM = jl.Transmission2D.solve_TM(self.r.numpy(), E0j.numpy(), k0, alpha, radius, self_interaction, regularize)
-        
-        print(EkTM)
-        # TODO: same with TE!
-        exit()
+        use_lu = True # Whether to use an LU decomposition then solve from it, or to solve anew at every angle
+        atol = 1e-6 # Absolute tolerance used in HMatrices
+        EkTM = jl.Transmission2D.solve_TM(self.r.numpy(), E0j.numpy(), k0, alpha, radius, self_interaction, regularize = regularize, use_lu = use_lu, atol = atol)
         
         ### TE calculation
         # Switch the source to TE polarization
         E0j = E0j.reshape(self.N,1,len(thetas))*u
         
+        # Julia-side solver with Abstract Hierarchical Matrices
+        regularize = False # Not needed for solve part, writing it as a variable to make it clear what it is
+        use_lu = True # Whether to use an LU decomposition then solve from it, or to solve anew at every angle
+        atol = 1e-6 # Absolute tolerance used in HMatrices
+        EkTE = jl.Transmission2D.solve_TE(self.r.numpy(), E0j.numpy(), k0, alpha, radius, self_interaction, regularize = regularize, use_lu = use_lu, atol = atol)
+
+        exit()
+        
+        # XXX DEBUG: torch solution to check outputs
         M_tensor = -alpha*k0*k0* self.G0_TE(None, k0, print_statement='run')
         M_tensor.fill_diagonal_(1)
         if self_interaction:
