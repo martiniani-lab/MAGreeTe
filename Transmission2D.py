@@ -577,32 +577,15 @@ class Transmission2D_hmatrices:
         # First, define the source
         E0j, u = self.generate_source(self.r, k0, thetas, beam_waist, print_statement='run')
         
-        print(E0j.shape)
-        
         # XXX Julia goes here
         jlPkg.activate("Transmission2D")
         jl.seval("using Transmission2D")
-        regularize = False
+        regularize = False # Not needed for solve part, writing it as a variable to make it clear what it is
         EkTM = jl.Transmission2D.solve_TM(self.r.numpy(), E0j.numpy(), k0, alpha, radius, self_interaction, regularize)
         
-        # XXX DEBUG
-        
-        M_tensor = -alpha*k0*k0* self.G0_TM(self.r, k0, print_statement='run')
-        M_tensor.fill_diagonal_(1)
-        if self_interaction:
-            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
-            volume = onp.pi*radius*radius
-            dims = M_tensor.shape[0]
-            self_int_TM = np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-            M_tensor -= alpha*k0*k0*self_int_TM
-        # Solve M_tensor.Ek = E0j
-        EkTM_torch = np.linalg.solve(M_tensor,E0j)
-        
-        print(EkTM[:,0])
-        print(EkTM_torch.numpy()[:,0])
-        print(EkTM[:,0] - EkTM_torch.numpy()[:,0])
+        print(EkTM)
+        # TODO: same with TE!
         exit()
-        # EkTM = np.linalg.solve(M_tensor,E0j)
         
         ### TE calculation
         # Switch the source to TE polarization
@@ -619,42 +602,7 @@ class Transmission2D_hmatrices:
         EkTE = np.linalg.solve(M_tensor, E0j.reshape(2*self.N,-1)) 
         return EkTE, EkTM
     
-    # XXX DEBUG BELOW
     
-    def torch_greensTM(self, r, k0, periodic='', regularize = False, radius = 0.0):
-        '''
-        Torch implementation of the TM Green's function, taking tensors as entries
-        r          - (M,2)      distances to propagate over
-        k0         - (1)        wave-vector of source beam in vacuum
-        periodic   - str        change boundary conditions: '' = free, ('x', 'y', 'xy') = choices of possible periodic directions
-        regularize - bool       bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
-        radius     - (1)        considered scatterer radius, only used for regularization
-        '''
-
-        if periodic == 'y':
-            r[:,:,1] += 0.5
-            r[:,:,1] %= 1
-            r[:,:,1] -= 0.5
-        elif periodic == 'x':
-            r[:,:,0] += 0.5
-            r[:,:,0] %= 1
-            r[:,:,0] -= 0.5
-        R = np.linalg.norm(r, axis = -1)
-
-        if regularize:
-            R = np.where(R < radius, 0.0, R)
-
-        return 0.25j*self.torch_hankel1(0,R*k0)
-    
-    def G0_TM(self, points, k0, print_statement='', regularize = False, radius=0.0):
-        '''
-        Returns a Green's tensor linking all points to all scatterers for the TM polarization
-        '''
-        #Green's function
-        k0_ = onp.round(k0/(2.0*onp.pi),1)
-        print("Calculating TM Green's function at k0L/2pi = "+str(k0_)+' ('+print_statement+')')
-        G0 = self.torch_greensTM(points.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0, regularize=regularize, radius=radius)
-        return G0
     def torch_hankel1(self,nu, x):
         '''
         Torch implementation of hankel1(nu,x), for nu = 0 or 1.
