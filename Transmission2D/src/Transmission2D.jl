@@ -198,6 +198,7 @@ module Transmission2D
         
         # K is an abstract representation of the kernel
         K = GreensTEMatrix(points,points,k0,alpha,radius,regularize,G0_center_value)
+        print(K)
         # Need pointsclt with right size!
         pointsproxy = [points[1+floor(Int64,k/2)] for k in 0:dim*n-1]
         pointsclt = ClusterTree(pointsproxy)
