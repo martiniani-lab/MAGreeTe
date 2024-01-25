@@ -594,7 +594,9 @@ class Transmission2D_hmatrices:
         regularize = False # Not needed for solve part, writing it as a variable to make it clear what it is
         use_lu = True # Whether to use an LU decomposition then solve from it, or to solve anew at every angle
         atol = 1e-6 # Absolute tolerance used in HMatrices
-        EkTE = jl.Transmission2D.solve_TE(self.r.numpy(), E0j.numpy(), k0, alpha, radius, self_interaction, regularize = regularize, use_lu = use_lu, atol = atol)
+        EkTE = jl.Transmission2D.solve_TE(self.r.numpy(), E0j.reshape(2*self.N,-1).numpy(), k0, alpha, radius, self_interaction, regularize = regularize, use_lu = use_lu, atol = atol)
+
+        print(EkTE[0:2,0])
 
         exit()
         

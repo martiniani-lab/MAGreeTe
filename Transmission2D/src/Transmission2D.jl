@@ -4,7 +4,68 @@ module Transmission2D
     using StaticArrays
     using LinearAlgebra
     using IterativeSolvers
+    # XXX DEBUG
+    using Plots
 
+    PointdD = SVector{2,Float64}
+    # Since this is a block-wise matrix, follow the steps in https://waveprop.github.io/HMatrices.jl/dev/
+    struct GreensTEMatrix <: AbstractMatrix{ComplexF64}
+        X::Vector{PointdD}
+        Y::Vector{PointdD}
+        k0::Float64
+        alpha::ComplexF64
+        radius::Float64
+        regularize::Bool
+        G0_center_value::ComplexF64
+    end
+    
+    function M_TE(x,y,row,col, k0, alpha,radius,regularize,G0_center_value)::ComplexF64
+        if x == y && row == col
+            # Diagonal has an identity: this is not dangerous since it's only STRICTLY at the same point
+            extra = 1
+        else
+            extra = 0
+        end
+        extra - k0*k0*alpha*G_TE(x,y,row,col,k0,radius,regularize,G0_center_value)
+    end
+    
+    function G_TE(x,y,row,col,k0,radius,regularize,G0_center_value)::ComplexF64
+        d = norm(x-y)
+        RxR = x[row]*y[col]
+        RdotR = dot(x,y)
+        RxR /= RdotR
+        RxR *= k0
+        R = k0 * d
+        
+        if regularize
+            # Make the value equal to the center value in the whole disk scatterer
+            threshold = radius
+        else
+            # Just strictly the center
+            threshold = 0.0
+        end
+        
+        if d <= threshold
+            if row == col
+                G0_center_value
+            else
+                0.0
+            end
+        else
+            # TE propagator
+            if row == col
+                I = 1
+            else
+                I = 0
+            end
+            0.25im*((I-RxR)*hankelh1(0,R)-(I-2*RxR)*(hankelh1(1,R)/R))
+            
+        end
+    end
+    
+    Base.getindex(K::GreensTEMatrix,i::Int,j::Int) = M_TE(K.X[1+i%2], K.Y[1+j%2], 1+i%2, 1+j%2, K.k0, K.alpha, K.radius, K.regularize, K.G0_center_value)
+    Base.size(K::GreensTEMatrix) = 2*length(K.X), 2*length(K.Y)
+    
     function solve_TM(python_points::AbstractArray, points_Einc::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 1e-6)
         
         println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
@@ -21,7 +82,6 @@ module Transmission2D
         # Needed conversion for HMatrices!
         # There is probably a better way to do this memory-wise
         n = shape[1]
-        PointdD = SVector{dim,Float64}
         points = [PointdD(python_points[k,:]) for k in 1:n]
         
         if self_interaction
@@ -127,54 +187,25 @@ module Transmission2D
         PointdD = SVector{dim,Float64}
         points = [PointdD(python_points[k,:]) for k in 1:n]
         
-        # XXX FIX FROM HERE
-        println("Still implementing!")
-        exit()
-        
         if self_interaction
             # G0 integrated over a finite disk
             volume = pi*radius*radius
-            G0_center_value = (-1.0 / (k0*k0*volume)) + 0.5im * hankelh1(1,k0*radius)/(k0*radius)
+            G0_center_value = (-1.0 / (k0*k0*volume)) + 0.25im * hankelh1(1,k0*radius)/(k0*radius)
         else
             # G0 discarded at center if volume is neglected completely
             G0_center_value = 0.0
         end
         
-        function M(x,y)::ComplexF64
-            if x == y 
-                # Diagonal has an identity: this is not dangerous since it's only STRICTLY at the same point
-                extra = 1
-            else
-                extra = 0
-            end
-            extra - k0*k0*alpha*G(x,y)
-        end
-        
-        function G(x,y)::ComplexF64
-            d = norm(x-y)
-            
-            if regularize
-                # Make the value equal to the center value in the whole disk scatterer
-                threshold = radius
-            else
-                # Just strictly the center
-                threshold = 0.0
-            end
-            
-            if d <= threshold
-                G0_center_value
-            else
-                # TM propagator
-                0.25im * hankelh1(0, k0 * d)
-            end
-        end
-        
-        # use_threads() = true # XXX Is that truly how it works? Useful?
-        
         # K is an abstract representation of the kernel
-        K = KernelMatrix(M,points,points)
+        K = GreensTEMatrix(points,points,k0,alpha,radius,regularize,G0_center_value)
+        # Need pointsclt with right size!
+        pointsproxy = [points[1+floor(Int64,k/2)] for k in 0:dim*n-1]
+        pointsclt = ClusterTree(pointsproxy)
+        adm = StrongAdmissibilityStd()
+        comp = PartialACA(;atol=atol)
+        
         # H is a hierarchical compression of the matrix, atol and rtol can be tuned in principle
-        H = assemble_hmatrix(K;atol=atol)
+        H = assemble_hmatrix(K,pointsclt,pointsclt;adm,comp,threads=false,distributed=false)
         
         # Print this for consistency checks for now
         println("Compression ratio of hierarchical compression: $(HMatrices.compression_ratio(H))")
@@ -187,7 +218,7 @@ module Transmission2D
         points_Etot = similar(points_Einc)
         
         # Initialize static structure for rhs
-        PointND = SVector{n,ComplexF64}
+        PointND = SVector{dim*n,ComplexF64}
         
         if use_lu
             # Use an LU decomposition to make solving faster in the angle loop
@@ -213,8 +244,5 @@ module Transmission2D
         return points_Etot
         
     end
-    
-    
-    
     
 end
