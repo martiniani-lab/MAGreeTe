@@ -584,108 +584,18 @@ class Transmission2D_hmatrices:
         regularize = False # Not needed for solve part, writing it as a variable to make it clear what it is
         use_lu = True # Whether to use an LU decomposition then solve from it, or to solve anew at every angle
         atol = 1e-6 # Absolute tolerance used in HMatrices
-        EkTM = jl.Transmission2D.solve_TM(self.r.numpy(), E0j.numpy(), k0, alpha, radius, self_interaction, regularize = regularize, use_lu = use_lu, atol = atol)
+        debug_plot = True
+        EkTM = jl.Transmission2D.solve_TM(self.r.numpy(), E0j.numpy(), k0, alpha, radius, self_interaction, regularize = regularize, use_lu = use_lu, atol = atol, debug_plot=debug_plot)
         
         ### TE calculation
         # Switch the source to TE polarization
         E0j = E0j.reshape(self.N,1,len(thetas))*u
         
-        M_tensor = -alpha*k0*k0* self.G0_TE(None, k0, print_statement='run')
-        M_tensor.fill_diagonal_(1)
-        if self_interaction:
-            # Add self-interaction
-            volume = onp.pi*radius*radius
-            dims = M_tensor.shape[0]
-            self_int_TE = np.eye(dims) * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-            M_tensor -= alpha*k0*k0*self_int_TE
-        
-        print(M_tensor.numpy())
-        
         # Julia-side solver with Abstract Hierarchical Matrices
         regularize = False # Not needed for solve part, writing it as a variable to make it clear what it is
         use_lu = True # Whether to use an LU decomposition then solve from it, or to solve anew at every angle
         atol = 1e-6 # Absolute tolerance used in HMatrices
-        EkTE = jl.Transmission2D.solve_TE(self.r.numpy(), E0j.reshape(2*self.N,-1).numpy(), k0, alpha, radius, self_interaction, regularize = regularize, use_lu = use_lu, atol = atol)
+        debug_plot = True
+        EkTE = jl.Transmission2D.solve_TE(self.r.numpy(), E0j.reshape(2*self.N,-1).numpy(), k0, alpha, radius, self_interaction, regularize = regularize, use_lu = use_lu, atol = atol, debug_plot=debug_plot)
 
-        print(EkTE[0:2,0])
-
-        exit()
-        
-        # XXX DEBUG: torch solution to check outputs
-        M_tensor = -alpha*k0*k0* self.G0_TE(None, k0, print_statement='run')
-        M_tensor.fill_diagonal_(1)
-        if self_interaction:
-            # Add self-interaction
-            dims = M_tensor.shape[0]
-            self_int_TE = np.eye(dims) * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-            M_tensor -= alpha*k0*k0*self_int_TE
-        # Solve M_tensor.Ek = E0j
-        EkTE = np.linalg.solve(M_tensor, E0j.reshape(2*self.N,-1)) 
-        return EkTE, EkTM
-    
-    
-    def G0_TE(self, points, k0, print_statement='', regularize = False, radius = 0.0):
-        '''
-        Returns a Green's tensor linking all points to all scatterers for the TE polarization
-        '''
-        #Green's function
-        if points == None:
-            points_ = self.r
-        else:
-            points_ = points
-        k0_ = onp.round(k0/(2.0*onp.pi),1)
-        print("Calculating TE Green's function at k0L/2pi = "+str(k0_)+' ('+print_statement+')')
-        G0 = self.torch_greensTE(points_.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0, regularize=regularize, radius=radius)
-        #Construct matrix form
-        if points == None:
-            for idx in range(self.N):
-                G0[idx,idx,:,:] = 0
-        G0 = np.transpose(G0,1,2).reshape(2*G0.shape[0],2*G0.shape[1]).to(np.complex128)
-        return G0
-    
-    def torch_greensTE(self, r, k0,periodic = '', regularize = False, radius = 0.0):
-        '''
-        Torch implementation of the TE Green's function, taking tensors as entries
-        r          - (M,2)      distances to propagate over
-        k0         - (1)        wave-vector of source beam in vacuum
-        periodic   - str        change boundary conditions: '' = free, ('x', 'y', 'xy') = choices of possible periodic directions
-        regularize - bool       bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
-        '''
-
-        N = r.shape[0]
-        M = r.shape[1]
-        if periodic == 'y':
-            r[:,:,1] += 0.5
-            r[:,:,1] %= 1
-            r[:,:,1] -= 0.5
-        elif periodic == 'x':
-            r[:,:,0] += 0.5
-            r[:,:,0] %= 1
-            r[:,:,0] -= 0.5
-            
-        R = np.linalg.norm(r,axis=-1)
-        RxR = r[:,:,0:2].reshape(N,M,1,2)*r[:,:,0:2].reshape(N,M,2,1)
-        RxR /= (R*R).reshape(N,M,1,1)
-        R *= k0
-
-        if regularize:
-            R = np.where(R < radius, 0.0, R)
-
-        return 0.25j*((I-RxR)*self.torch_hankel1(0,R).reshape(N,M,1,1)-(I-2*RxR)*(self.torch_hankel1(1,R)/R).reshape(N,M,1,1))
-    
-    def torch_hankel1(self,nu, x):
-        '''
-        Torch implementation of hankel1(nu,x), for nu = 0 or 1.
-        Uses the fact that Hankel(nu,z) = J(nu,z) + i Y(nu,z).
-        Note: Y0 and Y1 do not appear in the official PyTorch documentation https://pytorch.org/docs/stable/special.html
-        However, they are actually implemented, https://pytorch.org/cppdocs/api/file_torch_csrc_api_include_torch_special.h.html
-        '''
-
-        if nu == 0:
-            # H0(z) = J0(z) + i Y0(z)
-            return np.special.bessel_j0(x) +1j*np.special.bessel_y0(x)
-        elif nu == 1:
-            # H1(z) = J1(z) + i Y1(z)
-            return np.special.bessel_j1(x) +1j*np.special.bessel_y1(x)
-        else:
-            exit("torch Hankel function only implemented for orders 0 and 1!")
+        return EkTM, EkTE

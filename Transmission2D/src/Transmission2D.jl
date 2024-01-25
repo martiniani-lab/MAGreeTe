@@ -6,6 +6,7 @@ module Transmission2D
     using IterativeSolvers
     # XXX DEBUG
     using Plots
+    using Plots.PlotMeasures
 
     PointdD = SVector{2,Float64}
     # Since this is a block-wise matrix, follow the steps in https://waveprop.github.io/HMatrices.jl/dev/
@@ -30,11 +31,10 @@ module Transmission2D
     end
     
     function G_TE(x,y,row,col,k0,radius,regularize,G0_center_value)::ComplexF64
-        d = norm(x-y)
-        RxR = x[row]*y[col]
-        RdotR = dot(x,y)
-        RxR /= RdotR
-        RxR *= k0
+        Rvec = y - x
+        d = norm(Rvec)
+        RxR = Rvec[row]*Rvec[col]
+        RxR /= d*d
         R = k0 * d
         
         if regularize
@@ -63,10 +63,15 @@ module Transmission2D
         end
     end
     
-    Base.getindex(K::GreensTEMatrix,i::Int,j::Int) = M_TE(K.X[1+i%2], K.Y[1+j%2], 1+i%2, 1+j%2, K.k0, K.alpha, K.radius, K.regularize, K.G0_center_value)
+    function block_id(i)::Int64
+        # Return index of point to use from index in G_TE matrix
+        floor(Int64, (i-1)/2) + 1
+    end
+    
+    Base.getindex(K::GreensTEMatrix,i::Int,j::Int) = M_TE(K.X[block_id(i)], K.Y[block_id(j)], 1+i%2, 1+j%2, K.k0, K.alpha, K.radius, K.regularize, K.G0_center_value)
     Base.size(K::GreensTEMatrix) = 2*length(K.X), 2*length(K.Y)
     
-    function solve_TM(python_points::AbstractArray, points_Einc::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 1e-6)
+    function solve_TM(python_points::AbstractArray, points_Einc::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 1e-6, debug_plot=false)
         
         println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
         println("Number of threads used by BLAS: $(BLAS.get_num_threads())")
@@ -132,6 +137,11 @@ module Transmission2D
         # Print this for consistency checks for now
         println("Compression ratio of hierarchical compression: $(HMatrices.compression_ratio(H))")
         
+        if debug_plot
+            plot(H,axis=nothing,legend=false,border=:none, left_margin = 0px, right_margin = 0px, bottom_margin = 0px, top_margin = 0px)
+            savefig("testplot_TM.svg")
+        end
+        
         # Maybe the loop can be bypassed, for now doing it brute-force
         field_shape = size(points_Einc)
         n_angles = field_shape[2]
@@ -168,7 +178,7 @@ module Transmission2D
     end
     
     
-    function solve_TE(python_points::AbstractArray, points_Einc::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 1e-6)
+    function solve_TE(python_points::AbstractArray, points_Einc::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 1e-6, debug_plot=false)
         
         println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
         println("Number of threads used by BLAS: $(BLAS.get_num_threads())")
@@ -198,7 +208,7 @@ module Transmission2D
         
         # K is an abstract representation of the kernel
         K = GreensTEMatrix(points,points,k0,alpha,radius,regularize,G0_center_value)
-        print(K)
+        
         # Need pointsclt with right size!
         pointsproxy = [points[1+floor(Int64,k/2)] for k in 0:dim*n-1]
         pointsclt = ClusterTree(pointsproxy)
@@ -210,6 +220,11 @@ module Transmission2D
         
         # Print this for consistency checks for now
         println("Compression ratio of hierarchical compression: $(HMatrices.compression_ratio(H))")
+        
+        if debug_plot
+            plot(H,axis=nothing,legend=false,border=:none, margin = 0px) #left_margin = 0px, right_margin = 0px, bottom_margin = 0px, top_margin = 0px)
+            savefig("testplot_TE.svg")
+        end
         
         # Maybe the loop can be bypassed, for now doing it brute-force
         field_shape = size(points_Einc)
