@@ -599,3 +599,85 @@ class Transmission2D_hmatrices:
         EkTE = jl.Transmission2D.solve_TE(self.r.numpy(), E0j.reshape(2*self.N,-1).numpy(), k0, alpha, radius, self_interaction, regularize = regularize, use_lu = use_lu, atol = atol, debug_plot=debug_plot)
 
         return EkTM, EkTE
+    
+    def calc_EM(self,points, EkTE, EkTM, k0, alpha, thetas, beam_waist, regularize = False, radius = 0.0):
+        '''
+        Calculates the EM field at a set of measurement points
+
+        points           - (M,2)         coordinates of all measurement points
+        EkTE             - (N*2)         TE polarization component of the electromagnetic field at each scatterer
+        EkTM             - (N)           TM polarization component of the electromagnetic field at each scatterer
+        k0               - (1)           frequency being measured
+        alpha            - (1)           bare static polarizability at given k0
+        thetas           - (Ndirs)       propagation directions for the source
+        beam_waist       - (1)           beam waist
+        regularize       - bool          bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
+        radius           - (1)           considered scatterer radius, only used for regularization
+        '''
+
+        # XXX Throw points into a julia thing for mul!
+        points = np.tensor(points)
+        E0j, u = self.generate_source(points, k0, thetas, beam_waist, print_statement='calc')
+        
+        EkTM_ = np.tensor(jl.Transmission2D.calc_TM(points.numpy(), EkTM, k0, alpha, radius, regularize)) + E0j
+        # EkTM_ = np.matmul(alpha*k0*k0* self.G0_TM(points, k0, print_statement='calc', regularize=regularize, radius=radius), EkTM) + E0j
+        E0j = E0j.reshape(points.shape[0],1,len(thetas))*u
+        EkTE_ = np.tensor(jl.Transmission2D.calc_TE(points.numpy(), EkTE, k0, alpha, radius, regularize)) + E0j
+        # EkTE_ = np.matmul(alpha*k0*k0* self.G0_TE(points, k0, print_statement='calc', regularize=regularize, radius=radius), EkTE).reshape(points.shape[0],2,-1) + E0j 
+
+        # Take care of cases in which measurement points are exactly scatterer positions
+        for j in np.argwhere(np.isnan(EkTM_[:,0])):
+            if regularize:
+                # If overlap, will just return the closest one
+                possible_idx = np.nonzero(np.linalg.norm(self.r-points[j], axis = -1) <= radius)
+                if possible_idx.shape[0] > 1:
+                    idx = np.argmin(np.linalg.norm(self.r-points[j], axis = -1))
+                else:
+                    idx = possible_idx
+                EkTM_[j] = EkTM[idx]
+                EkTE_[j] = EkTE[idx]
+            else:
+                EkTM_[j] = EkTM[np.nonzero(np.prod(self.r-points[j]==0,axis=-1))]
+                EkTE_[j] = EkTE[np.nonzero(np.prod(self.r-points[j]==0,axis=-1))]
+                
+        return EkTE_, EkTM_
+    
+    def calc_EM_ss(self, points, k0, alpha, thetas, beam_waist, regularize = False, radius = 0.0):
+        '''
+        Calculates the EM field at a set of measurement points, using a single-scattering approximation
+
+        points           - (M,2)      coordinates of all measurement points
+        k0               - (1)        frequency being measured
+        alpha            - (1)        bare static polarizability at given k0
+        thetas           - (Ndirs)    propagation directions for the source
+        beam_waist       - (1)        beam waist
+        regularize       - bool       bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
+        radius           - (1)        considered scatterer radius, only used for regularization
+        '''
+
+        points = np.tensor(points)
+        E0_meas, u_meas = self.generate_source(points, k0, thetas, beam_waist, print_statement='calc_ss')
+        E0_scat, u_scat = self.generate_source(self.r, k0, thetas, beam_waist, print_statement='calc_ss')
+        EkTM_ = np.matmul(alpha*k0*k0* self.G0_TM(points, k0, print_statement='calc_ss', regularize=regularize, radius=radius), E0_scat) + E0_meas
+        
+        E0_meas = E0_meas.reshape(points.shape[0],1,len(thetas))*u_meas
+        E0_scat = E0_scat.reshape(self.r.shape[0],1,len(thetas))*u_scat
+        E0_scat = E0_scat.reshape(2*self.r.shape[0],-1)        
+        EkTE_ = np.matmul(alpha*k0*k0* self.G0_TE(points, k0, print_statement='calc_ss', regularize=regularize, radius=radius), E0_scat).reshape(points.shape[0],2,-1) + E0_meas
+        
+        # Take care of cases in which measurement points are exactly scatterer positions
+        for j in np.argwhere(np.isnan(EkTM_[:,0])):
+            if regularize:
+                # If overlap, will just return the closest one
+                possible_idx = np.nonzero(np.linalg.norm(self.r-points[j], axis = -1) <= radius)
+                if possible_idx.shape[0] > 1:
+                    idx = np.argmin(np.linalg.norm(self.r-points[j], axis = -1))
+                else:
+                    idx = possible_idx
+                EkTM_[j] = E0_meas[idx]
+                EkTE_[j] = E0_meas[idx]
+            else:
+                EkTM_[j] = E0_meas[np.nonzero(np.prod(self.r-points[j]==0,axis=-1))]
+                EkTE_[j] = E0_meas[np.nonzero(np.prod(self.r-points[j]==0,axis=-1))]
+                
+        return EkTE_, EkTM_

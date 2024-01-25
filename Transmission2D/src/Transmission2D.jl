@@ -8,7 +8,53 @@ module Transmission2D
     using Plots
     using Plots.PlotMeasures
 
+    # Define static vector with fixed size globally
     PointdD = SVector{2,Float64}
+    
+    # Even though it's not strictly necessary for TM, follow the steps in https://waveprop.github.io/HMatrices.jl/dev/
+    # This is more consistent with the TE definition and makes it easier to modify
+    struct GreensTMMatrix <: AbstractMatrix{ComplexF64}
+        X::Vector{PointdD}
+        Y::Vector{PointdD}
+        k0::Float64
+        alpha::ComplexF64
+        radius::Float64
+        regularize::Bool
+        G0_center_value::ComplexF64
+    end
+    
+    function M_TM(x, y, k0, alpha, radius, regularize, G0_center_value)::ComplexF64
+        if x == y 
+            # Diagonal has an identity: this is not dangerous since it's only STRICTLY at the same point
+            extra = 1
+        else
+            extra = 0
+        end
+        extra - k0*k0*alpha*G_TM(x, y, k0, radius, regularize, G0_center_value)
+    end
+    
+    function G_TM(x, y, k0, radius, regularize, G0_center_value)::ComplexF64
+        d = norm(x-y)
+        
+        if regularize
+            # Make the value equal to the center value in the whole disk scatterer
+            threshold = radius
+        else
+            # Just strictly the center
+            threshold = 0.0
+        end
+        
+        if d <= threshold
+            G0_center_value
+        else
+            # TM propagator
+            0.25im * hankelh1(0, k0 * d)
+        end
+    end
+    
+    Base.getindex(K::GreensTMMatrix,i::Int,j::Int) = M_TM(K.X[i], K.Y[j], K.k0, K.alpha, K.radius, K.regularize, K.G0_center_value)
+    Base.size(K::GreensTMMatrix) = length(K.X), length(K.Y)
+    
     # Since this is a block-wise matrix, follow the steps in https://waveprop.github.io/HMatrices.jl/dev/
     struct GreensTEMatrix <: AbstractMatrix{ComplexF64}
         X::Vector{PointdD}
@@ -20,7 +66,7 @@ module Transmission2D
         G0_center_value::ComplexF64
     end
     
-    function M_TE(x,y,row,col, k0, alpha,radius,regularize,G0_center_value)::ComplexF64
+    function M_TE(x, y, row, col, k0, alpha,radius,regularize,G0_center_value)::ComplexF64
         if x == y && row == col
             # Diagonal has an identity: this is not dangerous since it's only STRICTLY at the same point
             extra = 1
@@ -98,41 +144,16 @@ module Transmission2D
             G0_center_value = 0.0
         end
         
-        function M(x,y)::ComplexF64
-            if x == y 
-                # Diagonal has an identity: this is not dangerous since it's only STRICTLY at the same point
-                extra = 1
-            else
-                extra = 0
-            end
-            extra - k0*k0*alpha*G(x,y)
-        end
-        
-        function G(x,y)::ComplexF64
-            d = norm(x-y)
-            
-            if regularize
-                # Make the value equal to the center value in the whole disk scatterer
-                threshold = radius
-            else
-                # Just strictly the center
-                threshold = 0.0
-            end
-            
-            if d <= threshold
-                G0_center_value
-            else
-                # TM propagator
-                0.25im * hankelh1(0, k0 * d)
-            end
-        end
-        
-        # use_threads() = true # XXX Is that truly how it works? Useful?
-        
         # K is an abstract representation of the kernel
-        K = KernelMatrix(M,points,points)
+        K = GreensTMMatrix(points,points,k0,alpha,radius,regularize,G0_center_value)
+        
+        # Need pointsclt with right size!
+        pointsclt = ClusterTree(points)
+        adm = StrongAdmissibilityStd()
+        comp = PartialACA(;atol=atol)
+        
         # H is a hierarchical compression of the matrix, atol and rtol can be tuned in principle
-        H = assemble_hmatrix(K;atol=atol)
+        H = assemble_hmatrix(K,pointsclt,pointsclt;adm,comp,threads=false,distributed=false)
         
         # Print this for consistency checks for now
         println("Compression ratio of hierarchical compression: $(HMatrices.compression_ratio(H))")
