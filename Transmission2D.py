@@ -615,14 +615,18 @@ class Transmission2D_hmatrices:
         radius           - (1)           considered scatterer radius, only used for regularization
         '''
 
-        # XXX Throw points into a julia thing for mul!
         points = np.tensor(points)
         E0j, u = self.generate_source(points, k0, thetas, beam_waist, print_statement='calc')
         
-        EkTM_ = np.tensor(jl.Transmission2D.calc_TM(points.numpy(), EkTM, k0, alpha, radius, regularize)) + E0j
-        # EkTM_ = np.matmul(alpha*k0*k0* self.G0_TM(points, k0, print_statement='calc', regularize=regularize, radius=radius), EkTM) + E0j
+        # TM part
+        EkTM_ = np.tensor(jl.Transmission2D.calc_TM(self.r.numpy(), points.numpy(), EkTM, k0, alpha, radius, regularize).to_numpy()) + E0j
+        
+        # TE part
         E0j = E0j.reshape(points.shape[0],1,len(thetas))*u
-        EkTE_ = np.tensor(jl.Transmission2D.calc_TE(points.numpy(), EkTE, k0, alpha, radius, regularize)) + E0j
+        EkTE_ = np.tensor(jl.Transmission2D.calc_TE(self.r.numpy(), points.numpy(), EkTE, k0, alpha, radius, regularize).to_numpy()) + E0j
+        print(EkTE_)
+        sys.exit()
+        # XXX DEBUG FROM HERE
         # EkTE_ = np.matmul(alpha*k0*k0* self.G0_TE(points, k0, print_statement='calc', regularize=regularize, radius=radius), EkTE).reshape(points.shape[0],2,-1) + E0j 
 
         # Take care of cases in which measurement points are exactly scatterer positions
