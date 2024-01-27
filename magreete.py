@@ -251,7 +251,14 @@ def main(ndim, # Required arguments
                         params = [alpha, k0]
                         hkl.dump([onp.array(EjTE), onp.array(EjTM), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
 
+                        print(EjTE[0:2,0])
+                        print(EjTM[0,0])
+
                         EkTE, EkTM = solver.calc_EM(measurement_points, EjTE, EjTM, k0, alpha, thetas, w, regularize = regularize, radius=radius)
+                        
+                        print(EkTE[0,:,0])
+                        print(EkTM[0,0])
+                        sys.exit()
                         
                         E0TM, u_meas = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='scattered_fields')
                         E0TE = E0TM.reshape(measurement_points.shape[0],1,len(thetas))*u_meas
@@ -298,6 +305,10 @@ def main(ndim, # Required arguments
                             sys.exit()
 
                         EkTE, EkTM = solver.calc_EM(measurement_points, EjTE, EjTM, k0, alpha, thetas, w, regularize=regularize, radius=radius)
+                        
+                        print(EkTE[0,:,0])
+                        print(EkTM[0,0])
+                        sys.exit()
                         
                         E0TM, u_meas = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='scattered_fields')
                         E0TE = E0TM.reshape(measurement_points.shape[0],1,len(thetas))*u_meas

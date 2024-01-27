@@ -583,9 +583,10 @@ class Transmission2D_hmatrices:
         # Julia-side solver with Abstract Hierarchical Matrices
         regularize = False # Not needed for solve part, writing it as a variable to make it clear what it is
         use_lu = True # Whether to use an LU decomposition then solve from it, or to solve anew at every angle
-        atol = 1e-6 # Absolute tolerance used in HMatrices
+        atol = 0 # Absolute tolerance used in HMatrices
+        rtol = 1e-3 # Relative tolerance
         debug_plot = True
-        EkTM = jl.Transmission2D.solve_TM(self.r.numpy(), E0j.numpy(), k0, alpha, radius, self_interaction, regularize = regularize, use_lu = use_lu, atol = atol, debug_plot=debug_plot)
+        EkTM = jl.Transmission2D.solve_TM(self.r.numpy(), E0j.numpy(), k0, alpha, radius, self_interaction, regularize = regularize, use_lu = use_lu, atol = atol, rtol = rtol, debug_plot=debug_plot)
         
         ### TE calculation
         # Switch the source to TE polarization
@@ -594,11 +595,12 @@ class Transmission2D_hmatrices:
         # Julia-side solver with Abstract Hierarchical Matrices
         regularize = False # Not needed for solve part, writing it as a variable to make it clear what it is
         use_lu = True # Whether to use an LU decomposition then solve from it, or to solve anew at every angle
-        atol = 1e-6 # Absolute tolerance used in HMatrices
+        atol = 0 # Absolute tolerance used in HMatrices
+        rtol = 1e-3 # Relative tolerance
         debug_plot = True
-        EkTE = jl.Transmission2D.solve_TE(self.r.numpy(), E0j.reshape(2*self.N,-1).numpy(), k0, alpha, radius, self_interaction, regularize = regularize, use_lu = use_lu, atol = atol, debug_plot=debug_plot)
+        EkTE = jl.Transmission2D.solve_TE(self.r.numpy(), E0j.reshape(2*self.N,-1).numpy(), k0, alpha, radius, self_interaction, regularize = regularize, use_lu = use_lu, atol = atol, rtol = rtol, debug_plot=debug_plot)
 
-        return EkTM, EkTE
+        return EkTE, EkTM
     
     def calc_EM(self,points, EkTE, EkTM, k0, alpha, thetas, beam_waist, regularize = False, radius = 0.0):
         '''
@@ -623,12 +625,8 @@ class Transmission2D_hmatrices:
         
         # TE part
         E0j = E0j.reshape(points.shape[0],1,len(thetas))*u
-        EkTE_ = np.tensor(jl.Transmission2D.calc_TE(self.r.numpy(), points.numpy(), EkTE, k0, alpha, radius, regularize).to_numpy()) + E0j
-        print(EkTE_)
-        sys.exit()
-        # XXX DEBUG FROM HERE
-        # EkTE_ = np.matmul(alpha*k0*k0* self.G0_TE(points, k0, print_statement='calc', regularize=regularize, radius=radius), EkTE).reshape(points.shape[0],2,-1) + E0j 
-
+        EkTE_ = np.tensor(jl.Transmission2D.calc_TE(self.r.numpy(), points.numpy(), EkTE, k0, alpha, radius, regularize).to_numpy().reshape(E0j.shape)) + E0j
+        
         # Take care of cases in which measurement points are exactly scatterer positions
         for j in np.argwhere(np.isnan(EkTM_[:,0])):
             if regularize:
@@ -659,6 +657,8 @@ class Transmission2D_hmatrices:
         radius           - (1)        considered scatterer radius, only used for regularization
         '''
 
+        sys.exit()
+        # XXX DEBUG FROM HERE
         points = np.tensor(points)
         E0_meas, u_meas = self.generate_source(points, k0, thetas, beam_waist, print_statement='calc_ss')
         E0_scat, u_scat = self.generate_source(self.r, k0, thetas, beam_waist, print_statement='calc_ss')

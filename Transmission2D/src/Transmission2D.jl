@@ -127,7 +127,7 @@ module Transmission2D
     Base.getindex(K::GreensTEMatrix,i::Int,j::Int) = M_TE(K.X[block_id(i)], K.Y[block_id(j)], 1+i%2, 1+j%2, K.k0, K.alpha, K.radius, K.regularize, K.G0_center_value, K.solve)
     Base.size(K::GreensTEMatrix) = 2*length(K.X), 2*length(K.Y)
     
-    function solve_TM(python_points::AbstractArray, points_Einc::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 1e-6, debug_plot=false)
+    function solve_TM(python_points::AbstractArray, points_Einc::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug_plot=false)
         
         println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
         println("Number of threads used by BLAS: $(BLAS.get_num_threads())")
@@ -155,7 +155,7 @@ module Transmission2D
         end
         
         # K is an abstract representation of the kernel
-        K = GreensTMMatrix(points,points,k0,alpha,radius,regularize,G0_center_value, true)
+        K = GreensTMMatrix(points, points, k0, alpha, radius, regularize, G0_center_value, true)
         
         # Need pointsclt with right size!
         pointsclt = ClusterTree(points)
@@ -163,13 +163,13 @@ module Transmission2D
         comp = PartialACA(;atol=atol)
         
         # H is a hierarchical compression of the matrix, atol and rtol can be tuned in principle
-        H = assemble_hmatrix(K,pointsclt,pointsclt;adm,comp,threads=false,distributed=false)
+        H = assemble_hmatrix(K, pointsclt, pointsclt;adm, comp, threads=false, distributed=false)
         
         # Print this for consistency checks for now
         println("Compression ratio of hierarchical compression: $(HMatrices.compression_ratio(H))")
         
         if debug_plot
-            plot(H,axis=nothing,legend=false,border=:none, left_margin = 0px, right_margin = 0px, bottom_margin = 0px, top_margin = 0px)
+            plot(H, axis=nothing, legend=false, border=:none, left_margin = 0px, right_margin = 0px, bottom_margin = 0px, top_margin = 0px)
             savefig("testplot_TM.svg")
         end
         
@@ -186,7 +186,7 @@ module Transmission2D
         if use_lu
             # Use an LU decomposition to make solving faster in the angle loop
             # XXX MAY NEED EXPLICIT PIVOT OPTION?
-            lu_decomp = lu!(H; atol = atol)
+            lu_decomp = lu!(H; atol = atol, rtol = rtol)
             for angle_index in 1:n_angles
                 inc_field_vec = PointND(points_Einc[:,angle_index])
                 approx_fields = lu_decomp \ inc_field_vec
@@ -209,7 +209,7 @@ module Transmission2D
     end
     
     
-    function solve_TE(python_points::AbstractArray, points_Einc::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 1e-6, debug_plot=false)
+    function solve_TE(python_points::AbstractArray, points_Einc::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug_plot=false)
         
         println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
         println("Number of threads used by BLAS: $(BLAS.get_num_threads())")
@@ -238,22 +238,22 @@ module Transmission2D
         end
         
         # K is an abstract representation of the kernel
-        K = GreensTEMatrix(points,points,k0,alpha,radius,regularize,G0_center_value, true)
+        K = GreensTEMatrix(points, points, k0, alpha, radius, regularize, G0_center_value, true)
         
         # Need pointsclt with right size!
         pointsproxy = [points[1+floor(Int64,k/2)] for k in 0:dim*n-1]
         pointsclt = ClusterTree(pointsproxy)
         adm = StrongAdmissibilityStd()
-        comp = PartialACA(;atol=atol)
+        comp = PartialACA(;atol=atol, rtol=rtol)
         
         # H is a hierarchical compression of the matrix, atol and rtol can be tuned in principle
-        H = assemble_hmatrix(K,pointsclt,pointsclt;adm,comp,threads=false,distributed=false)
+        H = assemble_hmatrix(K, pointsclt, pointsclt; adm, comp, threads=false, distributed=false)
         
         # Print this for consistency checks for now
         println("Compression ratio of hierarchical compression: $(HMatrices.compression_ratio(H))")
         
         if debug_plot
-            plot(H,axis=nothing,legend=false,border=:none, margin = 0px) #left_margin = 0px, right_margin = 0px, bottom_margin = 0px, top_margin = 0px)
+            plot(H, axis=nothing, legend=false, border=:none, margin = 0px) #left_margin = 0px, right_margin = 0px, bottom_margin = 0px, top_margin = 0px)
             savefig("testplot_TE.svg")
         end
         
@@ -265,12 +265,12 @@ module Transmission2D
         points_Etot = similar(points_Einc)
         
         # Initialize static structure for rhs
-        PointND = SVector{dim*n,ComplexF64}
+        PointND = SVector{dim * n, ComplexF64}
         
         if use_lu
             # Use an LU decomposition to make solving faster in the angle loop
             # XXX MAY NEED EXPLICIT PIVOT OPTION?
-            lu_decomp = lu!(H; atol = atol)
+            lu_decomp = lu!(H; atol = atol, rtol = rtol)
             for angle_index in 1:n_angles
                 inc_field_vec = PointND(points_Einc[:,angle_index])
                 approx_fields = lu_decomp \ inc_field_vec
@@ -292,7 +292,7 @@ module Transmission2D
         
     end
     
-    function calc_TM(python_points_scat::AbstractArray, python_points_meas::AbstractArray, points_Escat::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 1e-6, debug_plot=false)
+    function calc_TM(python_points_scat::AbstractArray, python_points_meas::AbstractArray, points_Escat::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug_plot=false)
         
         println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
         println("Number of threads used by BLAS: $(BLAS.get_num_threads())")
@@ -325,22 +325,22 @@ module Transmission2D
         end
         
         # K is an abstract representation of the kernel
-        K = GreensTMMatrix(points_meas,points_scat,k0,alpha,radius,regularize,G0_center_value, false)
+        K = GreensTMMatrix(points_meas, points_scat, k0, alpha, radius, regularize, G0_center_value, false)
         
         # Need pointsclt with right size!
         pointsclt_scat = ClusterTree(points_scat)
         pointsclt_meas = ClusterTree(points_meas)
         adm = StrongAdmissibilityStd()
-        comp = PartialACA(;atol=atol)
+        comp = PartialACA(;atol=atol,rtol=rtol)
         
         # H is a hierarchical compression of the matrix, atol and rtol can be tuned in principle
-        H = assemble_hmatrix(K,pointsclt_meas,pointsclt_scat;adm,comp,threads=false,distributed=false)
+        H = assemble_hmatrix(K, pointsclt_meas, pointsclt_scat; adm,comp, threads=false, distributed=false)
         
         # Print this for consistency checks for now
         println("Compression ratio of hierarchical compression: $(HMatrices.compression_ratio(H))")
         
         if debug_plot
-            plot(H,axis=nothing,legend=false,border=:none, left_margin = 0px, right_margin = 0px, bottom_margin = 0px, top_margin = 0px)
+            plot(H, axis=nothing, legend=false, border=:none, left_margin = 0px, right_margin = 0px, bottom_margin = 0px, top_margin = 0px)
             savefig("testplot_TM_calc.svg")
         end
         
@@ -351,14 +351,80 @@ module Transmission2D
         # Initialize output structure
         points_Emeas = similar(points_Escat, n_meas, n_angles)
         
-        # Initialize static structure for rhs
-        PointND = SVector{n_meas,ComplexF64}
-        
         # Compute H times fields for every angle
-        mul!(points_Emeas,H,points_Escat,1,0;threads=false)
+        mul!(points_Emeas, H, points_Escat, 1, 0; threads=false)
         
         return points_Emeas
         
     end
-    
+
+    function calc_TE(python_points_scat::AbstractArray, python_points_meas::AbstractArray, points_Escat::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug_plot=false)
+            
+        println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
+        println("Number of threads used by BLAS: $(BLAS.get_num_threads())")
+        
+        shape_scat = size(python_points_scat)
+        dim = shape_scat[2]
+        
+        shape_meas = size(python_points_meas)
+        dim_meas = shape_meas[2]
+        
+        if dim != 2 || dim_meas != 2
+            println("Wrong dimensionality for points!")
+            exit()
+        end
+        
+        # Needed conversion for HMatrices!
+        # There is probably a better way to do this memory-wise
+        n_scat = shape_scat[1]
+        n_meas = shape_meas[1]
+        points_scat = [PointdD(python_points_scat[k,:]) for k in 1:n_scat]
+        points_meas = [PointdD(python_points_meas[k,:]) for k in 1:n_meas]
+        
+        
+        if self_interaction
+            # G0 integrated over a finite disk
+            volume = pi*radius*radius
+            G0_center_value = (-1.0 / (k0*k0*volume)) + 0.25im * hankelh1(1,k0*radius)/(k0*radius)
+        else
+            # G0 discarded at center if volume is neglected completely
+            G0_center_value = 0.0
+        end
+        
+        # K is an abstract representation of the kernel
+        K = GreensTEMatrix(points_meas,points_scat,k0,alpha,radius,regularize,G0_center_value, false)
+        
+        # Need pointsclt with right size!
+        pointsproxy_scat = [points_scat[1+floor(Int64,k/2)] for k in 0:dim*n_scat-1]
+        pointsclt_scat = ClusterTree(pointsproxy_scat)
+        pointsproxy_meas = [points_meas[1+floor(Int64,k/2)] for k in 0:dim*n_meas-1]
+        pointsclt_meas = ClusterTree(pointsproxy_meas)
+        adm = StrongAdmissibilityStd()
+        comp = PartialACA(;atol=atol, rtol=rtol)
+        
+        # H is a hierarchical compression of the matrix, atol and rtol can be tuned in principle
+        H = assemble_hmatrix(K, pointsclt_meas, pointsclt_scat; adm, comp, threads=false, distributed=false)
+        
+        # Print this for consistency checks for now
+        println("Compression ratio of hierarchical compression: $(HMatrices.compression_ratio(H))")
+        
+        if debug_plot
+            plot(H, axis=nothing, legend=false, border=:none, left_margin = 0px, right_margin = 0px, bottom_margin = 0px, top_margin = 0px)
+            savefig("testplot_TM_calc.svg")
+        end
+        
+        # Maybe the loop can be bypassed, for now doing it brute-force
+        field_shape = size(points_Escat)
+        n_angles = field_shape[2]
+        
+        # Initialize output structure
+        points_Emeas = similar(points_Escat, dim * n_meas, n_angles)
+        
+        # Compute H times fields for every angle
+        mul!(points_Emeas, H, points_Escat, 1, 0; threads=false)
+        
+        return points_Emeas
+        
+    end
+
 end
