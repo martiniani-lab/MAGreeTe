@@ -127,10 +127,12 @@ module Transmission2D
     Base.getindex(K::GreensTEMatrix,i::Int,j::Int) = M_TE(K.X[block_id(i)], K.Y[block_id(j)], 1+(i-1)%2, 1+(j-1)%2, K.k0, K.alpha, K.radius, K.regularize, K.G0_center_value, K.solve)
     Base.size(K::GreensTEMatrix) = 2*length(K.X), 2*length(K.Y)
     
-    function solve_TM(python_points::AbstractArray, points_Einc::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug_plot=false)
+    function solve_TM(python_points::AbstractArray, points_Einc::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
         
-        println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
-        println("Number of threads used by BLAS: $(BLAS.get_num_threads())")
+        if debug
+            println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
+            println("Number of threads used by BLAS: $(BLAS.get_num_threads())")
+        end
         
         shape = size(python_points)
         dim = shape[2]
@@ -163,12 +165,12 @@ module Transmission2D
         comp = PartialACA(;atol=atol)
         
         # H is a hierarchical compression of the matrix, atol and rtol can be tuned in principle
-        H = assemble_hmatrix(K, pointsclt, pointsclt;adm, comp, threads=false, distributed=false)
+        H = assemble_hmatrix(K, pointsclt, pointsclt;adm, comp, threads=threads, distributed=false)
         
         # Print this for consistency checks for now
-        println("Compression ratio of hierarchical compression: $(HMatrices.compression_ratio(H))")
+        println("Compression ratio of hierarchical compression (solve TM): $(HMatrices.compression_ratio(H))")
         
-        if debug_plot
+        if debug
             plot(H, axis=nothing, legend=false, border=:none, left_margin = 0px, right_margin = 0px, bottom_margin = 0px, top_margin = 0px)
             savefig("testplot_TM.svg")
         end
@@ -209,10 +211,12 @@ module Transmission2D
     end
     
     
-    function solve_TE(python_points::AbstractArray, points_Einc::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug_plot=false)
+    function solve_TE(python_points::AbstractArray, points_Einc::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
         
-        println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
-        println("Number of threads used by BLAS: $(BLAS.get_num_threads())")
+        if debug
+            println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
+            println("Number of threads used by BLAS: $(BLAS.get_num_threads())")
+        end
         
         shape = size(python_points)
         dim = shape[2]
@@ -247,12 +251,12 @@ module Transmission2D
         comp = PartialACA(;atol=atol, rtol=rtol)
         
         # H is a hierarchical compression of the matrix, atol and rtol can be tuned in principle
-        H = assemble_hmatrix(K, pointsclt, pointsclt; adm, comp, threads=false, distributed=false)
+        H = assemble_hmatrix(K, pointsclt, pointsclt; adm, comp, threads=threads, distributed=false)
         
         # Print this for consistency checks for now
-        println("Compression ratio of hierarchical compression: $(HMatrices.compression_ratio(H))")
+        println("Compression ratio of hierarchical compression (solve TE): $(HMatrices.compression_ratio(H))")
         
-        if debug_plot
+        if debug
             plot(H, axis=nothing, legend=false, border=:none, margin = 0px) #left_margin = 0px, right_margin = 0px, bottom_margin = 0px, top_margin = 0px)
             savefig("testplot_TE.svg")
         end
@@ -292,10 +296,12 @@ module Transmission2D
         
     end
     
-    function calc_TM(python_points_scat::AbstractArray, python_points_meas::AbstractArray, points_Escat::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug_plot=false)
+    function calc_TM(python_points_scat::AbstractArray, python_points_meas::AbstractArray, points_Escat::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
         
-        println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
-        println("Number of threads used by BLAS: $(BLAS.get_num_threads())")
+        if debug
+            println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
+            println("Number of threads used by BLAS: $(BLAS.get_num_threads())")
+        end
         
         shape_scat = size(python_points_scat)
         dim = shape_scat[2]
@@ -334,12 +340,12 @@ module Transmission2D
         comp = PartialACA(;atol=atol,rtol=rtol)
         
         # H is a hierarchical compression of the matrix, atol and rtol can be tuned in principle
-        H = assemble_hmatrix(K, pointsclt_meas, pointsclt_scat; adm,comp, threads=false, distributed=false)
+        H = assemble_hmatrix(K, pointsclt_meas, pointsclt_scat; adm,comp, threads=threads, distributed=false)
         
         # Print this for consistency checks for now
-        println("Compression ratio of hierarchical compression: $(HMatrices.compression_ratio(H))")
+        println("Compression ratio of hierarchical compression (calc TM): $(HMatrices.compression_ratio(H))")
         
-        if debug_plot
+        if debug
             plot(H, axis=nothing, legend=false, border=:none, left_margin = 0px, right_margin = 0px, bottom_margin = 0px, top_margin = 0px)
             savefig("testplot_TM_calc.svg")
         end
@@ -352,16 +358,18 @@ module Transmission2D
         points_Emeas = similar(points_Escat, n_meas, n_angles)
         
         # Compute H times fields for every angle
-        mul!(points_Emeas, H, points_Escat, 1, 0; threads=false)
+        mul!(points_Emeas, H, points_Escat, 1, 0; threads=threads)
         
         return points_Emeas
         
     end
 
-    function calc_TE(python_points_scat::AbstractArray, python_points_meas::AbstractArray, points_Escat::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug_plot=false)
+    function calc_TE(python_points_scat::AbstractArray, python_points_meas::AbstractArray, points_Escat::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
             
-        println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
-        println("Number of threads used by BLAS: $(BLAS.get_num_threads())")
+        if debug
+            println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
+            println("Number of threads used by BLAS: $(BLAS.get_num_threads())")
+        end
         
         shape_scat = size(python_points_scat)
         dim = shape_scat[2]
@@ -403,12 +411,12 @@ module Transmission2D
         comp = PartialACA(;atol=atol, rtol=rtol)
         
         # H is a hierarchical compression of the matrix, atol and rtol can be tuned in principle
-        H = assemble_hmatrix(K, pointsclt_meas, pointsclt_scat; adm, comp, threads=false, distributed=false)
+        H = assemble_hmatrix(K, pointsclt_meas, pointsclt_scat; adm, comp, threads=threads, distributed=false)
         
         # Print this for consistency checks for now
-        println("Compression ratio of hierarchical compression: $(HMatrices.compression_ratio(H))")
+        println("Compression ratio of hierarchical compression (calc TE): $(HMatrices.compression_ratio(H))")
         
-        if debug_plot
+        if debug
             plot(H, axis=nothing, legend=false, border=:none, left_margin = 0px, right_margin = 0px, bottom_margin = 0px, top_margin = 0px)
             savefig("testplot_TM_calc.svg")
         end
@@ -421,7 +429,7 @@ module Transmission2D
         points_Emeas = similar(points_Escat, dim * n_meas, n_angles)
         
         # Compute H times fields for every angle
-        mul!(points_Emeas, H, points_Escat, 1, 0; threads=false)
+        mul!(points_Emeas, H, points_Escat, 1, 0; threads=threads)
         
         return points_Emeas
         

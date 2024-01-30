@@ -251,16 +251,7 @@ def main(ndim, # Required arguments
                         params = [alpha, k0]
                         hkl.dump([onp.array(EjTE), onp.array(EjTM), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
 
-                        # XXX DEBUG
-                        print(EjTE[0:2,0])
-                        print(EjTM[0,0])
-
                         EkTE, EkTM = solver.calc_EM(measurement_points, EjTE, EjTM, k0, alpha, thetas, w, regularize = regularize, radius=radius)
-                        
-                        # XXX DEBUG
-                        print(EkTE[0,:,0])
-                        print(EkTM[0,0])
-                        # sys.exit()
                         
                         E0TM, u_meas = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='scattered_fields')
                         E0TE = E0TM.reshape(measurement_points.shape[0],1,len(thetas))*u_meas
@@ -307,11 +298,6 @@ def main(ndim, # Required arguments
                             sys.exit()
 
                         EkTE, EkTM = solver.calc_EM(measurement_points, EjTE, EjTM, k0, alpha, thetas, w, regularize=regularize, radius=radius)
-                        
-                        # XXX DEBUG
-                        print(EkTE[0,:,0])
-                        print(EkTM[0,0])
-                        # sys.exit()
                         
                         E0TM, u_meas = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='scattered_fields')
                         E0TE = E0TM.reshape(measurement_points.shape[0],1,len(thetas))*u_meas
@@ -1507,6 +1493,13 @@ if __name__ == '__main__':
 
     np.set_num_threads(n_cpus)
     np.device("cpu")
+    
+    if method == "hmatrices":
+        print("Trying to set number of threads...")
+        os.environ["JULIA_NUM_THREADS"] = str(n_cpus)
+        os.environ["PYTHON_JULIACALL_THREADS"] = str(n_cpus) # https://docs.juliahub.com/PythonCall/WdXsa/0.9.7/juliacall/
+        os.environ["OMP_NUM_THREADS"] = str(n_cpus)
+    
     main(ndim,
         refractive_n = refractive_n,  phi=phi, regularize=regularize, N_raw=N, beam_waist=beam_waist, L=boxsize,
         k0range_args = k0range_args, thetarange_args=thetarange_args, input_files_args = input_files_args,

@@ -585,8 +585,8 @@ class Transmission2D_hmatrices:
         use_lu = True # Whether to use an LU decomposition then solve from it, or to solve anew at every angle
         atol = 0 # Absolute tolerance used in HMatrices
         rtol = 1e-3 # Relative tolerance
-        debug_plot = True
-        EkTM = jl.Transmission2D.solve_TM(self.r.numpy(), E0j.numpy(), k0, alpha, radius, self_interaction, regularize = regularize, use_lu = use_lu, atol = atol, rtol = rtol, debug_plot=debug_plot)
+        debug = False
+        EkTM = jl.Transmission2D.solve_TM(self.r.numpy(), E0j.numpy(), k0, alpha, radius, self_interaction, regularize = regularize, use_lu = use_lu, atol = atol, rtol = rtol, debug=debug)
         
         ### TE calculation
         # Switch the source to TE polarization
@@ -597,8 +597,8 @@ class Transmission2D_hmatrices:
         use_lu = True # Whether to use an LU decomposition then solve from it, or to solve anew at every angle
         atol = 0 # Absolute tolerance used in HMatrices
         rtol = 1e-3 # Relative tolerance
-        debug_plot = True
-        EkTE = jl.Transmission2D.solve_TE(self.r.numpy(), E0j.reshape(2*self.N,-1).numpy(), k0, alpha, radius, self_interaction, regularize = regularize, use_lu = use_lu, atol = atol, rtol = rtol, debug_plot=debug_plot)
+        debug = False
+        EkTE = jl.Transmission2D.solve_TE(self.r.numpy(), E0j.reshape(2*self.N,-1).numpy(), k0, alpha, radius, self_interaction, regularize = regularize, use_lu = use_lu, atol = atol, rtol = rtol, debug=debug)
 
         return EkTE, EkTM
     
