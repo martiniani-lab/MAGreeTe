@@ -89,8 +89,8 @@ module Transmission2D
     function G_TE(x, y, row, col, k0, radius, regularize, G0_center_value)::ComplexF64
         Rvec = y - x
         d = norm(Rvec)
+        Rvec /= d
         RxR = Rvec[row]*Rvec[col]
-        RxR /= d*d
         R = k0 * d
         
         if regularize
@@ -124,7 +124,7 @@ module Transmission2D
         floor(Int64, (i-1)/2) + 1
     end
     
-    Base.getindex(K::GreensTEMatrix,i::Int,j::Int) = M_TE(K.X[block_id(i)], K.Y[block_id(j)], 1+i%2, 1+j%2, K.k0, K.alpha, K.radius, K.regularize, K.G0_center_value, K.solve)
+    Base.getindex(K::GreensTEMatrix,i::Int,j::Int) = M_TE(K.X[block_id(i)], K.Y[block_id(j)], 1+(i-1)%2, 1+(j-1)%2, K.k0, K.alpha, K.radius, K.regularize, K.G0_center_value, K.solve)
     Base.size(K::GreensTEMatrix) = 2*length(K.X), 2*length(K.Y)
     
     function solve_TM(python_points::AbstractArray, points_Einc::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug_plot=false)
