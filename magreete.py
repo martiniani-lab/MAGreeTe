@@ -383,7 +383,13 @@ def main(ndim, # Required arguments
             if single_scattering_transmission:
                 # Define the list of measurement points for transmission plots
                 measurement_points = transmission_radius*L*onp.vstack([onp.cos(thetas),onp.sin(thetas)]).T
-                solver = Transmission2D(points) # XXX Probably no need to change that one
+                if method == "torch":
+                    solver = Transmission2D(points)
+                elif method == "hmatrices":
+                    solver = Transmission2D_hmatrices(points)
+                else:
+                    print("Choose a valid method")
+                    sys.exit()
                 ETEall_ss = []
                 ETMall_ss = []
                 ETEall_scat_ss = []
@@ -750,7 +756,7 @@ def main(ndim, # Required arguments
                     if method == "torch":
                         solver = Transmission3D(points)
                     elif method == "hmatrices":
-                        solver = Transmission2D_hmatrices(points)
+                        solver = Transmission3D_hmatrices(points)
                     else:
                         print("Choose a valid method")
                         sys.exit()
@@ -804,7 +810,7 @@ def main(ndim, # Required arguments
                         if method == "torch":
                             solver = Transmission3D(points)
                         elif method == "hmatrices":
-                            solver = Transmission2D_hmatrices(points)
+                            solver = Transmission3D_hmatrices(points)
                         else:
                             print("Choose a valid method")
                             sys.exit()
@@ -868,7 +874,13 @@ def main(ndim, # Required arguments
             if single_scattering_transmission:
                 # Define the list of measurement points for transmission plots
                 measurement_points = transmission_radius*L*onp.vstack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
-                solver = Transmission3D(points) # Probably no need to change that
+                if method == "torch":
+                    solver = Transmission3D(points)
+                elif method == "hmatrices":
+                    solver = Transmission3D_hmatrices(points)
+                else:
+                    print("Choose a valid method")
+                    sys.exit()
                 u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
                 u = np.tensor(u)
                 p = np.zeros(u.shape)
@@ -953,7 +965,7 @@ def main(ndim, # Required arguments
                 if method == "torch":
                     solver = Transmission3D(points)
                 elif method == "hmatrices":
-                    solver = Transmission2D_hmatrices(points)
+                    solver = Transmission3D_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -1019,7 +1031,7 @@ def main(ndim, # Required arguments
                 if method == "torch":
                     solver = Transmission3D(points)
                 elif method == "hmatrices":
-                    solver = Transmission2D_hmatrices(points)
+                    solver = Transmission3D_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -1042,7 +1054,7 @@ def main(ndim, # Required arguments
                 if method == "torch":
                     solver = Transmission3D(points)
                 elif method == "hmatrices":
-                    solver = Transmission2D_hmatrices(points)
+                    solver = Transmission3D_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -1072,7 +1084,7 @@ def main(ndim, # Required arguments
                 if method == "torch":
                     solver = Transmission3D(points)
                 elif method == "hmatrices":
-                    solver = Transmission2D_hmatrices(points)
+                    solver = Transmission3D_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -1119,7 +1131,7 @@ def main(ndim, # Required arguments
                 if method == "torch":
                     solver = Transmission3D(points)
                 elif method == "hmatrices":
-                    solver = Transmission2D_hmatrices(points)
+                    solver = Transmission3D_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -1495,7 +1507,7 @@ if __name__ == '__main__':
     np.device("cpu")
     
     if method == "hmatrices":
-        print("Trying to set number of threads...")
+        # XXX Not sure if these do anything, will need to test it properly
         os.environ["JULIA_NUM_THREADS"] = str(n_cpus)
         os.environ["PYTHON_JULIACALL_THREADS"] = str(n_cpus) # https://docs.juliahub.com/PythonCall/WdXsa/0.9.7/juliacall/
         os.environ["OMP_NUM_THREADS"] = str(n_cpus)
