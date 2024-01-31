@@ -508,6 +508,7 @@ module Transmission2D
         # Instead of trying to store the (large) inverse, treat columns separately!
         for k in 1:n_scat
             
+            # Compute a COLUMN of the inverse matrix
             unit_vector = zeros(n_scat)
             unit_vector[k] = 1.0
             inv_column = lu_decomp \ unit_vector
