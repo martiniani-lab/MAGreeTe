@@ -611,8 +611,12 @@ def main(ndim, # Required arguments
 
                 for k0, alpha in zip(k0range,alpharange):
                     dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, file_name, regularize=regularize)
-                    DOSall_TE.append(dos_TE.numpy())
-                    DOSall_TM.append(dos_TM.numpy())
+                    if method == "torch":
+                        DOSall_TE.append(dos_TE.numpy())
+                        DOSall_TM.append(dos_TM.numpy())
+                    else:
+                        DOSall_TE.append(dos_TE)
+                        DOSall_TM.append(dos_TM)
 
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                     k0_range.append(k0_)
@@ -662,8 +666,12 @@ def main(ndim, # Required arguments
 
                 for k0, alpha in zip(k0range,alpharange):
                     dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, file_name, regularize=regularize)
-                    DOSall_TE.append(dos_TE.numpy())
-                    DOSall_TM.append(dos_TM.numpy())
+                    if method == "torch":
+                        DOSall_TE.append(dos_TE.numpy())
+                        DOSall_TM.append(dos_TM.numpy())
+                    else:
+                        DOSall_TE.append(dos_TE)
+                        DOSall_TM.append(dos_TM)
 
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                     k0_range.append(k0_)

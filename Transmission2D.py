@@ -706,48 +706,10 @@ class Transmission2D_hmatrices:
         print("Computing mean DOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
 
         ### TM Calculation
-        dos_factor_TM = jl.Transmission2D.mean_dos_TM(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, regularize=regularize)
+        dos_factor_TM = jl.Transmission2D.mean_dos_TM(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, regularize=regularize, discard_absorption=discard_absorption)
         
-        print(dos_factor_TM)
-        
-        # XXX DEBUG FROM HERE
-        sys.exit()
-
-        ### TE calculation
-        # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
-        M_tensor = -alpha*k0*k0*self.G0_TE(None, k0, print_statement='DOS inverse')
-        M_tensor.fill_diagonal_(1)
-        if self_interaction:
-            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
-            dims = M_tensor.shape[0]
-            self_int_TE = np.eye(dims) * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-            M_tensor -= alpha*k0*k0*self_int_TE
-        # Compute W_tensor = inverse(M_tensor)
-        W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
-
-        # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0_TE(measure_points, k0, print_statement='DOS measure', regularize=regularize, radius=radius)
-        # Check for measurement points falling exactly on scatterers
-        for j in np.argwhere(np.isnan(G0_measure)):
-            point_idx = j[0]
-            scatter_idx = j[1]
-            # At scatterers, replace G0(r_i, r_i) by self-interaction
-            G0_measure[point_idx][scatter_idx] = 0
-            if self_interaction:
-                volume = onp.pi*radius*radius
-                self_int_TE = (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-                G0_measure[point_idx][scatter_idx] += self_int_TE
-        #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
-        # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
-        #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
-        dos_factor_TE = ( np.matmul(G0_measure.t(), G0_measure) * W_tensor ).sum()/Npoints
-        if discard_absorption:
-            # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
-            alpha_ = onp.real(alpha)
-        else:
-            alpha_ = alpha
-        dos_factor_TE *= 4.0 * k0*k0* alpha_
-        dos_factor_TE = np.imag(dos_factor_TE)
+        ### TE Calculation
+        dos_factor_TE = jl.Transmission2D.mean_dos_TE(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, regularize=regularize, discard_absorption=discard_absorption)
 
         return dos_factor_TE, dos_factor_TM
 
@@ -763,81 +725,14 @@ class Transmission2D_hmatrices:
         radius              - (1)    radius of the scatterers
         self_interaction    - (bool) include or not self-interactions, defaults to True 
         '''
-
-        M = measure_points.shape[0]
-
+        
         ### TM Calculation
-        # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
-        M_tensor = -alpha*k0*k0* self.G0_TM(self.r, k0, print_statement='LDOS inverse')
-        M_tensor.fill_diagonal_(1)
-        if self_interaction:
-            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
-            volume = onp.pi*radius*radius
-            dims = M_tensor.shape[0]
-            self_int_TM = np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-            M_tensor -= alpha*k0*k0*self_int_TM
-        # Compute W_tensor = inverse(M_tensor)
-        W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
-
-        # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0_TM(measure_points, k0, print_statement='LDOS measure', regularize=regularize, radius=radius)
-        # Check for measurement points falling exactly on scatterers
-        for j in np.argwhere(np.isnan(G0_measure)):
-            point_idx = j[0]
-            scatter_idx = j[1]
-            # At scatterers, replace G0(r_i, r_i) by self-interaction
-            G0_measure[point_idx][scatter_idx] = 0
-            if self_interaction:
-                volume = onp.pi*radius*radius
-                self_int_TM = (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-                G0_measure[point_idx][scatter_idx] += self_int_TM
-        # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, W_tensor),onp.transpose(G0_measure)))
-        # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
-        ldos_factor_TM = np.einsum('ij, ji->i',np.matmul(G0_measure, W_tensor), (G0_measure).t() )
-        if discard_absorption:
-            # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
-            alpha_ = onp.real(alpha)
-        else:
-            alpha_ = alpha
-        ldos_factor_TM *= 4.0 * k0*k0*alpha_
-        ldos_factor_TM = np.imag(ldos_factor_TM)
-
-        ### TE calculation
-        # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
-        M_tensor = -alpha*k0*k0* self.G0_TE(None, k0, print_statement='LDOS inverse')
-        M_tensor.fill_diagonal_(1)
-        if self_interaction:
-            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
-            dims = M_tensor.shape[0]
-            self_int_TE = np.eye(dims) * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-            M_tensor -= alpha*k0*k0*self_int_TE
-        # Compute W_tensor = inverse(M_tensor)
-        W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
-
-        # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0_TE(measure_points, k0, print_statement='LDOS measure', regularize=regularize, radius=radius)
-        # Check for measurement points falling exactly on scatterers
-        for j in np.argwhere(np.isnan(G0_measure)):
-            point_idx = j[0]
-            scatter_idx = j[1]
-            # At scatterers, replace G0(r_i, r_i) by self-interaction
-            G0_measure[point_idx][scatter_idx] = 0
-            if self_interaction:
-                volume = onp.pi*radius*radius
-                self_int_TE = (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-                G0_measure[point_idx][scatter_idx] += self_int_TE
-        # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
-        # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
-        ldos_factor_TE = np.einsum('ij, ji->i',np.matmul(G0_measure, W_tensor), (G0_measure).t() )
-        if discard_absorption:
-            # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
-            alpha_ = onp.real(alpha)
-        else:
-            alpha_ = alpha
-        ldos_factor_TE *= 4.0 * k0*k0*alpha_
-        ldos_factor_TE = np.imag(ldos_factor_TE)
-        ldos_factor_TE = ldos_factor_TE.reshape(M,2,-1)
-        ldos_factor_TE = np.sum(ldos_factor_TE, 1)
+        ldos_factor_TM = jl.Transmission2D.ldos_TM(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, regularize=regularize, discard_absorption=discard_absorption)
+        ldos_factor_TM = np.tensor(ldos_factor_TM)
+        
+        ### TE Calculation
+        ldos_factor_TE = jl.Transmission2D.ldos_TE(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, regularize=regularize, discard_absorption=discard_absorption)
+        ldos_factor_TE = np.tensor(ldos_factor_TE).unsqueeze(1)
 
         return ldos_factor_TE, ldos_factor_TM
 
