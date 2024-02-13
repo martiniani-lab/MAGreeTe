@@ -851,4 +851,116 @@ module Transmission2D
         
     end
     
+    
+    function spectrum_TM(python_points::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
+        
+        if debug
+            println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
+            println("Number of threads used by BLAS: $(BLAS.get_num_threads())")
+        end
+        
+        shape = size(python_points)
+        dim = shape[2]
+        
+        if dim != 2
+            println("Wrong dimensionality for points!")
+            exit()
+        end
+        
+        # Needed conversion for HMatrices!
+        # There is probably a better way to do this memory-wise
+        n = shape[1]
+        points = [PointdD(python_points[k,:]) for k in 1:n]
+        
+        if self_interaction
+            # G0 integrated over a finite disk
+            volume = pi*radius*radius
+            G0_center_value = (-1.0 / (k0*k0*volume)) + 0.5im * hankelh1(1,k0*radius)/(k0*radius)
+        else
+            # G0 discarded at center if volume is neglected completely
+            G0_center_value = 0.0
+        end
+        
+        # K is an abstract representation of the kernel
+        K = GreensTMMatrix(points, points, k0, alpha, radius, regularize, G0_center_value, true)
+        
+        # Need pointsclt with right size!
+        pointsclt = ClusterTree(points)
+        adm = StrongAdmissibilityStd()
+        comp = PartialACA(;atol=atol)
+        
+        # H is a hierarchical compression of the matrix, atol and rtol can be tuned in principle
+        H = assemble_hmatrix(K, pointsclt, pointsclt;adm, comp, threads=threads, distributed=false)
+        
+        # Print this for consistency checks for now
+        println("Compression ratio of hierarchical compression (solve TM): $(HMatrices.compression_ratio(H))")
+        
+        if debug
+            plot(H, axis=nothing, legend=false, border=:none, left_margin = 0px, right_margin = 0px, bottom_margin = 0px, top_margin = 0px)
+            savefig("testplot_TM.svg")
+        end
+        
+        lambdas = eigvals(H) # XXX not implemented
+        
+        return lambdas
+        
+    end
+    
+    
+    function spectrum_TE(python_points::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
+        
+        if debug
+            println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
+            println("Number of threads used by BLAS: $(BLAS.get_num_threads())")
+        end
+        
+        shape = size(python_points)
+        dim = shape[2]
+        
+        if dim != 2
+            println("Wrong dimensionality for points!")
+            exit()
+        end
+        
+        # Needed conversion for HMatrices!
+        # There is probably a better way to do this memory-wise
+        n = shape[1]
+        PointdD = SVector{dim,Float64}
+        points = [PointdD(python_points[k,:]) for k in 1:n]
+        
+        if self_interaction
+            # G0 integrated over a finite disk
+            volume = pi*radius*radius
+            G0_center_value = (-1.0 / (k0*k0*volume)) + 0.25im * hankelh1(1,k0*radius)/(k0*radius)
+        else
+            # G0 discarded at center if volume is neglected completely
+            G0_center_value = 0.0
+        end
+        
+        # K is an abstract representation of the kernel
+        K = GreensTEMatrix(points, points, k0, alpha, radius, regularize, G0_center_value, true)
+        
+        # Need pointsclt with right size!
+        pointsproxy = [points[1+floor(Int64,k/2)] for k in 0:dim*n-1]
+        pointsclt = ClusterTree(pointsproxy)
+        adm = StrongAdmissibilityStd()
+        comp = PartialACA(;atol=atol, rtol=rtol)
+        
+        # H is a hierarchical compression of the matrix, atol and rtol can be tuned in principle
+        H = assemble_hmatrix(K, pointsclt, pointsclt; adm, comp, threads=threads, distributed=false)
+        
+        # Print this for consistency checks for now
+        println("Compression ratio of hierarchical compression (solve TE): $(HMatrices.compression_ratio(H))")
+        
+        if debug
+            plot(H, axis=nothing, legend=false, border=:none, margin = 0px) #left_margin = 0px, right_margin = 0px, bottom_margin = 0px, top_margin = 0px)
+            savefig("testplot_TE.svg")
+        end
+        
+        lambdas = eigvals(H) # XXX Not implemented
+        
+        return lambdas
+        
+    end
+    
 end
