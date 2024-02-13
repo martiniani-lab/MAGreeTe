@@ -130,6 +130,9 @@ def main(ndim, # Required arguments
 
         # After all this, write down the actual N and make the system the right size
         N = points.shape[0]
+        if N == 0:
+            print("0 points remain after cutting")
+            sys.exit()
         points *= L
         assert ndim == points.shape[1]
         print("\n\nLoaded a ("+str(file_name)+") system of N = "+str(N_raw)+" points in d = "+str(ndim))

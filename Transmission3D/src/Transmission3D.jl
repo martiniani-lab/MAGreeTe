@@ -65,7 +65,7 @@ module Transmission3D
                 I = 0
             end
             
-            ( I-RxR - (I-3*RxR)* (1.0/(1.0im*k0*R)+(k0*R)^(-2))) * exp(1.0im*k0*R)/(4*pi*R)
+            ( I-RxR - (I-3*RxR) * (1.0/(1.0im*R)+(R)^(-2))) * exp(1.0im*R)/(4*pi*d)
             
         end
     end
