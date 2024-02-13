@@ -4,6 +4,8 @@ import torch as np
 import scipy as sp
 from scipy.special import hankel1
 import hickle as hkl
+from juliacall import Main as jl
+from juliacall import Pkg as jlPkg
 
 
 I = np.tensor(onp.identity(3)).reshape(1,3,3) #identity matrix
@@ -366,7 +368,229 @@ class Transmission3D:
             onp.savetxt(file_name+'_lambdas_'+str(k0_)+'.csv', onp.stack([np.real(lambdas).numpy(), np.imag(lambdas).numpy()]).T)
 
         # Compute the trace part here
-        dos_factor= ((1 - lambdas)**2 / lambdas).sum()/Npoints
+        dos_factor = ((1 - lambdas)**2 / lambdas).sum()/Npoints
+        dos_factor *= 2.0 * onp.pi / (k0**3 * alpha)
+        dos_factor = np.imag(dos_factor)
+
+        return dos_factor
+    
+class Transmission3D_hmatrices:
+    
+
+    def __init__(self, points, source='beam'):
+        self.r = points.reshape(-1,3)
+        self.N = self.r.shape[0]
+        self.source = source
+        jlPkg.activate("Transmission3D")
+        jl.seval("using Transmission3D")
+    
+    
+    def generate_source(self, points, k0, u, p, w, print_statement = ''):
+        '''
+        Generates the EM field of a source at a set of points
+
+        points - (M,3)      coordinates of points
+        k0     - (1)        frequency of source beam
+        u      - (Ndirs, 3) propagation directions for the source
+        p      - (Ndirs, 3) polarization directions for the source
+        w      - (1)        beam waist for beam sources
+        '''
+        if self.source == 'beam':
+            k0_ = onp.round(k0/(2.0*onp.pi),1)
+            print('Calculating Beam Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
+            rpara = np.matmul(points,u.T)
+            rperp = np.linalg.norm(points.reshape(-1,3,1) - rpara.reshape(points.shape[0],1,u.shape[0])*u.T.reshape(1,3,-1),axis=1)
+            a = 2*rperp/(w*w*k0)
+            E0j = np.exp(1j*rpara*k0-(rperp**2/(w*w*(1+1j*a))))/np.sqrt(1+1j*a)
+            phi = np.arctan2(p[:,1], p[:,0]) #arctan(y/x)
+            theta = np.arccos(p[:,2]) #arccos(z/r), r=1 for unit vector
+            pvec = np.stack([np.sin(theta)*np.cos(phi), np.sin(theta)*np.sin(phi), p[:,2]])
+        elif self.source == 'plane':
+            k0_ = onp.round(k0/(2.0*onp.pi),1)
+            print('Calculating Plane Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
+            rpara = np.matmul(points,u.T)
+            E0j = np.exp(1j*rpara*k0)
+            phi = np.arctan2(p[:,1], p[:,0]) #arctan(y/x)
+            theta = np.arccos(p[:,2]) #arccos(z/r), r=1 for unit vector
+            pvec = np.stack([np.sin(theta)*np.cos(phi), np.sin(theta)*np.sin(phi), p[:,2]])
+        
+        return E0j.reshape(points.shape[0],1,-1)*pvec.reshape(1,3,-1)
+
+    def run(self, k0, alpha, u, p, radius, beam_waist, self_interaction=True):
+        '''
+        Solves the EM field at each scatterer
+
+        k0                  - (1)           frequency being measured
+        alpha               - (1)           bare static polarizability at given k0
+        u                   - (Ndirs, 3)    propagation directions for the source
+        p                   - (Ndirs, 3)    polarization directions for the source
+        radius              - (1)           radius of scatterers, used in self-interaction
+        beam_waist          - (1)           beam waist of Gaussian beam source
+        self_interaction    - (bool)        include or not self-interactions, defaults to True 
+        '''
+
+        # Generate source field for scatterer positions
+        E0j = self.generate_source(self.r, k0, u, p, beam_waist, print_statement='run') #(N,3,Ndirs)
+        
+        # Julia-side solver with Abstract Hierarchical Matrices
+        regularize = False # Not needed for solve part, writing it as a variable to make it clear what it is
+        use_lu = True # Whether to use an LU decomposition then solve from it, or to solve anew at every angle
+        atol = 0 # Absolute tolerance used in HMatrices
+        rtol = 1e-3 # Relative tolerance
+        debug = False
+        Ek = jl.Transmission3D.solve(self.r.numpy(), E0j.reshape(3*self.N,-1).numpy(), k0, alpha, radius, self_interaction, regularize = regularize, use_lu = use_lu, atol = atol, rtol = rtol, debug=debug)
+        
+        return Ek
+    
+    def calc(self, points, Ek, k0, alpha, u, p, beam_waist, regularize = False, radius=0.0):
+        '''
+        Calculates the EM field at a set of measurement points
+
+        points           - (M,3)         coordinates of all measurement points
+        Ek               - (N*3)         electromagnetic field at each scatterer
+        k0               - (1)           frequency being measured
+        alpha            - (1)           bare static polarizability at given k0
+        u                - (Ndirs, 3)    propagation directions for the source
+        p                - (Ndirs, 3)    polarization directions for the source
+        beam_waist       - (1)           beam waist
+        regularize       - bool          bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
+        radius           - (1)           considered scatterer radius, only used for regularization 
+        '''
+        points = np.tensor(points)
+        
+        # ensure u and p are all unit vectors
+        u /= np.linalg.norm(u,axis=-1).reshape(-1,1)
+        p /= np.linalg.norm(p,axis=-1).reshape(-1,1)
+        
+        # check polarization is orthogonal to propagation
+        assert np.sum(np.absolute(np.sum(u*p,axis=-1))) == 0
+
+        # generate source field for measurement points
+        E0j = self.generate_source(points, k0, u, p, beam_waist, print_statement='calc') #(M,3,Ndirs)
+        
+        # Compute full field
+        Ek_ = np.tensor(jl.Transmission3D.calc(self.r.numpy(), points.numpy(), Ek, k0, alpha, radius, regularize).to_numpy()).reshape(E0j.shape) + E0j
+        
+        # Take care of cases in which measurement points are exactly scatterer positions
+        for j in np.argwhere(np.isnan(Ek_[:,0,0])):
+            if regularize:
+                # If overlap, will just return the closest one
+                possible_idx = np.nonzero(np.linalg.norm(self.r-points[j],axis=-1) <= radius)
+                if possible_idx.shape[0] > 1:
+                    idx = np.argmin(np.linalg.norm(self.r-points[j], axis = -1))
+                else:
+                    idx = possible_idx
+                Ek_[j] = Ek.reshape(points.shape[0],3,-1)[idx]
+            else:
+                idx = np.nonzero(np.prod(self.r-points[j]==0,axis=-1))
+                Ek_[j] = Ek.reshape(points.shape[0],3,-1)[idx]
+                
+        return Ek_
+    
+    def calc_ss(self, points, k0, alpha, u, p, beam_waist, regularize = False, radius = 0.0):
+        '''
+        Calculates the EM field at a set of measurement points, using a single-scattering approximation
+
+        points           - (M,3)         coordinates of all measurement points
+        k0               - (1)           frequency being measured
+        alpha            - (1)           bare static polarizability at given k0
+        u                - (Ndirs, 3)    propagation directions for the source
+        p                - (Ndirs, 3)    polarization directions for the source
+        beam_waist       - (1)           beam waist
+        regularize       - bool          bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
+        radius           - (1)           considered scatterer radius, only used for regularization 
+        '''
+
+        points = np.tensor(points)
+        E0_meas = self.generate_source(points, k0, u, p, beam_waist, print_statement='calc_ss')
+        E0_scat = self.generate_source(self.r, k0, u, p, beam_waist, print_statement='calc_ss')
+        E0_scat = E0_scat.reshape(3*self.r.shape[0],-1)        
+        Ek_ = np.tensor(jl.Transmission3D.calc(self.r.numpy(), points.numpy(), E0_scat.numpy(), k0, alpha, radius, regularize).to_numpy().reshape(E0_meas.shape)) + E0_meas
+        
+        # Take care of cases in which measurement points are exactly scatterer positions
+        for j in np.argwhere(np.isnan(Ek_[:,0,0])):
+            if regularize:
+                # If overlap, will just return the closest one
+                possible_idx = np.nonzero(np.linalg.norm(self.r-points[j], axis = -1) <= radius)
+                if possible_idx.shape[0] > 1:
+                    idx = np.argmin(np.linalg.norm(self.r-points[j], axis = -1))
+                else:
+                    idx = possible_idx
+                Ek_[j] = E0_meas[idx]
+            else:
+                Ek_[j] = E0_meas[np.nonzero(np.prod(self.r-points[j]==0,axis=-1))]
+                
+        return Ek_
+    
+    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False, discard_absorption = False):
+        '''
+        Computes the LDOS averaged at a list of measurement points.
+        This computation is a bit less expensive than the actual LDOS one,
+        due to invariance of the trace under permutation and the use of Hadamard products
+        NB: This form of the calculation is only valid in the lossless case, alpha real.
+        Imaginary parts of alpha lead to diverging parts of the DOS close to scatterers, and will be discarded.
+        measure_points      - (M,3)  coordinates of points where the LDOS is evaluated
+        k0                  - (1)    frequency of source beam
+        alpha               - (1)    bare static polarizability at given k0
+        radius              - (1)    radius of the scatterers
+        self_interaction    - (bool) include or not self-interactions, defaults to True 
+        regularize - bool       bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
+        '''
+
+        Npoints = measure_points.shape[0]
+        k0_ = onp.round(k0/(2.0*onp.pi),1)
+        print("Computing mean DOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
+
+        ### Calculation
+        dos_factor = jl.Transmission3D.mean_dos(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, regularize=regularize, discard_absorption=discard_absorption)
+
+        return dos_factor
+
+    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False, discard_absorption = False):
+        '''
+        Computes the LDOS at a list of measurement points
+        This computation is fairly expensive, the number of measurement points should be small to avoid saturating resources
+        NB: This form of the calculation is only valid in the lossless case, alpha real.
+        Imaginary parts of alpha lead to diverging parts of the DOS close to scatterers, and will be discarded.
+        measure_points      - (M,3)  coordinates of points where the LDOS is evaluated
+        k0                  - (1)    frequency of source beam
+        alpha               - (1)    bare static polarizability at given k0
+        radius              - (1)    radius of the scatterers
+        self_interaction    - (bool) include or not self-interactions, defaults to True
+        regularize          - bool   bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
+        '''
+        
+        ### Calculation
+        ldos_factor = jl.Transmission3D.ldos(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, regularize=regularize, discard_absorption=discard_absorption)
+        ldos_factor = np.tensor(ldos_factor).unsqueeze(1)
+
+        return ldos_factor
+
+    def compute_eigenvalues_and_scatterer_LDOS(self, k0, alpha, radius, file_name, self_interaction= True, write_eigenvalues=True):
+        '''
+        Computes the eigenvalues of the Green's matrix, and the corresponding LDOS at scatterers, for TM and TE.
+        This computation is way less expensive than the other LDOS, due to simple dependence on the eigenvalues
+        measure_points      - (M,3)  coordinates of points where the LDOS is evaluated
+        k0                  - (1)    frequency of source beam
+        alpha               - (1)    bare static polarizability at given k0
+        radius              - (1)    radius of the scatterers
+        self_interaction    - (bool) include or not self-interactions, defaults to True 
+        '''
+
+        print("eigvals not implemented in HMatrices")
+        sys.exit()
+
+        k0_ = onp.round(k0/(2.0*onp.pi),1)
+        Npoints = self.r.shape[0]
+        print("Computing spectrum and scatterer LDOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
+
+        lambdas = jl.Transmission3D.spectrum(self.r.numpy(), k0, alpha, radius, self_interaction)
+        
+        if write_eigenvalues:
+            onp.savetxt(file_name+'_lambdas_'+str(k0_)+'.csv', onp.stack([np.real(lambdas).numpy(), np.imag(lambdas).numpy()]).T)
+
+        # Compute the trace part here
+        dos_factor = ((1 - lambdas)**2 / lambdas).sum()/Npoints
         dos_factor *= 2.0 * onp.pi / (k0**3 * alpha)
         dos_factor = np.imag(dos_factor)
 

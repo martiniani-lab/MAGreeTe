@@ -11,7 +11,7 @@ import sys
 import os
 import utils
 from Transmission2D import Transmission2D, Transmission2D_hmatrices
-from Transmission3D import Transmission3D
+from Transmission3D import Transmission3D, Transmission3D_hmatrices
 import lattices
 
 
