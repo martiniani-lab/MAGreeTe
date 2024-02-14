@@ -613,7 +613,7 @@ def main(ndim, # Required arguments
                 utils.plot_2d_points(measurement_points, file_name+'_measurement')
 
                 for k0, alpha in zip(k0range,alpharange):
-                    dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, file_name, regularize=regularize)
+                    dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize=regularize)
                     if method == "torch":
                         DOSall_TE.append(dos_TE.numpy())
                         DOSall_TM.append(dos_TM.numpy())
@@ -668,7 +668,7 @@ def main(ndim, # Required arguments
                 utils.plot_2d_points(measurement_points, file_name+'_measurement')
 
                 for k0, alpha in zip(k0range,alpharange):
-                    dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, file_name, regularize=regularize)
+                    dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize=regularize)
                     if method == "torch":
                         DOSall_TE.append(dos_TE.numpy())
                         DOSall_TM.append(dos_TM.numpy())
@@ -1080,8 +1080,11 @@ def main(ndim, # Required arguments
                 utils.plot_3d_points(measurement_points, file_name+'_measurement')
 
                 for k0, alpha in zip(k0range,alpharange):
-                    dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, file_name, regularize=regularize)
-                    DOSall.append(dos.numpy())
+                    dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize=regularize)
+                    if method == "torch":
+                        DOSall.append(dos.numpy())
+                    else:
+                        DOSall.append(dos)
 
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                     k0_range.append(k0_)
@@ -1126,8 +1129,11 @@ def main(ndim, # Required arguments
                 utils.plot_3d_points(measurement_points, file_name+'_measurement')
 
                 for k0, alpha in zip(k0range,alpharange):
-                    dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, file_name, regularize=regularize)
-                    DOSall.append(dos.numpy())
+                    dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize=regularize)
+                    if method == "torch":
+                        DOSall.append(dos.numpy())
+                    else:
+                        DOSall.append(dos)
 
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                     k0_range.append(k0_)
