@@ -87,7 +87,7 @@ def uniform_unit_ball_picking(n_points, dim):
     points = normals/(np.linalg.norm(proxies, axis=-1)).reshape(n_points,1)
 
 
-    return points
+    return np.tensor(points, dtype = np.float64)
 
 
 def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,  n_thetas_trans = 0.0, adapt_scale = False, normalization = [], appended_string=''):

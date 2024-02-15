@@ -10,8 +10,8 @@ import hickle as hkl
 import sys
 import os
 import utils
-from Transmission2D import Transmission2D, Transmission2D_hmatrices
-from Transmission3D import Transmission3D, Transmission3D_hmatrices
+from Transmission2D import Transmission2D_scalar, Transmission2D_scalar_hmatrices
+from Transmission3D import Transmission3D_scalar, Transmission3D_scalar_hmatrices
 import lattices
 
 
@@ -21,13 +21,13 @@ import argparse
 def main(ndim, # Required arguments
         refractive_n = 1.65 - 0.025j, phi = 0.1, regularize = True, N_raw = 16384, beam_waist = 0.2, L = 1, # Physical parameters
         lattice=None, cold_atoms=False, annulus = 0, composite = False, kick = 0.0, input_files_args = None, method = "torch", # Special cases
-        k0range_args = None, thetarange_args = None,# Range of values to use
+        k0range_args = None, thetarange_args = None, # Range of values to use
         compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, scattered_fields=False, transmission_radius = 2.0,
         compute_DOS=False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, intensity_fields = False, amplitude_fields = False, phase_fields = False, just_compute_averages = False,# Computations to perform
         dospoints=1, spacing_factor = 1.0,  write_eigenvalues=False, write_ldos= False,  gridsize=(301,301), window_width=1.2, angular_width = 0.0, plot_theta_index = 0, batch_size = 101*101, output_directory="" # Parameters for outputs
         ):
     '''
-    Simple front-end for MAGreeTe
+    Simple front-end for MAGreeTe with scalar waves
     '''
 
 
@@ -44,6 +44,7 @@ def main(ndim, # Required arguments
         output_directory_suffix +="_kicked_"+str(kick)
     if regularize:
         output_directory_suffix += "_reg"
+    output_directory_suffix += "_scalar"
 
     # Angles to use for transmission and fields
     if thetarange_args == None:
@@ -217,10 +218,6 @@ def main(ndim, # Required arguments
         # Also plot the values of ka to check whether hypotheses are consistent
         utils.plot_k_times_radius(k0range, radius, L, file_name)
 
-        # If the code is run solely to put together data already obtained for several copies, skip this
-        if just_compute_averages:
-            break
-
         ### ###############
         ### 2d calculations
         ### ###############
@@ -235,150 +232,111 @@ def main(ndim, # Required arguments
                 # A fresh computation is required
                 if compute_transmission: 
                     if method == "torch":
-                        solver = Transmission2D(points)
+                        solver = Transmission2D_scalar(points)
                     elif method == "hmatrices":
-                        solver = Transmission2D_hmatrices(points)
+                        solver = Transmission2D_scalar_hmatrices(points)
                     else:
                         print("Choose a valid method")
                         sys.exit()
-                    ETEall = []
-                    ETMall = []
-                    E0TEall = []
-                    E0TMall = []
-                    ETEall_scat = []
-                    ETMall_scat = []
+                    Eall = []
+                    E0all = []
+                    Eall_scat = []
                     
                     for k0, alpha in zip(k0range,alpharange):
-                        EjTE, EjTM = solver.run_EM(k0, alpha, thetas, radius, w, self_interaction=self_interaction)
+                        Ej = solver.run(k0, alpha, thetas, radius, w, self_interaction=self_interaction)
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                         params = [alpha, k0]
-                        hkl.dump([onp.array(EjTE), onp.array(EjTM), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
+                        hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
 
-                        EkTE, EkTM = solver.calc_EM(measurement_points, EjTE, EjTM, k0, alpha, thetas, w, regularize = regularize, radius=radius)
+                        Ek = solver.calc(measurement_points, Ej, k0, alpha, thetas, w, regularize = regularize, radius=radius)
                         
-                        E0TM, u_meas = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='scattered_fields')
-                        E0TE = E0TM.reshape(measurement_points.shape[0],1,len(thetas))*u_meas
+                        E0 = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='scattered_fields')
 
                         if scattered_fields:
-                            EkTM_scat = EkTM - E0TM
-                            EkTE_scat = EkTE - E0TE
-                            ETEall_scat.append(EkTE_scat.numpy())
-                            ETMall_scat.append(EkTM_scat.numpy())
+                            Ek_scat = Ek - E0
+                            Eall_scat.append(Ek_scat.numpy())
 
-                        E0TEall.append(E0TE.numpy())
-                        E0TMall.append(E0TM.numpy())
+                        E0all.append(E0.numpy())
                         
-                        ETEall.append(EkTE.numpy())
-                        ETMall.append(EkTM.numpy())
+                        Eall.append(Ek.numpy())
 
                 # A computation has already been performed
                 elif plot_transmission:
 
-                    ETEall = []
-                    ETMall = []
-                    E0TEall = []
-                    E0TMall = []
-                    ETEall_scat = []
-                    ETMall_scat = []
+                    Eall = []
+                    E0all = []
+                    Eall_scat = []
+
 
                     for k0, alpha in zip(k0range,alpharange):
                         
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                        EjTE, EjTM, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
-                        EjTE = np.tensor(EjTE, dtype=np.complex128)
-                        EjTM = np.tensor(EjTM, dtype=np.complex128)
+                        Ej, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
+                        Ej = np.tensor(Ej, dtype=np.complex128)
                         points = np.tensor(points, dtype=np.float64)
                         thetas = onp.float64(thetas)
                         alpha, k0 = params
                         k0 = onp.float64(k0)
                         alpha = onp.complex128(alpha)
                         if method == "torch":
-                            solver = Transmission2D(points)
+                            solver = Transmission2D_scalar(points)
                         elif method == "hmatrices":
-                            solver = Transmission2D_hmatrices(points)
+                            solver = Transmission2D_scalar_hmatrices(points)
                         else:
                             print("Choose a valid method")
                             sys.exit()
 
-                        EkTE, EkTM = solver.calc_EM(measurement_points, EjTE, EjTM, k0, alpha, thetas, w, regularize=regularize, radius=radius)
+                        Ek = solver.calc(measurement_points, Ej, k0, alpha, thetas, w, regularize=regularize, radius=radius)
+                        E0 = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='scattered_fields')
                         
-                        E0TM, u_meas = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='scattered_fields')
-                        E0TE = E0TM.reshape(measurement_points.shape[0],1,len(thetas))*u_meas
                         if scattered_fields:
-                            EkTM_scat = EkTM - E0TM
-                            EkTE_scat = EkTE - E0TE
-                            ETEall_scat.append(EkTE_scat.numpy())
-                            ETMall_scat.append(EkTM_scat.numpy())
+                            Ek_scat = Ek - E0
+                            Eall_scat.append(Ek_scat.numpy())
                         
+                        E0all.append(E0.numpy())
+                        Eall.append(Ek.numpy())
 
-                        E0TEall.append(E0TE.numpy())
-                        E0TMall.append(E0TM.numpy())
-
-                        ETEall.append(EkTE.numpy())
-                        ETMall.append(EkTM.numpy())
-
-                hkl.dump([onp.array(ETEall), onp.array(ETMall), onp.array(k0range), onp.array(thetas)],file_name+'_transmission_'+str(file_index)+'.hkl')
+                hkl.dump([onp.array(Eall), onp.array(k0range), onp.array(thetas)],file_name+'_transmission_'+str(file_index)+'.hkl')
 
                 # If required: plot results
                 if plot_transmission:
                     # Compute intensities at measurement points
-                    ETEall = onp.array(ETEall)
-                    ETMall = onp.array(ETMall)
-                    TEtotal = onp.absolute(ETEall)**2
-                    TEtotal = onp.sum(TEtotal, axis=2)
-                    TMtotal = onp.absolute(ETMall)**2
+                    Eall = onp.array(Eall)
+                    total = onp.absolute(Eall)**2
 
                     # Produce plots
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM')
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, TEtotal, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE')
-                    utils.plot_transmission_flat(k0range, L, thetas, TMtotal, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM')
-                    utils.plot_transmission_flat(k0range, L, thetas, TEtotal, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE')
-                    utils.plot_angular_averaged_transmission(k0range, L, TMtotal, file_name, appended_string='_'+str(file_index)+'_TM')
-                    utils.plot_angular_averaged_transmission(k0range, L, TEtotal, file_name, appended_string='_'+str(file_index)+'_TE')
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, total, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index))
+                    utils.plot_transmission_flat(k0range, L, thetas, total, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index))
+                    utils.plot_angular_averaged_transmission(k0range, L, total, file_name, appended_string='_'+str(file_index))
                     plot_theta = onp.round(180 * thetas[plot_theta_index]/onp.pi)
-                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TMtotal, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TM_angle_'+str(plot_theta))
-                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TEtotal, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TE_angle_'+str(plot_theta))
+                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, total, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(plot_theta))
                     
                     # Produce transmission normalized by total intensity of the INCIDENT FIELD on the sphere
-                    I0TMall = onp.absolute(E0TMall)**2
-                    I0TEall = onp.absolute(E0TEall)**2
-                    I0TEall = onp.sum(I0TEall, axis = 2)
+                    I0all = onp.absolute(E0all)**2
 
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0TMall, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_incnorm')
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, TEtotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0TEall, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_incnorm')
-                    utils.plot_transmission_flat(k0range, L, thetas, TMtotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0TMall, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_incnorm')
-                    utils.plot_transmission_flat(k0range, L, thetas, TEtotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0TEall, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_incnorm')
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, total, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0all, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
+                    utils.plot_transmission_flat(k0range, L, thetas, total, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0all, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
 
                     # Same but with total field
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = TMtotal, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_norm')
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, TEtotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = TEtotal, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_norm')
-                    utils.plot_transmission_flat(k0range, L, thetas, TMtotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = TMtotal, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_norm')
-                    utils.plot_transmission_flat(k0range, L, thetas, TEtotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = TEtotal, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_norm')
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, total, file_name,  n_thetas_trans = n_thetas_trans, normalization = total, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
+                    utils.plot_transmission_flat(k0range, L, thetas, total, file_name,  n_thetas_trans = n_thetas_trans, normalization = total, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
 
 
 
                     if scattered_fields:
                         # Compute scattered intensities at measurement points
-                        ETEall_scat = onp.array(ETEall_scat)
-                        ETMall_scat = onp.array(ETMall_scat)
-                        TEtotal_scat = onp.absolute(ETEall_scat)**2
-                        TEtotal_scat = onp.sum(TEtotal_scat, axis=2)
-                        TMtotal_scat = onp.absolute(ETMall_scat)**2
+                        Eall_scat = onp.array(Eall_scat)
+                        total_scat = onp.absolute(Eall_scat)**2
                         
                         # Produce plots
-                        utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_scat')
-                        utils.plot_transmission_angularbeam(k0range, L, thetas, TEtotal_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_scat')
-                        utils.plot_transmission_flat(k0range, L, thetas, TMtotal_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_scat')
-                        utils.plot_transmission_flat(k0range, L, thetas, TEtotal_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_scat')
-                        utils.plot_angular_averaged_transmission(k0range, L, TMtotal_scat, file_name, appended_string='_'+str(file_index)+'_TM_scat')
-                        utils.plot_angular_averaged_transmission(k0range, L, TEtotal_scat, file_name, appended_string='_'+str(file_index)+'_TE_scat')
+                        utils.plot_transmission_angularbeam(k0range, L, thetas, total_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat')
+                        utils.plot_transmission_flat(k0range, L, thetas, total_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat')
+                        utils.plot_angular_averaged_transmission(k0range, L, total_scat, file_name, appended_string='_'+str(file_index)+'_scat')
                         plot_theta = onp.round(180 * thetas[plot_theta_index]/onp.pi)
-                        utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TMtotal_scat, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TM_angle_'+str(plot_theta)+'_scat')
-                        utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TEtotal_scat, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TE_angle_'+str(plot_theta)+'_scat')
+                        utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, total_scat, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(plot_theta)+'_scat')
                  
                         # Also produce scattered field normalised by total scattered intensity
-                        utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = TMtotal_scat, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_scat_norm')
-                        utils.plot_transmission_angularbeam(k0range, L, thetas,  TEtotal_scat, file_name, n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = TEtotal_scat, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_scat_norm')
+                        utils.plot_transmission_angularbeam(k0range, L, thetas, total_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = total_scat, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_norm')
                         
 
                             
@@ -387,97 +345,68 @@ def main(ndim, # Required arguments
                 # Define the list of measurement points for transmission plots
                 measurement_points = transmission_radius*L*onp.vstack([onp.cos(thetas),onp.sin(thetas)]).T
                 if method == "torch":
-                    solver = Transmission2D(points)
+                    solver = Transmission2D_scalar(points)
                 elif method == "hmatrices":
-                    solver = Transmission2D_hmatrices(points)
+                    solver = Transmission2D_scalar_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
-                ETEall_ss = []
-                ETMall_ss = []
-                ETEall_scat_ss = []
-                ETMall_scat_ss = []
+                    
+                Eall_ss = []
+                Eall_scat_ss = []
                 
                 for k0, alpha in zip(k0range,alpharange):
                     
-                    EkTE_ss, EkTM_ss = solver.calc_EM_ss(measurement_points, k0, alpha, thetas, w, regularize=regularize, radius=radius)
+                    Ek_ss = solver.calc_ss(measurement_points, k0, alpha, thetas, w, regularize=regularize, radius=radius)
                     
                     if scattered_fields:
-                        E0TM, u_meas = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='scattered_fields')
-                        E0TE = E0TM.reshape(measurement_points.shape[0],1,len(thetas))*u_meas
-                        EkTM_scat_ss = EkTM_ss - E0TM
-                        EkTE_scat_ss = EkTE_ss - E0TE
-                        ETEall_scat_ss.append(EkTE_scat_ss.numpy())
-                        ETMall_scat_ss.append(EkTM_scat_ss.numpy())
+                        E0 = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='scattered_fields')
+                        Ek_scat_ss = Ek_ss - E0
+                        Eall_scat_ss.append(Ek_scat_ss.numpy())
                     
-                    ETEall_ss.append(EkTE_ss.numpy())
-                    ETMall_ss.append(EkTM_ss.numpy())
+                    Eall_ss.append(Ek_ss.numpy())
                     
                 # Compute intensities at measurement points
-                ETEall_ss = onp.array(ETEall_ss)
-                ETMall_ss = onp.array(ETMall_ss)
-                TEtotal_ss = onp.absolute(ETEall_ss)**2
-                TEtotal_ss = onp.sum(TEtotal_ss, axis=2)
-                TMtotal_ss = onp.absolute(ETMall_ss)**2
+                Eall_ss = onp.array(Eall_ss)
+                total_ss = onp.absolute(Eall_ss)**2
                 
                 # Produce plots
-                utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_ss')
-                utils.plot_transmission_angularbeam(k0range, L, thetas,  TEtotal_ss, file_name, n_thetas_trans = n_thetas_trans, adapt_scale = True,  appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_ss')
-                utils.plot_transmission_flat(k0range, L, thetas, TMtotal_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_ss')
-                utils.plot_transmission_flat(k0range, L, thetas, TEtotal_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_ss')
-                utils.plot_angular_averaged_transmission(k0range, L, TMtotal_ss, file_name, appended_string='_'+str(file_index)+'_TM_ss')
-                utils.plot_angular_averaged_transmission(k0range, L, TEtotal_ss, file_name, appended_string='_'+str(file_index)+'_TE_ss')
+                utils.plot_transmission_angularbeam(k0range, L, thetas, total_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_ss')
+                utils.plot_transmission_flat(k0range, L, thetas, total_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_ss')
+                utils.plot_angular_averaged_transmission(k0range, L, total_ss, file_name, appended_string='_'+str(file_index)+'_ss')
                 theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
-                utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TMtotal_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TM_angle_'+str(theta_plot)+'_ss')
-                utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas,  TEtotal_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TE_angle_'+str(theta_plot)+'_ss')
+                utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, total_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TM_angle_'+str(theta_plot)+'_ss')
                 
                 if plot_transmission:
                     # Also compute the intensity associated to the multiple-scattering contribution of the field, if the full field was computed
-                    ETEall_multiple = ETEall - ETEall_ss
-                    ETMall_multiple = ETMall - ETMall_ss
-                    TEtotal_multiple = onp.absolute(ETEall_multiple)**2
-                    TEtotal_multiple = onp.sum(TEtotal_multiple, axis=2)
-                    TMtotal_multiple = onp.absolute(ETMall_multiple)**2
+                    Eall_multiple = Eall - Eall_ss
+                    total_multiple = onp.absolute(Eall_multiple)**2
 
                     # Produce plots
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal_multiple, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_multiple')
-                    utils.plot_transmission_angularbeam(k0range, L, thetas,  TEtotal_multiple, file_name, n_thetas_trans = n_thetas_trans, adapt_scale = True,  appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_multiple')
-                    utils.plot_transmission_flat(k0range, L, thetas, TMtotal_multiple, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_multiple')
-                    utils.plot_transmission_flat(k0range, L, thetas, TEtotal_multiple, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_multiple')
-                    utils.plot_angular_averaged_transmission(k0range, L, TMtotal_multiple, file_name, appended_string='_'+str(file_index)+'_TM_multiple')
-                    utils.plot_angular_averaged_transmission(k0range, L, TEtotal_multiple, file_name, appended_string='_'+str(file_index)+'_TE_multiple')
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, total_multiple, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_multiple')
+                    utils.plot_transmission_flat(k0range, L, thetas, total_multiple, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_multiple')
+                    utils.plot_angular_averaged_transmission(k0range, L, total_multiple, file_name, appended_string='_'+str(file_index)+'_multiple')
                     theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
-                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TMtotal_multiple, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TM_angle_'+str(theta_plot)+'_multiple')
-                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas,  TEtotal_multiple, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TE_angle_'+str(theta_plot)+'_multiple')
+                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, total_multiple, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_multiple')
 
 
                 if scattered_fields:
                     # Compute scattered intensities at measurement points
-                    ETEall_scat_ss = onp.array(ETEall_scat_ss)
-                    ETMall_scat_ss = onp.array(ETMall_scat_ss)
-                    TEtotal_scat_ss = onp.absolute(ETEall_scat_ss)**2
-                    TEtotal_scat_ss = onp.sum(TEtotal_scat_ss, axis=2)
-                    TMtotal_scat_ss = onp.absolute(ETMall_scat_ss)**2
+                    Eall_scat_ss = onp.array(Eall_scat_ss)
+                    total_scat_ss = onp.absolute(Eall_scat_ss)**2
                     
                     # Produce plots
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_scat_ss')
-                    utils.plot_transmission_angularbeam(k0range, L, thetas,  TEtotal_scat_ss, file_name, n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_scat_ss')
-                    utils.plot_transmission_flat(k0range, L, thetas, TMtotal_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_scat_ss')
-                    utils.plot_transmission_flat(k0range, L, thetas, TEtotal_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_scat_ss')
-                    utils.plot_angular_averaged_transmission(k0range, L, TMtotal_scat_ss, file_name, appended_string='_'+str(file_index)+'_TM_scat_ss')
-                    utils.plot_angular_averaged_transmission(k0range, L, TEtotal_scat_ss, file_name, appended_string='_'+str(file_index)+'_TE_scat_ss')
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, total_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss')
+                    utils.plot_transmission_flat(k0range, L, thetas, total_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss')
+                    utils.plot_angular_averaged_transmission(k0range, L, total_scat_ss, file_name, appended_string='_'+str(file_index)+'_scat_ss')
                     theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
-                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TMtotal_scat_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TM_angle_'+str(theta_plot)+'_scat_ss')
-                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas,  TEtotal_scat_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TE_angle_'+str(theta_plot)+'_scat_ss')
+                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, total_scat_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_scat_ss')
 
-                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, TMtotal_scat_ss, file_name, plot_theta_index = plot_theta_index, normalization=TMtotal_scat_ss, appended_string='_'+str(file_index)+'_TM_angle_'+str(theta_plot)+'_scat_ss_norm')
-                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas,  TEtotal_scat_ss, file_name, plot_theta_index = plot_theta_index, normalization=TEtotal_scat_ss, appended_string='_'+str(file_index)+'_TE_angle_'+str(theta_plot)+'_scat_ss_norm')
+                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, total_scat_ss, file_name, plot_theta_index = plot_theta_index, normalization=total_scat_ss, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_scat_ss_norm')
 
                     # Also produce scattered field normalised by total scattered intensity
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, TMtotal_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = TMtotal_scat_ss, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_scat_ss_norm')
-                    utils.plot_transmission_angularbeam(k0range, L, thetas,  TEtotal_scat_ss, file_name, n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = TEtotal_scat_ss, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_scat_ss_norm')
-                    utils.plot_transmission_flat(k0range, L, thetas, TMtotal_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = TMtotal_scat_ss, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TM_scat_ss_norm')
-                    utils.plot_transmission_flat(k0range, L, thetas, TEtotal_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = TEtotal_scat_ss, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_TE_scat_ss_norm')
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, total_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = total_scat_ss, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss_norm')
+                    utils.plot_transmission_flat(k0range, L, thetas, total_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = total_scat_ss, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss_norm')
                     
 
 
@@ -503,9 +432,9 @@ def main(ndim, # Required arguments
 
                 thetas_plot_indices = onp.searchsorted(thetas, thetas_plot)
                 if method == "torch":
-                    solver = Transmission2D(points)
+                    solver = Transmission2D_scalar(points)
                 elif method == "hmatrices":
-                    solver = Transmission2D_hmatrices(points)
+                    solver = Transmission2D_scalar_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -518,92 +447,71 @@ def main(ndim, # Required arguments
                     file = file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl'
                     # File is there: load data
                     if os.path.isfile(file):
-                        EjTE, EjTM, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
-                        EjTE = np.tensor(EjTE, dtype=np.complex128)
-                        EjTM = np.tensor(EjTM, dtype=np.complex128)
+                        Ej, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
+                        Ej = np.tensor(Ej, dtype=np.complex128)
                         points = np.tensor(points, dtype=np.complex128)
                         thetas = onp.float64(thetas)
                         alpha, k0 = params
                         k0 = onp.float64(k0)
                         alpha = onp.complex128(alpha)
                     else:
-                        EjTE, EjTM = solver.run_EM(k0, alpha, thetas, radius, w, self_interaction=self_interaction)
+                        Ej = solver.run(k0, alpha, thetas, radius, w, self_interaction=self_interaction)
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                         params = [alpha, k0]
-                        hkl.dump([onp.array(EjTE), onp.array(EjTM), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
+                        hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
 
                     for index, angle in zip(thetas_plot_indices, thetas_plot):
                         angle_ = onp.round(angle*180/onp.pi)
                         print("angle = "+str(angle_)+"degrees")
 
-                        ETEall = []
-                        ETMall = []
+                        Eall = []
 
                         for batch in range(0, n_batches):
                             print("Batch "+str(batch+1))
                             batch_points = batches[batch]
 
-                            EkTE, EkTM = solver.calc_EM(batch_points, EjTE[:,index], EjTM[:,index].unsqueeze(-1), k0, alpha, [angle], w, regularize=regularize, radius=radius)
+                            Ek = solver.calc(batch_points, Ej[:,index].unsqueeze(-1), k0, alpha, [angle], w, regularize=regularize, radius=radius)
 
-                            ETEall.append(EkTE)
-                            ETMall.append(EkTM)
+                            Eall.append(Ek)
 
 
-                        ETEall = np.cat(ETEall, dim=0).squeeze(-1)
-                        ETMall = np.cat(ETMall, dim=0)
+                        Eall = np.cat(Eall, dim=0)
+                        Eall = Eall.reshape(ngridy, ngridx)
 
-                        ETEall_amplitude         = np.sqrt(ETEall[:,0]**2 + ETEall[:,1]**2) #XXX Wrong? 
-                        ETEall_longitudinal      = ETEall[:,0]*onp.cos(angle) - ETEall[:,1]*onp.sin(angle)
-                        ETEall_transverse        = ETEall[:,0]*onp.sin(angle) + ETEall[:,1]*onp.cos(angle)
-
-                        ETEall_amplitude    = ETEall_amplitude.reshape(ngridy, ngridx)
-                        ETEall_longitudinal = ETEall_longitudinal.reshape(ngridy, ngridx)
-                        ETEall_transverse   = ETEall_transverse.reshape(ngridy, ngridx)
-                        ETMall = ETMall.reshape(ngridy, ngridx)
-
-                        utils.plot_full_fields(ETEall_amplitude, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE', my_dpi = 300)
-                        utils.plot_full_fields(ETEall_longitudinal, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE_long', my_dpi = 300)
-                        utils.plot_full_fields(ETEall_transverse, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE_trans', my_dpi = 300)
-                        utils.plot_full_fields(ETMall, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TM', my_dpi = 300)
+                        utils.plot_full_fields(Eall, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index), my_dpi = 300)
 
             if compute_SDOS:
                 if method == "torch":
-                    solver = Transmission2D(points)
+                    solver = Transmission2D_scalar(points)
                 elif method == "hmatrices":
-                    solver = Transmission2D_hmatrices(points)
+                    solver = Transmission2D_scalar_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
-                DOSall_TE = []
-                DOSall_TM = []
+                DOSall = []
                 k0_range = []
 
                 for k0, alpha in zip(k0range,alpharange):
-                    dos_TE, dos_TM = solver.compute_eigenvalues_and_scatterer_LDOS( k0, alpha, radius, file_name, write_eigenvalues=write_eigenvalues)
-                    DOSall_TE.append(dos_TE.numpy())
-                    DOSall_TM.append(dos_TM.numpy())
+                    dos = solver.compute_eigenvalues_and_scatterer_LDOS( k0, alpha, radius, file_name, write_eigenvalues=write_eigenvalues)
+                    DOSall.append(dos.numpy())
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                     k0_range.append(k0_)
 
-                    onp.savetxt(file_name+'_temp_sdos_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
-                    onp.savetxt(file_name+'_temp_sdos_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+                    onp.savetxt(file_name+'_temp_sdos.csv',onp.stack([k0_range,DOSall]).T)
 
-                onp.savetxt(file_name+'_sdos_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
-                onp.savetxt(file_name+'_sdos_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+                onp.savetxt(file_name+'_sdos.csv',onp.stack([k0_range,DOSall]).T)
 
-                utils.plot_averaged_DOS(k0range, L, DOSall_TE, file_name, 'sdos', appended_string='_'+str(file_index)+'_TE')
-                utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'sdos', appended_string='_'+str(file_index)+'_TM')
+                utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'sdos', appended_string='_'+str(file_index))
 
             if compute_DOS:
                 if method == "torch":
-                    solver = Transmission2D(points)
+                    solver = Transmission2D_scalar(points)
                 elif method == "hmatrices":
-                    solver = Transmission2D_hmatrices(points)
+                    solver = Transmission2D_scalar_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
-                DOSall_TE = []
-                DOSall_TM = []
+                DOSall = []
                 k0_range = []
 
                 M = dospoints
@@ -613,36 +521,30 @@ def main(ndim, # Required arguments
                 utils.plot_2d_points(measurement_points, file_name+'_measurement')
 
                 for k0, alpha in zip(k0range,alpharange):
-                    dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize=regularize)
+                    dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize=regularize)
                     if method == "torch":
-                        DOSall_TE.append(dos_TE.numpy())
-                        DOSall_TM.append(dos_TM.numpy())
+                        DOSall.append(dos.numpy())
                     else:
-                        DOSall_TE.append(dos_TE)
-                        DOSall_TM.append(dos_TM)
+                        DOSall.append(dos)
 
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                     k0_range.append(k0_)
 
-                    onp.savetxt(file_name+'_temp_dos_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
-                    onp.savetxt(file_name+'_temp_dos_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+                    onp.savetxt(file_name+'_temp_dos.csv',onp.stack([k0_range,DOSall]).T)
 
-                onp.savetxt(file_name+'_dos_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
-                onp.savetxt(file_name+'_dos_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+                onp.savetxt(file_name+'_dos.csv',onp.stack([k0_range,DOSall]).T)
 
-                utils.plot_averaged_DOS(k0range, L, DOSall_TE, file_name, 'dos', appended_string='_'+str(file_index)+'_TE')
-                utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'dos', appended_string='_'+str(file_index)+'_TM')
+                utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'dos', appended_string='_'+str(file_index))
 
             if compute_interDOS:
                 if method == "torch":
-                    solver = Transmission2D(points)
+                    solver = Transmission2D_scalar(points)
                 elif method == "hmatrices":
-                    solver = Transmission2D_hmatrices(points)
+                    solver = Transmission2D_scalar_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
-                DOSall_TE = []
-                DOSall_TM = []
+                DOSall = []
                 k0_range = []
 
                 M = dospoints
@@ -668,31 +570,26 @@ def main(ndim, # Required arguments
                 utils.plot_2d_points(measurement_points, file_name+'_measurement')
 
                 for k0, alpha in zip(k0range,alpharange):
-                    dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize=regularize)
+                    dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize=regularize)
                     if method == "torch":
-                        DOSall_TE.append(dos_TE.numpy())
-                        DOSall_TM.append(dos_TM.numpy())
+                        DOSall.append(dos.numpy())
                     else:
-                        DOSall_TE.append(dos_TE)
-                        DOSall_TM.append(dos_TM)
+                        DOSall.append(dos)
 
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                     k0_range.append(k0_)
 
-                    onp.savetxt(file_name+'_temp_idos_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
-                    onp.savetxt(file_name+'_temp_idos_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+                    onp.savetxt(file_name+'_temp_idos.csv',onp.stack([k0_range,DOSall]).T)
 
-                onp.savetxt(file_name+'_idos_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
-                onp.savetxt(file_name+'_idos_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+                onp.savetxt(file_name+'_idos.csv',onp.stack([k0_range,DOSall]).T)
 
-                utils.plot_averaged_DOS(k0range, L, DOSall_TE, file_name, 'idos', appended_string='_'+str(file_index)+'_TE')
-                utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'idos', appended_string='_'+str(file_index)+'_TM')
+                utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'idos', appended_string='_'+str(file_index))
 
             if compute_LDOS:
                 if method == "torch":
-                    solver = Transmission2D(points)
+                    solver = Transmission2D_scalar(points)
                 elif method == "hmatrices":
-                    solver = Transmission2D_hmatrices(points)
+                    solver = Transmission2D_scalar_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -716,33 +613,27 @@ def main(ndim, # Required arguments
 
                 for k0, alpha in zip(k0range,alpharange):
 
-                    outputs_TE = []
-                    outputs_TM = []
+                    outputs = []
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
 
                     for batch in range(0, n_batches):
                         print("Batch "+str(batch+1))
                         batch_points = batches[batch]
-                        ldos_TE, ldos_TM = solver.LDOS_measurements(batch_points, k0, alpha, radius, regularize=regularize)
+                        ldos = solver.LDOS_measurements(batch_points, k0, alpha, radius, regularize=regularize)
 
-                        outputs_TE.append(ldos_TE)
-                        outputs_TM.append(ldos_TM)
+                        outputs.append(ldos)
 
                     #    onp.savetxt(file_name+'_temp_ldos_'+str(k0_)+'_TE.csv',np.cat(outputs_TE).numpy())
                     #    onp.savetxt(file_name+'_temp_ldos_'+str(k0_)+'_TM.csv',np.cat(outputs_TM).numpy())
 
-                    ldos_TE = np.cat(outputs_TE)
-                    ldos_TM = np.cat(outputs_TM)
+                    ldos = np.cat(outputs)
                     
-                    ldos_TE = ldos_TE.reshape(ngridy, ngridx)
-                    ldos_TM = ldos_TM.reshape(ngridy, ngridx)
+                    ldos = ldos.reshape(ngridy, ngridx)
 
-                    utils.plot_LDOS_2D(ldos_TE,k0_,ngridx,ngridy,file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE', my_dpi = 300)
-                    utils.plot_LDOS_2D(ldos_TM,k0_,ngridx,ngridy,file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TM', my_dpi = 300)
+                    utils.plot_LDOS_2D(ldos,k0_,ngridx,ngridy,file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index), my_dpi = 300)
 
                     if write_ldos:
-                        onp.savetxt(file_name+'_ldos_'+str(k0_)+'_TE_'+str(index)+'.csv',ldos_TE.numpy())
-                        onp.savetxt(file_name+'_ldos_'+str(k0_)+'_TM_'+str(index)+'.csv',ldos_TM.numpy())  
+                        onp.savetxt(file_name+'_ldos_'+str(k0_)+'_'+str(index)+'.csv',ldos.numpy())  
                     
         ### ###############
         ### 3d calculations
@@ -758,29 +649,27 @@ def main(ndim, # Required arguments
                 if compute_transmission:
 
                     if method == "torch":
-                        solver = Transmission3D(points)
+                        solver = Transmission3D_scalar(points)
                     elif method == "hmatrices":
-                        solver = Transmission3D_hmatrices(points)
+                        solver = Transmission3D_scalar_hmatrices(points)
                     else:
                         print("Choose a valid method")
                         sys.exit()
                     u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
                     u = np.tensor(u)
-                    p = np.zeros(u.shape)
-                    p[:,2] = 1
                     Eall  = []
                     E0all = []
                     Eall_scat = []
                     
                     for k0, alpha in zip(k0range,alpharange):
-                        Ej = solver.run(k0, alpha, u, p, radius, w, self_interaction=self_interaction)
+                        Ej = solver.run(k0, alpha, u, radius, w, self_interaction=self_interaction)
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                         params = [alpha, k0]
                         hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
 
-                        Ek = solver.calc(measurement_points, Ej, k0, alpha, u, p, w, regularize = regularize, radius=radius)
+                        Ek = solver.calc(measurement_points, Ej, k0, alpha, u, w, regularize = regularize, radius=radius)
 
-                        E0meas = solver.generate_source(np.tensor(measurement_points), k0, u, p, beam_waist, print_statement='calc') #(M,3,Ndirs)
+                        E0meas = solver.generate_source(np.tensor(measurement_points), k0, u, beam_waist, print_statement='calc') #(M,3,Ndirs)
 
                         if scattered_fields:
                             Ekscat = Ek - E0meas
@@ -799,8 +688,7 @@ def main(ndim, # Required arguments
                     u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
                     u = np.tensor(u)
                     print(points.shape)
-                    p = np.zeros(u.shape)
-                    p[:,2] = 1
+
                     for k0, alpha in zip(k0range,alpharange):
                         
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
@@ -812,16 +700,16 @@ def main(ndim, # Required arguments
                         k0 = onp.float64(k0)
                         alpha = onp.complex128(alpha)
                         if method == "torch":
-                            solver = Transmission3D(points)
+                            solver = Transmission3D_scalar(points)
                         elif method == "hmatrices":
-                            solver = Transmission3D_hmatrices(points)
+                            solver = Transmission3D_scalar_hmatrices(points)
                         else:
                             print("Choose a valid method")
                             sys.exit()
 
-                        Ek = solver.calc(measurement_points, Ej, k0, alpha, u, p, w, regularize=regularize, radius = radius)
+                        Ek = solver.calc(measurement_points, Ej, k0, alpha, u, w, regularize=regularize, radius = radius)
                         
-                        E0meas = solver.generate_source(np.tensor(measurement_points), k0, u, p, beam_waist, print_statement='calc') #(M,3,Ndirs)
+                        E0meas = solver.generate_source(np.tensor(measurement_points), k0, u, beam_waist, print_statement='calc') #(M,3,Ndirs)
 
                         if scattered_fields:
                             Ekscat = Ek - E0meas
@@ -837,7 +725,6 @@ def main(ndim, # Required arguments
                 # Compute intensities at measurement points
                 Eall = onp.array(Eall)
                 Etotal = onp.absolute(Eall)**2
-                Etotal = onp.sum(Etotal, axis=2)
 
                 # Produce the plots
                 utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name, n_thetas_trans = n_thetas_trans, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)) 
@@ -849,7 +736,6 @@ def main(ndim, # Required arguments
                 # Produce transmission normalized by total intensity of the INCIDENT FIELD on the sphere
                 E0all = onp.array(E0all)
                 I0all = onp.absolute(E0all)**2
-                I0all = onp.sum(I0all, axis = 2)
 
                 utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0all, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
                 utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0all, adapt_scale = True, appended_string='_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
@@ -861,7 +747,6 @@ def main(ndim, # Required arguments
                 if scattered_fields:
                     Eall_scat = onp.array(Eall_scat)
                     Etotal_scat = onp.absolute(Eall_scat)**2
-                    Etotal_scat = onp.sum(Etotal_scat, axis=2)
 
                     # Produce the plots
                     utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_scat, file_name, n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat") 
@@ -879,24 +764,22 @@ def main(ndim, # Required arguments
                 # Define the list of measurement points for transmission plots
                 measurement_points = transmission_radius*L*onp.vstack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
                 if method == "torch":
-                    solver = Transmission3D(points)
+                    solver = Transmission3D_scalar(points)
                 elif method == "hmatrices":
-                    solver = Transmission3D_hmatrices(points)
+                    solver = Transmission3D_scalar_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
                 u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
                 u = np.tensor(u)
-                p = np.zeros(u.shape)
-                p[:,2] = 1
                 Eall_ss = []
                 Eall_scat_ss = []
                 
                 for k0, alpha in zip(k0range,alpharange):
-                    Ek_ss = solver.calc_ss(measurement_points, k0, alpha, u, p, w, regularize=regularize, radius=radius)
+                    Ek_ss = solver.calc_ss(measurement_points, k0, alpha, u, w, regularize=regularize, radius=radius)
                     
                     if scattered_fields:
-                        E0meas = solver.generate_source(np.tensor(measurement_points), k0, u, p, beam_waist, print_statement='calc') #(M,3,Ndirs)
+                        E0meas = solver.generate_source(np.tensor(measurement_points), k0, u, beam_waist, print_statement='calc') #(M,3,Ndirs)
                         Ekscat_ss = Ek_ss - E0meas
                         Eall_scat_ss.append(Ekscat_ss.numpy())
                     
@@ -905,7 +788,6 @@ def main(ndim, # Required arguments
                 # Compute intensities at measurement points
                 Eall_ss = onp.array(Eall_ss)
                 Etotal_ss = onp.absolute(Eall_ss)**2
-                Etotal_ss = onp.sum(Etotal_ss, axis=2)
                 
                 # Produce plots
                 utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_ss, file_name, n_thetas_trans = n_thetas_trans, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_ss") 
@@ -918,7 +800,6 @@ def main(ndim, # Required arguments
                     # Also compute the intensity associated to the multiple-scattering contribution of the field, if the full field was computed
                     Eall_multiple = Eall - Eall_ss
                     Etotal_multiple = onp.absolute(Eall_multiple)**2
-                    Etotal_multiple = onp.sum(Etotal_multiple, axis=2)
 
                      # Produce plots
                     utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_multiple, file_name, n_thetas_trans = n_thetas_trans, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_multiple") 
@@ -931,7 +812,6 @@ def main(ndim, # Required arguments
                 if scattered_fields:
                     Eall_scat_ss = onp.array(Eall_scat_ss)
                     Etotal_scat_ss = onp.absolute(Eall_scat_ss)**2
-                    Etotal_scat_ss = onp.sum(Etotal_scat_ss, axis=2)
                     
                     # Produce plots
                     utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_scat_ss, file_name, n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string = '_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat_ss") 
@@ -967,9 +847,9 @@ def main(ndim, # Required arguments
 
                 thetas_plot_indices = onp.searchsorted(thetas, thetas_plot)
                 if method == "torch":
-                    solver = Transmission3D(points)
+                    solver = Transmission3D_scalar(points)
                 elif method == "hmatrices":
-                    solver = Transmission3D_hmatrices(points)
+                    solver = Transmission3D_scalar_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -993,10 +873,8 @@ def main(ndim, # Required arguments
                     else:
                         u = onp.stack([onp.cos(thetas_plot),onp.sin(thetas_plot),onp.zeros(len(thetas_plot))]).T
                         u = np.tensor(u)
-                        p = np.zeros(u.shape)
-                        p[:,2] = 1
                         Eall = []
-                        Ej = solver.run(k0, alpha, u, p, radius, w, self_interaction=self_interaction)
+                        Ej = solver.run(k0, alpha, u, radius, w, self_interaction=self_interaction)
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                         params = [alpha, k0]
                         hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')   
@@ -1011,31 +889,23 @@ def main(ndim, # Required arguments
                             print("Batch "+str(batch+1))
                             batch_points = batches[batch]
 
-                            E = solver.calc_EM(batch_points, Ej[:,index], k0, alpha, u[index], p[index], w, regularize=regularize, radius=radius)
+                            E = solver.calc(batch_points, Ej[:,index], k0, alpha, u[index], w, regularize=regularize, radius=radius)
 
                             Eall.append(E)
 
 
                         Eall = np.cat(Eall, dim=0)
 
-                        Eall_amplitude         = np.sqrt(Eall[:,0]**2 + Eall[:,1]**2 + Eall[:,2]**2)
-                        Eall_longitudinal      = Eall[:,0]*onp.cos(angle) - Eall[:,1]*onp.sin(angle)
-                        Eall_transverse        = Eall[:,0]*onp.sin(angle) + Eall[:,1]*onp.cos(angle)
-                        Eall_vertical          = Eall[:,2]
-
-                        
+                        Eall_amplitude         = np.abs(Eall)**2
 
                         utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index), my_dpi = 300)
-                        utils.plot_full_fields(Eall_longitudinal, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_long', my_dpi = 300)
-                        utils.plot_full_fields(Eall_transverse, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_trans', my_dpi = 300)
-                        utils.plot_full_fields(Eall_vertical, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_trans', my_dpi = 300)
 
 
             if compute_SDOS:
                 if method == "torch":
-                    solver = Transmission3D(points)
+                    solver = Transmission3D_scalar(points)
                 elif method == "hmatrices":
-                    solver = Transmission3D_hmatrices(points)
+                    solver = Transmission3D_scalar_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -1056,9 +926,9 @@ def main(ndim, # Required arguments
 
             if compute_DOS:
                 if method == "torch":
-                    solver = Transmission3D(points)
+                    solver = Transmission3D_scalar(points)
                 elif method == "hmatrices":
-                    solver = Transmission3D_hmatrices(points)
+                    solver = Transmission3D_scalar_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -1089,9 +959,9 @@ def main(ndim, # Required arguments
 
             if compute_interDOS:
                 if method == "torch":
-                    solver = Transmission3D(points)
+                    solver = Transmission3D_scalar(points)
                 elif method == "hmatrices":
-                    solver = Transmission3D_hmatrices(points)
+                    solver = Transmission3D_scalar_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -1139,9 +1009,9 @@ def main(ndim, # Required arguments
             
             if compute_LDOS:
                 if method == "torch":
-                    solver = Transmission3D(points)
+                    solver = Transmission3D_scalar(points)
                 elif method == "hmatrices":
-                    solver = Transmission3D_hmatrices(points)
+                    solver = Transmission3D_scalar_hmatrices(points)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -1183,117 +1053,6 @@ def main(ndim, # Required arguments
 
                     if write_ldos:
                         onp.savetxt(file_name+'_ldos_'+str(k0_)+'_'+str(index)+'.csv',ldos.numpy())
-
-
-
-    ### Deal with averaging if several files provided
-    n_copies = len(file_index_list)
-    if n_copies > 1:
-        print("Computing averages across "+str(n_copies)+" configurations")
-
-        if ndim == 2:
-
-            if compute_transmission: 
-
-                # Accumulate data from calculations
-                ETE_all = []
-                ETM_all = []
-                ITE_all = []
-                ITM_all = []
-
-                for file_index in file_index_list: 
-
-                    ETE_onecopy, ETM_onecopy, k0range, thetas = hkl.load(file_name+'_transmission_'+str(file_index)+'.hkl')
-                    ETE_onecopy = onp.complex128(ETE_onecopy)
-                    ETM_onecopy = onp.complex128(ETM_onecopy)
-                    thetas = onp.float64(thetas)
-                    k0range = onp.float64(k0range)
-
-                    ETE_all.append(ETE_onecopy)
-                    ETM_all.append(ETM_onecopy)
-                    ITE_all.append(onp.absolute(ETE_onecopy)**2)
-                    ITM_all.append(onp.absolute(ETM_onecopy)**2)
-
-                # Define averaged fields, both amplitude and intensity
-                ETE_mean  = onp.mean(ETE_all, axis = 0)
-                ETM_mean  = onp.mean(ETM_all, axis = 0)
-                ITE_mean  = onp.mean(ITE_all, axis = 0)
-                ITM_mean  = onp.mean(ITM_all, axis = 0)
-                # Define the ballistic intensity
-                ITE_ball = onp.absolute(ETE_mean)**2
-                ITM_ball = onp.absolute(ETM_mean)**2
-                # Also define the average fluctuating intensity field
-                ITE_fluct = ITE_mean - ITE_ball
-                ITM_fluct = ITM_mean - ITM_ball
-
-                # If required: plot results
-                if plot_transmission:
-                    # Produce plots for average intensity
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, ITM_mean, file_name, appended_string='_averageintensity_'+str(n_copies)+'copies_TM')
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, ITE_mean, file_name, appended_string='_averageintensity_'+str(n_copies)+'copies_TE')
-                    utils.plot_transmission_flat(k0range, L, thetas, ITM_mean, file_name, appended_string='_averageintensity_'+str(n_copies)+'copies_TM')
-                    utils.plot_transmission_flat(k0range, L, thetas, ITE_mean, file_name, appended_string='_averageintensity_'+str(n_copies)+'copies_TE')
-                    utils.plot_angular_averaged_transmission(k0range, L, ITM_mean, file_name, appended_string='_averageintensity_'+str(n_copies)+'copies_TM')
-                    utils.plot_angular_averaged_transmission(k0range, L, ITE_mean, file_name, appended_string='_averageintensity_'+str(n_copies)+'copies_TE')
-
-                    # Produce plots for intensity of the average field = ballistic intensity
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, ITM_ball, file_name, appended_string='_ballisticintensity_'+str(n_copies)+'copies_TM')
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, ITE_ball, file_name, appended_string='_ballisticintensity_'+str(n_copies)+'copies_TE')
-                    utils.plot_transmission_flat(k0range, L, thetas, ITM_ball, file_name, appended_string='_ballisticintensity_'+str(n_copies)+'copies_TM')
-                    utils.plot_transmission_flat(k0range, L, thetas, ITE_ball, file_name, appended_string='_ballisticintensity_'+str(n_copies)+'copies_TE')
-                    utils.plot_angular_averaged_transmission(k0range, L, ITM_ball, file_name, appended_string='_ballisticintensity_'+str(n_copies)+'copies_TM')
-                    utils.plot_angular_averaged_transmission(k0range, L, ITE_ball, file_name, appended_string='_ballisticintensity_'+str(n_copies)+'copies_TE')
-
-                    # Produce plots for intensity of the fluctuating field
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, ITM_fluct, file_name, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies_TM')
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, ITE_fluct, file_name, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies_TE')
-                    utils.plot_transmission_flat(k0range, L, thetas, ITM_fluct, file_name, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies_TM')
-                    utils.plot_transmission_flat(k0range, L, thetas, ITE_fluct, file_name, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies_TE')
-                    utils.plot_angular_averaged_transmission(k0range, L, ITM_fluct, file_name, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies_TM')
-                    utils.plot_angular_averaged_transmission(k0range, L, ITE_fluct, file_name, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies_TE')
-
-        elif ndim == 3:
-            
-            if compute_transmission:
-                # Accumulate data from calculations
-                E_all = []
-                I_all = []
-                
-                
-                for file_index in file_index_list: 
-
-                    E_onecopy, k0range, thetas = hkl.load(file_name+'_transmission_'+str(file_index)+'.hkl')
-                    E_onecopy = onp.complex128(E_onecopy)
-                    thetas = onp.float64(thetas)
-                    k0range = onp.float64(k0range)
-
-                    E_all.append(E_onecopy)
-                    I_all.append(onp.absolute(E_onecopy)**2)
-
-                # Define averaged fields, both amplitude and intensity
-                E_mean  = onp.mean(E_all, axis = 0)
-                I_mean  = onp.mean(I_all, axis = 0)
-                # Define the ballistic intensity
-                I_ball = onp.absolute(E_mean)**2
-                # Also define the average fluctuating intensity field
-                I_fluct = I_mean - I_ball
-
-                # If required: plot results
-                if plot_transmission:
-                    # Produce plots for average intensity
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, I_mean, file_name, appended_string='_averageintensity_'+str(n_copies)+'copies')
-                    utils.plot_transmission_flat(k0range, L, thetas, I_mean, file_name, appended_string='_averageintensity_'+str(n_copies)+'copies')
-                    utils.plot_angular_averaged_transmission(k0range, L, I_mean, file_name, appended_string='_averageintensity_'+str(n_copies)+'copies')
-
-                    # Produce plots for intensity of the average field = ballistic intensity
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, I_ball, file_name, appended_string='_ballisticintensity_'+str(n_copies)+'copies')
-                    utils.plot_transmission_flat(k0range, L, thetas, I_ball, file_name, appended_string='_ballisticintensity_'+str(n_copies)+'copies')
-                    utils.plot_angular_averaged_transmission(k0range, L, I_ball, file_name, appended_string='_ballisticintensity_'+str(n_copies)+'copies')
-
-                    # Produce plots for intensity of the fluctuating field
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, I_fluct, file_name, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies')
-                    utils.plot_transmission_flat(k0range, L, thetas, I_fluct, file_name, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies')
-                    utils.plot_angular_averaged_transmission(k0range, L, I_fluct, file_name, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies')
 
 def make_lattice(lattice, N_raw, kick, ndim):
 
