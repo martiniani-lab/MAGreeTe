@@ -842,7 +842,7 @@ class Transmission3D_scalar:
             alpha_ = onp.real(alpha)
         else:
             alpha_ = alpha
-        dos_factor *= 2.0*onp.pi*k0*alpha_
+        dos_factor *= 4.0*onp.pi*k0*alpha_
         dos_factor = np.imag(dos_factor)
 
         return dos_factor
@@ -895,7 +895,7 @@ class Transmission3D_scalar:
             alpha_ = onp.real(alpha)
         else:
             alpha_ = alpha
-        ldos_factor *= 2.0*onp.pi*k0*alpha_
+        ldos_factor *= 4.0*onp.pi*k0*alpha_
         ldos_factor = np.imag(ldos_factor)
         ldos_factor = ldos_factor.reshape(M,-1)
         ldos_factor = np.sum(ldos_factor, 1)
@@ -935,7 +935,7 @@ class Transmission3D_scalar:
 
         # Compute the trace part here
         dos_factor = ((1 - lambdas)**2 / lambdas).sum()/Npoints
-        dos_factor *= 2.0 * onp.pi / (k0**3 * alpha)
+        dos_factor *= 4.0 * onp.pi / (k0**3 * alpha)
         dos_factor = np.imag(dos_factor)
 
         return dos_factor
