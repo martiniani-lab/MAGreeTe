@@ -897,7 +897,7 @@ class Transmission3D_scalar:
             alpha_ = alpha
         ldos_factor *= 2.0*onp.pi*k0*alpha_
         ldos_factor = np.imag(ldos_factor)
-        ldos_factor = ldos_factor.reshape(M,3,-1)
+        ldos_factor = ldos_factor.reshape(M,-1)
         ldos_factor = np.sum(ldos_factor, 1)
 
         return ldos_factor
@@ -996,7 +996,7 @@ class Transmission3D_scalar_hmatrices:
         atol = 0 # Absolute tolerance used in HMatrices
         rtol = 1e-3 # Relative tolerance
         debug = False
-        Ek = jl.Transmission3D.solve(self.r.numpy(), E0j.reshape(self.N,-1).numpy(), k0, alpha, radius, self_interaction, regularize = regularize, use_lu = use_lu, atol = atol, rtol = rtol, debug=debug)
+        Ek = jl.Transmission3D.solve_scalar(self.r.numpy(), E0j.reshape(self.N,-1).numpy(), k0, alpha, radius, self_interaction, regularize = regularize, use_lu = use_lu, atol = atol, rtol = rtol, debug=debug)
         
         return Ek
     
@@ -1022,7 +1022,7 @@ class Transmission3D_scalar_hmatrices:
         E0j = self.generate_source(points, k0, u, beam_waist, print_statement='calc') #(M,3,Ndirs)
         
         # Compute full field
-        Ek_ = np.tensor(jl.Transmission3D.calc(self.r.numpy(), points.numpy(), Ek, k0, alpha, radius, regularize).to_numpy()).reshape(E0j.shape) + E0j
+        Ek_ = np.tensor(jl.Transmission3D.calc_scalar(self.r.numpy(), points.numpy(), Ek, k0, alpha, radius, regularize).to_numpy()).reshape(E0j.shape) + E0j
         
         # Take care of cases in which measurement points are exactly scatterer positions
         for j in np.argwhere(np.isnan(Ek_[:,0])):
@@ -1057,7 +1057,7 @@ class Transmission3D_scalar_hmatrices:
         E0_meas = self.generate_source(points, k0, u, beam_waist, print_statement='calc_ss')
         E0_scat = self.generate_source(self.r, k0, u, beam_waist, print_statement='calc_ss')
         E0_scat = E0_scat.reshape(self.r.shape[0],-1)        
-        Ek_ = np.tensor(jl.Transmission3D.calc(self.r.numpy(), points.numpy(), E0_scat.numpy(), k0, alpha, radius, regularize).to_numpy().reshape(E0_meas.shape)) + E0_meas
+        Ek_ = np.tensor(jl.Transmission3D.calc_scalar(self.r.numpy(), points.numpy(), E0_scat.numpy(), k0, alpha, radius, regularize).to_numpy().reshape(E0_meas.shape)) + E0_meas
         
         # Take care of cases in which measurement points are exactly scatterer positions
         for j in np.argwhere(np.isnan(Ek_[:,0])):
@@ -1094,7 +1094,7 @@ class Transmission3D_scalar_hmatrices:
         print("Computing mean DOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
 
         ### Calculation
-        dos_factor = jl.Transmission3D.mean_dos(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, regularize=regularize, discard_absorption=discard_absorption)
+        dos_factor = jl.Transmission3D.mean_dos_scalar(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, regularize=regularize, discard_absorption=discard_absorption)
 
         return dos_factor
 
@@ -1113,7 +1113,7 @@ class Transmission3D_scalar_hmatrices:
         '''
         
         ### Calculation
-        ldos_factor = jl.Transmission3D.ldos(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, regularize=regularize, discard_absorption=discard_absorption)
+        ldos_factor = jl.Transmission3D.ldos_scalar(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, regularize=regularize, discard_absorption=discard_absorption)
         ldos_factor = np.tensor(ldos_factor).unsqueeze(1)
 
         return ldos_factor
