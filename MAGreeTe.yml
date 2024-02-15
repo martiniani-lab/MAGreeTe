@@ -11,4 +11,4 @@ dependencies:
   - cmasher>=1.6
   - pandas>=1.3
   # Also need to run 
-  # conda install pytorch torchvision torchaudio cpuonly -c pytorch
+  # pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
