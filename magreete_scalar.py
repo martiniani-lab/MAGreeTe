@@ -151,10 +151,6 @@ def main(ndim, # Required arguments
             radius = onp.sqrt(volume/onp.pi )
             
             if k0range_args == None:
-                #TODO: Clean this up
-                # old: kmax fixed according to mean distance between centers, dangerous because might not be consistent with hypotheses
-                # mean_distance = 1 / onp.sqrt(phi/volume)
-                # k_max = 5.0 * L / mean_distance
                 # Set the max to be the last one where the assumptions are still somewhat ok, 2pi / radius
                 k_max = 0.25 * L /radius
                 k0range = onp.arange(1.0, k_max, 0.5)*2*onp.pi/L
@@ -186,10 +182,6 @@ def main(ndim, # Required arguments
             radius = onp.cbrt(volume * 3.0 / (4.0 * onp.pi))
             
             if k0range_args == None:
-                #TODO: Adapt this to N, phi
-                # old: kmax fixed according to mean distance between centers, dangerous because might not be consistent with hypotheses
-                # mean_distance = 1 / onp.cbrt(phi/volume)
-                # k_max = 5.0 * L / mean_distance
                 # Set the max to be the last one where the assumptions are still somewhat ok, 2pi / radius
                 k_max = 0.25 * L /radius
                 k0range = onp.arange(1.0, k_max, 0.5)*2*onp.pi/L

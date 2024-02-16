@@ -9,9 +9,6 @@ from juliacall import Pkg as jlPkg
 
 
 I = np.tensor(onp.identity(3)).reshape(1,3,3) #identity matrix
-#N = 1000 #number of scatterers
-
-
 
 class Transmission3D:
     
