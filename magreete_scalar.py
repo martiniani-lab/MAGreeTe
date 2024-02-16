@@ -23,16 +23,12 @@ def main(ndim, # Required arguments
         lattice=None, cold_atoms=False, annulus = 0, composite = False, kick = 0.0, input_files_args = None, method = "torch", # Special cases
         k0range_args = None, thetarange_args = None, # Range of values to use
         compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, scattered_fields=False, transmission_radius = 2.0,
-        compute_DOS=False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, intensity_fields = False, amplitude_fields = False, phase_fields = False, just_compute_averages = False,# Computations to perform
+        compute_DOS=False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, intensity_fields = False, amplitude_fields = False, phase_fields = False, # Computations to perform
         dospoints=1, spacing_factor = 1.0,  write_eigenvalues=False, write_ldos= False,  gridsize=(301,301), window_width=1.2, angular_width = 0.0, plot_theta_index = 0, batch_size = 101*101, output_directory="" # Parameters for outputs
         ):
     '''
     Simple front-end for MAGreeTe with scalar waves
     '''
-
-
-    # #By default, particle exclusion phi = scatterer phi
-    # phi_ = phi
 
     # Name the output directory in a human-readable way containing the three physical parameters: raw number of particles, volume fraction and refractive index
     output_directory_suffix = "phi_"+str(phi)+"/"
@@ -151,10 +147,6 @@ def main(ndim, # Required arguments
             radius = onp.sqrt(volume/onp.pi )
             
             if k0range_args == None:
-                #TODO: Clean this up
-                # old: kmax fixed according to mean distance between centers, dangerous because might not be consistent with hypotheses
-                # mean_distance = 1 / onp.sqrt(phi/volume)
-                # k_max = 5.0 * L / mean_distance
                 # Set the max to be the last one where the assumptions are still somewhat ok, 2pi / radius
                 k_max = 0.25 * L /radius
                 k0range = onp.arange(1.0, k_max, 0.5)*2*onp.pi/L
@@ -186,10 +178,6 @@ def main(ndim, # Required arguments
             radius = onp.cbrt(volume * 3.0 / (4.0 * onp.pi))
             
             if k0range_args == None:
-                #TODO: Adapt this to N, phi
-                # old: kmax fixed according to mean distance between centers, dangerous because might not be consistent with hypotheses
-                # mean_distance = 1 / onp.cbrt(phi/volume)
-                # k_max = 5.0 * L / mean_distance
                 # Set the max to be the last one where the assumptions are still somewhat ok, 2pi / radius
                 k_max = 0.25 * L /radius
                 k0range = onp.arange(1.0, k_max, 0.5)*2*onp.pi/L
@@ -414,7 +402,6 @@ def main(ndim, # Required arguments
             # Pretty expensive!
             some_fields = intensity_fields+amplitude_fields+phase_fields
             if some_fields:
-                # XXX CHECK: DEFINITION OF TE INTENSITY! 
                 # Expensive computation
                 ngridx = gridsize[0]
                 ngridy = gridsize[1]
@@ -555,7 +542,6 @@ def main(ndim, # Required arguments
                 # Following Pierrat et al., I use 1 diameter as the spacing there
                 spacing = 2.0*radius
                 spacing *= spacing_factor
-                # XXX TODO: use a random cavity or something similar instead!
                 overlaps = np.nonzero(np.sum(np.cdist(measurement_points.to(np.double), points.to(np.double), p=2) <= spacing, axis = -1)).squeeze()
                 count = overlaps.shape[0]
                 while count > 0:
