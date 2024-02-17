@@ -979,6 +979,14 @@ def main(ndim, # Required arguments
                         alpha, k0 = params
                         k0 = onp.float64(k0)
                         alpha = onp.complex128(alpha)
+                        
+                        u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(thetas.shape)]).T
+                        u = np.tensor(u)
+                        if len(u.shape) == 1:
+                            u = u.reshape(1,-1)
+                        p = np.zeros(u.shape)
+                        p[:,2] = 1
+                        
                     # File is not there: compute
                     else:
                         u = onp.stack([onp.cos(thetas_plot),onp.sin(thetas_plot),onp.zeros(len(thetas_plot))]).T
