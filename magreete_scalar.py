@@ -30,10 +30,6 @@ def main(ndim, # Required arguments
     Simple front-end for MAGreeTe with scalar waves
     '''
 
-
-    # #By default, particle exclusion phi = scatterer phi
-    # phi_ = phi
-
     # Name the output directory in a human-readable way containing the three physical parameters: raw number of particles, volume fraction and refractive index
     output_directory_suffix = "phi_"+str(phi)+"/"
     if cold_atoms:

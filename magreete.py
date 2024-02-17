@@ -30,10 +30,6 @@ def main(ndim, # Required arguments
     Simple front-end for MAGreeTe
     '''
 
-
-    # #By default, particle exclusion phi = scatterer phi
-    # phi_ = phi
-
     # Name the output directory in a human-readable way containing the three physical parameters: raw number of particles, volume fraction and refractive index
     output_directory_suffix = "phi_"+str(phi)+"/"
     if cold_atoms:
@@ -477,7 +473,6 @@ def main(ndim, # Required arguments
             # Pretty expensive!
             some_fields = intensity_fields+amplitude_fields+phase_fields
             if some_fields:
-                # XXX CHECK: DEFINITION OF TE INTENSITY! 
                 # Expensive computation
                 ngridx = gridsize[0]
                 ngridy = gridsize[1]
@@ -543,17 +538,20 @@ def main(ndim, # Required arguments
 
                         ETEall = np.cat(ETEall, dim=0).squeeze(-1)
                         ETMall = np.cat(ETMall, dim=0)
+                        
+                        # The medium is centered at (0,0)
+                        viewing_angle = np.arctan2(measurement_points[:,1], measurement_points[:,0]) #y,x
 
-                        ETEall_amplitude         = np.sqrt(ETEall[:,0]**2 + ETEall[:,1]**2) #XXX Wrong? 
-                        ETEall_longitudinal      = ETEall[:,0]*onp.cos(angle) - ETEall[:,1]*onp.sin(angle)
-                        ETEall_transverse        = ETEall[:,0]*onp.sin(angle) + ETEall[:,1]*onp.cos(angle)
+                        ETEall_amplitude          = np.sqrt(np.absolute(ETEall[:,0])**2 + np.absolute(ETEall[:,1])**2)
+                        ETEall_longitudinal       = ETEall[:,0]*np.cos(viewing_angle) - ETEall[:,1]*np.sin(viewing_angle)
+                        ETEall_transverse         = ETEall[:,0]*np.sin(viewing_angle) + ETEall[:,1]*np.cos(viewing_angle)
 
                         ETEall_amplitude    = ETEall_amplitude.reshape(ngridy, ngridx)
                         ETEall_longitudinal = ETEall_longitudinal.reshape(ngridy, ngridx)
                         ETEall_transverse   = ETEall_transverse.reshape(ngridy, ngridx)
                         ETMall = ETMall.reshape(ngridy, ngridx)
 
-                        utils.plot_full_fields(ETEall_amplitude, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE', my_dpi = 300)
+                        utils.plot_full_fields(ETEall_amplitude, ngridx, ngridy, k0_, angle_, intensity_fields, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE', my_dpi = 300)
                         utils.plot_full_fields(ETEall_longitudinal, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE_long', my_dpi = 300)
                         utils.plot_full_fields(ETEall_transverse, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE_trans', my_dpi = 300)
                         utils.plot_full_fields(ETMall, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TM', my_dpi = 300)
@@ -1003,25 +1001,29 @@ def main(ndim, # Required arguments
                             print("Batch "+str(batch+1))
                             batch_points = batches[batch]
 
-                            E = solver.calc_EM(batch_points, Ej[:,index], k0, alpha, u[index], p[index], w, regularize=regularize, radius=radius)
+                            E = solver.calc(batch_points, Ej[:,index], k0, alpha, u[index].reshape(1,3), p[index].reshape(1,3), w, regularize=regularize, radius=radius)
 
                             Eall.append(E)
 
 
                         Eall = np.cat(Eall, dim=0)
 
-                        Eall_amplitude         = np.sqrt(Eall[:,0]**2 + Eall[:,1]**2 + Eall[:,2]**2)
-                        Eall_longitudinal      = Eall[:,0]*onp.cos(angle) - Eall[:,1]*onp.sin(angle)
-                        Eall_transverse        = Eall[:,0]*onp.sin(angle) + Eall[:,1]*onp.cos(angle)
-                        Eall_vertical          = Eall[:,2]
+                        # The medium is centered at (0,0)
+                        viewing_unit_vector = measurement_points / np.linalg.norm(measurement_points, axis = -1).unsqueeze(-1)
+                        viewing_unit_vector = viewing_unit_vector.unsqueeze(-1)
 
-                        
+                        Eall_amplitude         = np.sqrt(np.sum(np.absolute(Eall)**2, axis =1))
+                        Eall_longitudinal      = np.sum(Eall*viewing_unit_vector, axis=1)
+                        Eall_transverse        = Eall - Eall_longitudinal.reshape(-1,1,1) * viewing_unit_vector
+                        Eall_transverse        = np.sqrt(np.sum(np.absolute(Eall_transverse)**2, axis =1))
 
-                        utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index), my_dpi = 300)
+                        Eall_amplitude    = Eall_amplitude.reshape(ngridy, ngridx)
+                        Eall_longitudinal = Eall_longitudinal.reshape(ngridy, ngridx)
+                        Eall_transverse   = Eall_transverse.reshape(ngridy, ngridx)
+
+                        utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, angle_, intensity_fields, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index), my_dpi = 300)
                         utils.plot_full_fields(Eall_longitudinal, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_long', my_dpi = 300)
-                        utils.plot_full_fields(Eall_transverse, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_trans', my_dpi = 300)
-                        utils.plot_full_fields(Eall_vertical, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_trans', my_dpi = 300)
-
+                        utils.plot_full_fields(Eall_transverse, ngridx, ngridy, k0_, angle_, intensity_fields, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_trans', my_dpi = 300)
 
             if compute_SDOS:
                 if method == "torch":
