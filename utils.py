@@ -90,7 +90,7 @@ def uniform_unit_ball_picking(n_points, dim):
     return np.tensor(points, dtype = np.float64)
 
 
-def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,  n_thetas_trans = 0.0, adapt_scale = False, normalization = [], appended_string=''):
+def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,  n_thetas_trans = 0.0, adapt_scale = False, normalization = onp.array([]), appended_string=''):
     """
     Plots a radial version of the frequency-angle transmission plot given 
     k0range: list of wave vector moduli, in rad/m
@@ -112,7 +112,7 @@ def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,
     total_ = onp.sum(intensity*anglewidth_matrix,axis=1)
 
     #Normalize the field differently if needed
-    if normalization != []:
+    if normalization.shape[0] != 0:
         total_norm = onp.sum(normalization,axis=1)
         total_ /= total_norm
     else:
