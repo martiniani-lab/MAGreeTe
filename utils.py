@@ -136,7 +136,7 @@ def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,
     plt.savefig(file_name_root+'_transmission_angularbeam_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
     plt.close()
 
-def plot_transmission_flat(k0range, L, thetas, intensity, file_name_root,  n_thetas_trans = 0.0, adapt_scale = False, normalization = [], appended_string=''):
+def plot_transmission_flat(k0range, L, thetas, intensity, file_name_root,  n_thetas_trans = 0.0, adapt_scale = False, normalization = onp.array([]), appended_string=''):
     """
     Plots one a flattened version of the frequency-angle transmission plot given 
     k0range: list of wave vector moduli, in rad/m
@@ -156,7 +156,7 @@ def plot_transmission_flat(k0range, L, thetas, intensity, file_name_root,  n_the
         anglewidth_matrix = onp.fromfunction(lambda i, j: onp.abs( (i - j + n_angles/2)%n_angles - n_angles/2) <= half_width, (n_angles, n_angles))
     total_ = onp.sum(intensity*anglewidth_matrix,axis=1)
     
-    if normalization != []:
+    if normalization.shape[0] != 0:
         total_norm = onp.sum(normalization,axis=1)
         total_ /= total_norm
     else:
@@ -204,7 +204,7 @@ def plot_transmission_linear(k0range, L,x, intensity, file_name_root,cmap='virid
     plt.savefig(file_name_root+'_transmission_linear_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
     plt.close()
 
-def plot_singlebeam_angular_frequency_plot(k0range, L, thetas, intensity, file_name_root, n_thetas_trans = 0, normalization = [], plot_theta_index = 0, appended_string=''):
+def plot_singlebeam_angular_frequency_plot(k0range, L, thetas, intensity, file_name_root, n_thetas_trans = 0, normalization = onp.array([]), plot_theta_index = 0, appended_string=''):
     """
     Plots specific intensity for a single beam, in a radial frequency-angle plot 
     k0range: list of wave vector moduli, in rad/m
@@ -218,7 +218,7 @@ def plot_singlebeam_angular_frequency_plot(k0range, L, thetas, intensity, file_n
     freqs = onp.real(k0range*L/(2*onp.pi))
     total_ = intensity[:,:,plot_theta_index]
 
-    if normalization != []:
+    if normalization.shape[0] != 0:
         total_norm = onp.sum(normalization,axis=1)
         total_ /= total_norm
 
