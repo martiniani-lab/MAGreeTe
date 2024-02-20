@@ -75,59 +75,31 @@ def honeycomb(Nx=71,Ny=41,disp=0):
     return r
 
 
-def quasicrystal(N = 4096, nspan=46, ndirs=5, mode=None,disp=0, shiftfactor=0.2):
+def quasicrystal(N = 4096, nspan=46, ndirs=5, mode="",disp=0, offset = None):
+    # http://www.gregegan.net/APPLETS/12/deBruijnNotes.html
     if ndirs < 4:
         print("A quasicrystal needs at least 4-fold symmetry!")
         sys.exit()
-    if mode != None:
+    if mode != "":
         nspan=33
-    dirs = onp.arange(ndirs).reshape(-1,1)
-    if ndirs % 2 == 0:
-        angles = dirs*onp.pi/ndirs + 0.5*onp.pi/ndirs
-    else:
-        angles = dirs*2*onp.pi/ndirs
-    vx = onp.cos(angles)
-    vy = onp.sin(angles)
-    mm = vy/vx
-    span = onp.arange(nspan).reshape(1,-1)
-    # 0.1427, 0.1913
-    y1 = vy*dirs*shiftfactor - vx*(span-(nspan/2))
-    x1 = vx*dirs*shiftfactor + vy*(span-(nspan/2))
-    b = y1 - mm*x1
-    #[5,61]
-    x0 = (b[:-1,:].reshape(ndirs-1,-1,1,1) - b[1:,:].reshape(1,1,ndirs-1,-1))/(mm[1:].reshape(1,1,ndirs-1,1)-mm[:-1].reshape(ndirs-1,1,1,1))
-    #[4,61,4,61]
-    y0 = mm[:-1].reshape(ndirs-1,1,1,1)*x0 + b[:-1,:].reshape(ndirs-1,-1,1,1)
-    index = onp.trunc(vy.reshape(1,1,1,1,ndirs)*onp.expand_dims(x0,axis=-1)- vx.reshape(1,1,1,1,ndirs)*(onp.expand_dims(y0,axis=-1)-b[:,0].reshape(1,1,1,1,ndirs)))
-    #[4,61,4,61,5]
-    points = []
-    for idx in range(ndirs-1):
-        index[idx,:,:,:,idx] = span.reshape(-1,1,1)-1
-        index[:,:,idx,:,idx+1] = span.reshape(1,1,-1)-1
-    points.append(onp.trunc(index))
-    for idx in range(ndirs-1):
-        index[idx,:,:,:,idx] = span.reshape(-1,1,1)
-        index[:,:,idx,:,idx+1] = span.reshape(1,1,-1)-1
-    points.append(onp.trunc(index))
-    for idx in range(ndirs-1):
-        index[idx,:,:,:,idx] = span.reshape(-1,1,1)-1
-        index[:,:,idx,:,idx+1] = span.reshape(1,1,-1)
-    points.append(onp.trunc(index))
-    for idx in range(ndirs-1):
-        index[idx,:,:,:,idx] = span.reshape(-1,1,1)
-        index[:,:,idx,:,idx+1] = span.reshape(1,1,-1)
-    points.append(onp.trunc(index))
-    index = onp.array(points).reshape(-1,ndirs)
-    index[index<0] = np.nan
-    index[index>nspan-3] = np.nan
-    index = onp.unique(index,axis=0)
-    x = onp.dot(vx.ravel(),index.T)
-    y = onp.dot(vy.ravel(),index.T)
-    #y += 0.5*vy[:-1].reshape(-1,1,1,1) + 0.5*vy[1:].reshape(1,1,-1,1)
+        
+    if offset == None:
+        offset = np.zeros(ndirs) # Thin rhombi at center
+        # offset = np.ones(ndirs)/ndirs # Anti-Penrose? http://www.jcrystal.com/steffenweber/ftgallery/ftgallery.html column2
+        # offset = 1/2 - np.ones(ndirs)/(2*ndirs) # Penrose column1
+    
+    intersectrange = onp.arange(-nspan+1, nspan)
+    sizes = (ndirs, intersectrange.shape[0], ndirs, intersectrange.shape[0])
+
+    x = onp.fromfunction(lambda k,j,s,q: (bjk_factor(j - nspan+1,k,offset,ndirs)*onp.sin(s*onp.pi/ndirs) - bjk_factor(q - nspan+1, s, offset, ndirs) * onp.sin(k*onp.pi/ndirs) ) / onp.sin( (k - s) * onp.pi / ndirs ), sizes, dtype = int  )
+    y = onp.fromfunction(lambda k,j,s,q: (-bjk_factor(j - nspan+1,k,offset,ndirs)*onp.cos(s*onp.pi/ndirs) + bjk_factor(q - nspan+1, s, offset, ndirs) * onp.cos(k*onp.pi/ndirs) ) / onp.sin( (k - s) * onp.pi / ndirs ), sizes, dtype = int  )
+    
     r = onp.vstack([x.ravel(),y.ravel()]).T
     r = r[onp.isfinite(x.ravel())*onp.isfinite(y.ravel())]
     r = onp.unique(r,axis=0)
-    r /= r.max()
+    
+    print("Raw quasicrystal contains "+str(r.shape[0])+" points")
+    
     if mode == 'quasidual':
         centroids = []
         tri = Delaunay(r)
@@ -138,6 +110,16 @@ def quasicrystal(N = 4096, nspan=46, ndirs=5, mode=None,disp=0, shiftfactor=0.2)
     elif mode == 'quasivoro':
         voro = Voronoi(r)
         r = onp.asarray(voro.vertices)
+    elif mode == 'deBruijndual':
+        centroids = []
+        tri = Delaunay(r)
+        for t in tri.simplices:
+            p = onp.mean(r[t],axis=0)
+            centroids.append(p)
+        centroids = onp.asarray(centroids)
+        r = project_dual_luftalla(centroids, ndirs, offset)
+        
+    r /= r.max()
     rabs = onp.absolute(r)
     points = r[onp.nonzero((rabs[:,0]<=0.5)*(rabs[:,1]<=0.5))]+0.5
     r = np.tensor(r)
@@ -156,7 +138,43 @@ def quasicrystal(N = 4096, nspan=46, ndirs=5, mode=None,disp=0, shiftfactor=0.2)
         r *= 0.5/ratio
     if disp != 0:
         r = add_displacement(r,dr=disp)
+        
+    r /= r.max()
     return r
+
+def bjk_factor(j, k, offset, ndirs):
+
+    b = onp.power(-1,k) * (offset.numpy()[k] - j - 1/2) * onp.sqrt(ndirs/2)
+    
+    return b
+
+def project_dual_luftalla(points, ndirs, offset, angle_offset = 0):
+    # Implements dual relation from https://drops.dagstuhl.de/opus/volltexte/2021/14018/pdf/OASIcs-AUTOMATA-2021-9.pdf
+    # The dual is written for shifts of 1 between lines, while the Egan construction above uses sqrt(ndirs/2)
+    scaling_factor = onp.sqrt(ndirs/2) 
+    
+    if ndirs % 2 == 1:
+        angles = onp.arange(ndirs)*2.0*onp.pi/ndirs + angle_offset
+    else:
+        print("\n\nEven values can have issues for some offsets! 0 is the safest.\n\n")
+        angles = onp.arange(ndirs)*1.0*onp.pi/ndirs + angle_offset
+        offset *= onp.power(-1, range(ndirs))
+        
+    term1 = onp.outer(points[:,0], onp.cos(angles)) + onp.outer(points[:,1], onp.sin(angles))
+    term1 /= scaling_factor
+    term1 += offset.numpy()-0.5
+    term1 = onp.ceil(term1)
+    x = term1 * onp.cos(angles)
+    y = term1 * onp.sin(angles)
+    x = onp.sum(x, axis = 1)
+    y = onp.sum(y, axis = 1)
+    
+    r = onp.vstack([x,y]).T
+    r = r[onp.isfinite(x.ravel())*onp.isfinite(y.ravel())]
+    r = onp.unique(r,axis=0)
+    r /= scaling_factor # Not sure about that scaling though, but it doesn't matter for this generation code
+    
+    return(r)
 
 def cubic(Nside=17,centered=True,disp=0,normalize=True):
     x = np.arange(Nside)

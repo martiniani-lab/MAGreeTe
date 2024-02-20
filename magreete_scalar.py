@@ -1084,6 +1084,12 @@ def make_lattice(lattice, N_raw, kick, ndim):
             else:
                 qc_symmetry = int(lattice.split("_")[1])
             points = lattices.quasicrystal(N=N_raw, mode='quasidual', disp=kick, ndirs = qc_symmetry)
+        elif lattice.split("_")[0] == 'quasideBruijn':
+            if len(lattice.split("_")) == 1:
+                qc_symmetry = 5
+            else:
+                qc_symmetry = int(lattice.split("_")[1])
+            points = lattices.quasicrystal(N=N_raw, mode='deBruijndual', disp=kick, ndirs = qc_symmetry)
         elif lattice == 'poisson':
             points = lattices.poisson(N_raw, ndim)
         else:
@@ -1148,7 +1154,7 @@ if __name__ == '__main__':
     parser.add_argument("-i", "--input_files", nargs='+', type=str, help="Name of hkl files containing points. May contain several, that will be averaged over. \
         default=None", default=None)
     parser.add_argument("-l", "--lattice", type=str, help="Use a simple lattice in lieu of datapoints as entry. \
-        Options are 'square', 'triangular', 'honeycomb', 'quasicrystal', 'quasidual', 'quasivoro', 'poisson' in 2d, and 'cubic', 'fcc', 'bcc', 'diamond', 'poisson' in 3d. \
+        Options are 'square', 'triangular', 'honeycomb', 'quasicrystal', 'quasidual', 'quasivoro', 'quasideBruijn', 'poisson' in 2d, and 'cubic', 'fcc', 'bcc', 'diamond', 'poisson' in 3d. \
         default=None", default=None)
     parser.add_argument("-a", "--annulus", type=float, help="radius of circular removal of points \
         default=0", default=0)
