@@ -229,12 +229,12 @@ def main(ndim, # Required arguments
                     Eall_scat = []
                     
                     for k0, alpha in zip(k0range,alpharange):
-                        Ej = solver.run(k0, alpha, thetas, radius, w, self_interaction=self_interaction)
+                        Ej = solver.solve(k0, alpha, thetas, radius, w, self_interaction=self_interaction)
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                         params = [alpha, k0]
                         hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
 
-                        Ek = solver.calc(measurement_points, Ej, k0, alpha, thetas, w, regularize = regularize, radius=radius)
+                        Ek = solver.propagate(measurement_points, Ej, k0, alpha, thetas, w, regularize = regularize, radius=radius)
                         
                         E0 = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='scattered_fields')
 
@@ -270,7 +270,7 @@ def main(ndim, # Required arguments
                             print("Choose a valid method")
                             sys.exit()
 
-                        Ek = solver.calc(measurement_points, Ej, k0, alpha, thetas, w, regularize=regularize, radius=radius)
+                        Ek = solver.propagate(measurement_points, Ej, k0, alpha, thetas, w, regularize=regularize, radius=radius)
                         E0 = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='scattered_fields')
                         
                         if scattered_fields:
@@ -339,7 +339,7 @@ def main(ndim, # Required arguments
                 
                 for k0, alpha in zip(k0range,alpharange):
                     
-                    Ek_ss = solver.calc_ss(measurement_points, k0, alpha, thetas, w, regularize=regularize, radius=radius)
+                    Ek_ss = solver.propagate_ss(measurement_points, k0, alpha, thetas, w, regularize=regularize, radius=radius)
                     
                     if scattered_fields:
                         E0 = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='scattered_fields')
@@ -434,7 +434,7 @@ def main(ndim, # Required arguments
                         k0 = onp.float64(k0)
                         alpha = onp.complex128(alpha)
                     else:
-                        Ej = solver.run(k0, alpha, thetas, radius, w, self_interaction=self_interaction)
+                        Ej = solver.solve(k0, alpha, thetas, radius, w, self_interaction=self_interaction)
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                         params = [alpha, k0]
                         hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
@@ -449,7 +449,7 @@ def main(ndim, # Required arguments
                             print("Batch "+str(batch+1))
                             batch_points = batches[batch]
 
-                            Ek = solver.calc(batch_points, Ej[:,index].unsqueeze(-1), k0, alpha, [angle], w, regularize=regularize, radius=radius)
+                            Ek = solver.propagate(batch_points, Ej[:,index].unsqueeze(-1), k0, alpha, [angle], w, regularize=regularize, radius=radius)
 
                             Eall.append(Ek)
 
@@ -630,12 +630,12 @@ def main(ndim, # Required arguments
                     Eall_scat = []
                     
                     for k0, alpha in zip(k0range,alpharange):
-                        Ej = solver.run(k0, alpha, u, radius, w, self_interaction=self_interaction)
+                        Ej = solver.solve(k0, alpha, u, radius, w, self_interaction=self_interaction)
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                         params = [alpha, k0]
                         hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
 
-                        Ek = solver.calc(measurement_points, Ej, k0, alpha, u, w, regularize = regularize, radius=radius)
+                        Ek = solver.propagate(measurement_points, Ej, k0, alpha, u, w, regularize = regularize, radius=radius)
 
                         E0meas = solver.generate_source(np.tensor(measurement_points), k0, u, beam_waist, print_statement='calc') #(M,3,Ndirs)
 
@@ -673,7 +673,7 @@ def main(ndim, # Required arguments
                             print("Choose a valid method")
                             sys.exit()
 
-                        Ek = solver.calc(measurement_points, Ej, k0, alpha, u, w, regularize=regularize, radius = radius)
+                        Ek = solver.propagate(measurement_points, Ej, k0, alpha, u, w, regularize=regularize, radius = radius)
                         
                         E0meas = solver.generate_source(np.tensor(measurement_points), k0, u, beam_waist, print_statement='calc') #(M,3,Ndirs)
 
@@ -740,7 +740,7 @@ def main(ndim, # Required arguments
                 Eall_scat_ss = []
                 
                 for k0, alpha in zip(k0range,alpharange):
-                    Ek_ss = solver.calc_ss(measurement_points, k0, alpha, u, w, regularize=regularize, radius=radius)
+                    Ek_ss = solver.propagate_ss(measurement_points, k0, alpha, u, w, regularize=regularize, radius=radius)
                     
                     if scattered_fields:
                         E0meas = solver.generate_source(np.tensor(measurement_points), k0, u, beam_waist, print_statement='calc') #(M,3,Ndirs)
@@ -836,7 +836,7 @@ def main(ndim, # Required arguments
                         u = onp.stack([onp.cos(thetas_plot),onp.sin(thetas_plot),onp.zeros(len(thetas_plot))]).T
                         u = np.tensor(u)
                         Eall = []
-                        Ej = solver.run(k0, alpha, u, radius, w, self_interaction=self_interaction)
+                        Ej = solver.solve(k0, alpha, u, radius, w, self_interaction=self_interaction)
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                         params = [alpha, k0]
                         hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')   
@@ -851,7 +851,7 @@ def main(ndim, # Required arguments
                             print("Batch "+str(batch+1))
                             batch_points = batches[batch]
 
-                            E = solver.calc(batch_points, Ej[:,index], k0, alpha, u[index], w, regularize=regularize, radius=radius)
+                            E = solver.propagate(batch_points, Ej[:,index], k0, alpha, u[index], w, regularize=regularize, radius=radius)
 
                             Eall.append(E)
 

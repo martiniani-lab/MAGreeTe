@@ -86,7 +86,7 @@ class Transmission2D_scalar:
                 E0j[:,idx] = np.exp(1j*rrot[:,0]*k0)
         return E0j
  
-    def calc(self,points, Ek, k0, alpha, thetas, beam_waist, regularize = False, radius = 0.0):
+    def propagate(self,points, Ek, k0, alpha, thetas, beam_waist, regularize = False, radius = 0.0):
         '''
         Calculates the EM field at a set of measurement points
 
@@ -101,9 +101,9 @@ class Transmission2D_scalar:
         '''
 
         points = np.tensor(points)
-        E0j = self.generate_source(points, k0, thetas, beam_waist, print_statement='calc')
+        E0j = self.generate_source(points, k0, thetas, beam_waist, print_statement='propagate')
 
-        Ek_ = np.matmul(alpha*k0*k0* self.G0(points, k0, print_statement='calc', regularize=regularize, radius=radius), Ek) + E0j
+        Ek_ = np.matmul(alpha*k0*k0* self.G0(points, k0, print_statement='propagate', regularize=regularize, radius=radius), Ek) + E0j
         
         # Take care of cases in which measurement points are exactly scatterer positions
         for j in np.argwhere(np.isnan(Ek_[:,0])):
@@ -120,7 +120,7 @@ class Transmission2D_scalar:
                 
         return Ek_
    
-    def run(self, k0, alpha, thetas, radius, beam_waist, self_interaction=True):
+    def solve(self, k0, alpha, thetas, radius, beam_waist, self_interaction=True):
         '''
         Solves for the field at each scatterer
 
@@ -134,8 +134,8 @@ class Transmission2D_scalar:
 
         ### TM calculation
         # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
-        E0j = self.generate_source(self.r, k0, thetas, beam_waist, print_statement='run')
-        M_tensor = -alpha*k0*k0* self.G0(self.r, k0, print_statement='run')
+        E0j = self.generate_source(self.r, k0, thetas, beam_waist, print_statement='solve')
+        M_tensor = -alpha*k0*k0* self.G0(self.r, k0, print_statement='solve')
         M_tensor.fill_diagonal_(1)
         if self_interaction:
             # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
@@ -149,7 +149,7 @@ class Transmission2D_scalar:
         
         return Ek
     
-    def calc_ss(self, points, k0, alpha, thetas, beam_waist, regularize = False, radius = 0.0):
+    def propagate_ss(self, points, k0, alpha, thetas, beam_waist, regularize = False, radius = 0.0):
         '''
         Calculates the field at a set of measurement points, using a single-scattering approximation
 
@@ -163,9 +163,9 @@ class Transmission2D_scalar:
         '''
 
         points = np.tensor(points)
-        E0_meas = self.generate_source(points, k0, thetas, beam_waist, print_statement='calc_ss')
-        E0_scat = self.generate_source(self.r, k0, thetas, beam_waist, print_statement='calc_ss')
-        Ek_ = np.matmul(alpha*k0*k0* self.G0(points, k0, print_statement='calc_ss', regularize=regularize, radius=radius), E0_scat) + E0_meas
+        E0_meas = self.generate_source(points, k0, thetas, beam_waist, print_statement='propagate_ss')
+        E0_scat = self.generate_source(self.r, k0, thetas, beam_waist, print_statement='propagate_ss')
+        Ek_ = np.matmul(alpha*k0*k0* self.G0(points, k0, print_statement='propagate_ss', regularize=regularize, radius=radius), E0_scat) + E0_meas
         
         # Take care of cases in which measurement points are exactly scatterer positions
         for j in np.argwhere(np.isnan(Ek_[:,0])):
