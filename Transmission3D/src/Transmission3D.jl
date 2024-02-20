@@ -217,7 +217,7 @@ module Transmission3D
         
     end
 
-    function calc(python_points_scat::AbstractArray, python_points_meas::AbstractArray, points_Escat::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
+    function propagate(python_points_scat::AbstractArray, python_points_meas::AbstractArray, points_Escat::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
             
         if debug
             println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
@@ -267,7 +267,7 @@ module Transmission3D
         H = assemble_hmatrix(K, pointsclt_meas, pointsclt_scat; adm, comp, threads=threads, distributed=false)
         
         # Print this for consistency checks for now
-        println("Compression ratio of hierarchical compression (calc): $(HMatrices.compression_ratio(H))")
+        println("Compression ratio of hierarchical compression (propagate): $(HMatrices.compression_ratio(H))")
         
         if debug
             plot(H, axis=nothing, legend=false, border=:none, left_margin = 0px, right_margin = 0px, bottom_margin = 0px, top_margin = 0px)
@@ -348,7 +348,7 @@ module Transmission3D
         H_prop_T = assemble_hmatrix(K_prop_T, pointsclt_scat, pointsclt_meas; adm,comp, threads=threads, distributed=false)
         
         # Print this for consistency checks for now
-        println("Compression ratio of hierarchical compression (calc): $(HMatrices.compression_ratio(H))")
+        println("Compression ratio of hierarchical compression (propagate): $(HMatrices.compression_ratio(H))")
         
         if debug
             plot(H, axis=nothing, legend=false, border=:none, left_margin = 0px, right_margin = 0px, bottom_margin = 0px, top_margin = 0px)
@@ -451,7 +451,7 @@ module Transmission3D
         H = assemble_hmatrix(K, pointsclt_scat, pointsclt_scat; adm,comp, threads=threads, distributed=false)
         
         # Print this for consistency checks for now
-        println("Compression ratio of hierarchical compression (calc): $(HMatrices.compression_ratio(H))")
+        println("Compression ratio of hierarchical compression (propagate): $(HMatrices.compression_ratio(H))")
         
         if debug
             plot(H, axis=nothing, legend=false, border=:none, left_margin = 0px, right_margin = 0px, bottom_margin = 0px, top_margin = 0px)
@@ -638,7 +638,7 @@ module Transmission3D
         
     end
 
-    function calc_scalar(python_points_scat::AbstractArray, python_points_meas::AbstractArray, points_Escat::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
+    function propagate_scalar(python_points_scat::AbstractArray, python_points_meas::AbstractArray, points_Escat::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
             
         if debug
             println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
@@ -686,7 +686,7 @@ module Transmission3D
         H = assemble_hmatrix(K, pointsclt_meas, pointsclt_scat; adm, comp, threads=threads, distributed=false)
         
         # Print this for consistency checks for now
-        println("Compression ratio of hierarchical compression (calc): $(HMatrices.compression_ratio(H))")
+        println("Compression ratio of hierarchical compression (propagate): $(HMatrices.compression_ratio(H))")
         
         if debug
             plot(H, axis=nothing, legend=false, border=:none, left_margin = 0px, right_margin = 0px, bottom_margin = 0px, top_margin = 0px)
@@ -764,7 +764,7 @@ module Transmission3D
         H_prop_T = assemble_hmatrix(K_prop_T, pointsclt_scat, pointsclt_meas; adm,comp, threads=threads, distributed=false)
         
         # Print this for consistency checks for now
-        println("Compression ratio of hierarchical compression (calc): $(HMatrices.compression_ratio(H))")
+        println("Compression ratio of hierarchical compression (propagate): $(HMatrices.compression_ratio(H))")
         
         if debug
             plot(H, axis=nothing, legend=false, border=:none, left_margin = 0px, right_margin = 0px, bottom_margin = 0px, top_margin = 0px)
@@ -866,7 +866,7 @@ module Transmission3D
         H = assemble_hmatrix(K, pointsclt_scat, pointsclt_scat; adm,comp, threads=threads, distributed=false)
         
         # Print this for consistency checks for now
-        println("Compression ratio of hierarchical compression (calc): $(HMatrices.compression_ratio(H))")
+        println("Compression ratio of hierarchical compression (propagate): $(HMatrices.compression_ratio(H))")
         
         if debug
             plot(H, axis=nothing, legend=false, border=:none, left_margin = 0px, right_margin = 0px, bottom_margin = 0px, top_margin = 0px)

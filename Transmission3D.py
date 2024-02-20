@@ -81,7 +81,7 @@ class Transmission3D:
         
         return E0j.reshape(points.shape[0],1,-1)*pvec.reshape(1,3,-1)
  
-    def calc(self, points, Ek, k0, alpha, u, p, beam_waist, regularize = False, radius=0.0):
+    def propagate(self, points, Ek, k0, alpha, u, p, beam_waist, regularize = False, radius=0.0):
         '''
         Calculates the EM field at a set of measurement points
 
@@ -105,10 +105,10 @@ class Transmission3D:
         assert np.sum(np.absolute(np.sum(u*p,axis=-1))) == 0
 
         # generate source field for measurement points
-        E0j = self.generate_source(points, k0, u, p, beam_waist, print_statement='calc') #(M,3,Ndirs)
+        E0j = self.generate_source(points, k0, u, p, beam_waist, print_statement='propagate') #(M,3,Ndirs)
         
         # calculate Ek field at all measurement points
-        Ek_ = np.matmul(alpha*k0*k0*self.G0(points, k0, print_statement='calc', regularize=regularize, radius=radius), Ek).reshape(points.shape[0],3,-1) + E0j 
+        Ek_ = np.matmul(alpha*k0*k0*self.G0(points, k0, print_statement='propagate', regularize=regularize, radius=radius), Ek).reshape(points.shape[0],3,-1) + E0j 
 
         # Take care of cases in which measurement points are exactly scatterer positions
         for j in np.argwhere(np.isnan(Ek_[:,0,0])):
@@ -126,7 +126,7 @@ class Transmission3D:
                 
         return Ek_
    
-    def run(self, k0, alpha, u, p, radius, beam_waist, self_interaction=True):
+    def solve(self, k0, alpha, u, p, radius, beam_waist, self_interaction=True):
         '''
         Solves the EM field at each scatterer
 
@@ -140,11 +140,11 @@ class Transmission3D:
         '''
 
         # Generate source field for scatterer positions
-        E0j = self.generate_source(self.r, k0, u, p, beam_waist, print_statement='run') #(N,3,Ndirs)
+        E0j = self.generate_source(self.r, k0, u, p, beam_waist, print_statement='solve') #(N,3,Ndirs)
         
         ### Calculate Ek field at each scatterer position
         # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
-        M_tensor = -alpha*k0*k0*self.G0(None, k0, print_statement='run')
+        M_tensor = -alpha*k0*k0*self.G0(None, k0, print_statement='solve')
         M_tensor.fill_diagonal_(1)
         if self_interaction:
             # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
@@ -156,7 +156,7 @@ class Transmission3D:
         Ek = np.linalg.solve(M_tensor, E0j.reshape(3*self.N,-1)) 
         return Ek
     
-    def calc_ss(self, points, k0, alpha, u, p, beam_waist, regularize = False, radius = 0.0):
+    def propagate_ss(self, points, k0, alpha, u, p, beam_waist, regularize = False, radius = 0.0):
         '''
         Calculates the EM field at a set of measurement points, using a single-scattering approximation
 
@@ -171,10 +171,10 @@ class Transmission3D:
         '''
 
         points = np.tensor(points)
-        E0_meas = self.generate_source(points, k0, u, p, beam_waist, print_statement='calc_ss')
-        E0_scat = self.generate_source(self.r, k0, u, p, beam_waist, print_statement='calc_ss')
+        E0_meas = self.generate_source(points, k0, u, p, beam_waist, print_statement='propagate_ss')
+        E0_scat = self.generate_source(self.r, k0, u, p, beam_waist, print_statement='propagate_ss')
         E0_scat = E0_scat.reshape(3*self.r.shape[0],-1)        
-        Ek_ = np.matmul(alpha*k0*k0* self.G0(points, k0, print_statement='calc_ss', regularize=regularize, radius=radius), E0_scat).reshape(points.shape[0],3,-1) + E0_meas
+        Ek_ = np.matmul(alpha*k0*k0* self.G0(points, k0, print_statement='propagate_ss', regularize=regularize, radius=radius), E0_scat).reshape(points.shape[0],3,-1) + E0_meas
         
         # Take care of cases in which measurement points are exactly scatterer positions
         for j in np.argwhere(np.isnan(Ek_[:,0,0])):
@@ -413,7 +413,7 @@ class Transmission3D_hmatrices:
         
         return E0j.reshape(points.shape[0],1,-1)*pvec.reshape(1,3,-1)
 
-    def run(self, k0, alpha, u, p, radius, beam_waist, self_interaction=True):
+    def solve(self, k0, alpha, u, p, radius, beam_waist, self_interaction=True):
         '''
         Solves the EM field at each scatterer
 
@@ -427,7 +427,7 @@ class Transmission3D_hmatrices:
         '''
 
         # Generate source field for scatterer positions
-        E0j = self.generate_source(self.r, k0, u, p, beam_waist, print_statement='run') #(N,3,Ndirs)
+        E0j = self.generate_source(self.r, k0, u, p, beam_waist, print_statement='solve') #(N,3,Ndirs)
         
         # Julia-side solver with Abstract Hierarchical Matrices
         regularize = False # Not needed for solve part, writing it as a variable to make it clear what it is
@@ -439,7 +439,7 @@ class Transmission3D_hmatrices:
         
         return Ek
     
-    def calc(self, points, Ek, k0, alpha, u, p, beam_waist, regularize = False, radius=0.0):
+    def propagate(self, points, Ek, k0, alpha, u, p, beam_waist, regularize = False, radius=0.0):
         '''
         Calculates the EM field at a set of measurement points
 
@@ -463,10 +463,10 @@ class Transmission3D_hmatrices:
         assert np.sum(np.absolute(np.sum(u*p,axis=-1))) == 0
 
         # generate source field for measurement points
-        E0j = self.generate_source(points, k0, u, p, beam_waist, print_statement='calc') #(M,3,Ndirs)
+        E0j = self.generate_source(points, k0, u, p, beam_waist, print_statement='propagate') #(M,3,Ndirs)
         
         # Compute full field
-        Ek_ = np.tensor(jl.Transmission3D.calc(self.r.numpy(), points.numpy(), Ek, k0, alpha, radius, regularize).to_numpy()).reshape(E0j.shape) + E0j
+        Ek_ = np.tensor(jl.Transmission3D.propagate(self.r.numpy(), points.numpy(), Ek, k0, alpha, radius, regularize).to_numpy()).reshape(E0j.shape) + E0j
         
         # Take care of cases in which measurement points are exactly scatterer positions
         for j in np.argwhere(np.isnan(Ek_[:,0,0])):
@@ -484,7 +484,7 @@ class Transmission3D_hmatrices:
                 
         return Ek_
     
-    def calc_ss(self, points, k0, alpha, u, p, beam_waist, regularize = False, radius = 0.0):
+    def propagate_ss(self, points, k0, alpha, u, p, beam_waist, regularize = False, radius = 0.0):
         '''
         Calculates the EM field at a set of measurement points, using a single-scattering approximation
 
@@ -499,10 +499,10 @@ class Transmission3D_hmatrices:
         '''
 
         points = np.tensor(points)
-        E0_meas = self.generate_source(points, k0, u, p, beam_waist, print_statement='calc_ss')
-        E0_scat = self.generate_source(self.r, k0, u, p, beam_waist, print_statement='calc_ss')
+        E0_meas = self.generate_source(points, k0, u, p, beam_waist, print_statement='propagate_ss')
+        E0_scat = self.generate_source(self.r, k0, u, p, beam_waist, print_statement='propagate_ss')
         E0_scat = E0_scat.reshape(3*self.r.shape[0],-1)        
-        Ek_ = np.tensor(jl.Transmission3D.calc(self.r.numpy(), points.numpy(), E0_scat.numpy(), k0, alpha, radius, regularize).to_numpy().reshape(E0_meas.shape)) + E0_meas
+        Ek_ = np.tensor(jl.Transmission3D.propagate(self.r.numpy(), points.numpy(), E0_scat.numpy(), k0, alpha, radius, regularize).to_numpy().reshape(E0_meas.shape)) + E0_meas
         
         # Take care of cases in which measurement points are exactly scatterer positions
         for j in np.argwhere(np.isnan(Ek_[:,0,0])):
@@ -656,7 +656,7 @@ class Transmission3D_scalar:
         
         return E0j.reshape(points.shape[0],u.shape[0])
  
-    def calc(self, points, Ek, k0, alpha, u, beam_waist, regularize = False, radius=0.0):
+    def propagate(self, points, Ek, k0, alpha, u, beam_waist, regularize = False, radius=0.0):
         '''
         Calculates the EM field at a set of measurement points
 
@@ -675,10 +675,10 @@ class Transmission3D_scalar:
         u /= np.linalg.norm(u,axis=-1).reshape(-1,1)
 
         # generate source field for measurement points
-        E0j = self.generate_source(points, k0, u, beam_waist, print_statement='calc') #(M,Ndirs)
+        E0j = self.generate_source(points, k0, u, beam_waist, print_statement='propagate') #(M,Ndirs)
         
         # calculate Ek field at all measurement points
-        Ek_ = np.matmul(alpha*k0*k0*self.G0(points, k0, print_statement='calc', regularize=regularize, radius=radius), Ek).reshape(points.shape[0],u.shape[0]) + E0j 
+        Ek_ = np.matmul(alpha*k0*k0*self.G0(points, k0, print_statement='propagate', regularize=regularize, radius=radius), Ek).reshape(points.shape[0],u.shape[0]) + E0j 
 
         # Take care of cases in which measurement points are exactly scatterer positions
         for j in np.argwhere(np.isnan(Ek_[:,0])):
@@ -696,7 +696,7 @@ class Transmission3D_scalar:
                 
         return Ek_
    
-    def run(self, k0, alpha, u, radius, beam_waist, self_interaction=True):
+    def solve(self, k0, alpha, u, radius, beam_waist, self_interaction=True):
         '''
         Solves the EM field at each scatterer
 
@@ -709,11 +709,11 @@ class Transmission3D_scalar:
         '''
 
         # Generate source field for scatterer positions
-        E0j = self.generate_source(self.r, k0, u, beam_waist, print_statement='run') #(N,3,Ndirs)
+        E0j = self.generate_source(self.r, k0, u, beam_waist, print_statement='solve') #(N,3,Ndirs)
         
         ### Calculate Ek field at each scatterer position
         # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
-        M_tensor = -alpha*k0*k0*self.G0(None, k0, print_statement='run')
+        M_tensor = -alpha*k0*k0*self.G0(None, k0, print_statement='solve')
         M_tensor.fill_diagonal_(1)
         if self_interaction:
             # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
@@ -725,7 +725,7 @@ class Transmission3D_scalar:
         Ek = np.linalg.solve(M_tensor, E0j.reshape(self.N,-1)) 
         return Ek
     
-    def calc_ss(self, points, k0, alpha, u, beam_waist, regularize = False, radius = 0.0):
+    def propagate_ss(self, points, k0, alpha, u, beam_waist, regularize = False, radius = 0.0):
         '''
         Calculates the EM field at a set of measurement points, using a single-scattering approximation
 
@@ -739,10 +739,10 @@ class Transmission3D_scalar:
         '''
 
         points = np.tensor(points)
-        E0_meas = self.generate_source(points, k0, u, beam_waist, print_statement='calc_ss')
-        E0_scat = self.generate_source(self.r, k0, u, beam_waist, print_statement='calc_ss')
+        E0_meas = self.generate_source(points, k0, u, beam_waist, print_statement='propagate_ss')
+        E0_scat = self.generate_source(self.r, k0, u, beam_waist, print_statement='propagate_ss')
         E0_scat = E0_scat.reshape(self.r.shape[0],-1)        
-        Ek_ = np.matmul(alpha*k0*k0* self.G0(points, k0, print_statement='calc_ss', regularize=regularize, radius=radius), E0_scat).reshape(points.shape[0],-1) + E0_meas
+        Ek_ = np.matmul(alpha*k0*k0* self.G0(points, k0, print_statement='propagate_ss', regularize=regularize, radius=radius), E0_scat).reshape(points.shape[0],-1) + E0_meas
         
         # Take care of cases in which measurement points are exactly scatterer positions
         for j in np.argwhere(np.isnan(Ek_[:,0])):
@@ -972,7 +972,7 @@ class Transmission3D_scalar_hmatrices:
         
         return E0j.reshape(points.shape[0],-1)
 
-    def run(self, k0, alpha, u, radius, beam_waist, self_interaction=True):
+    def solve(self, k0, alpha, u, radius, beam_waist, self_interaction=True):
         '''
         Solves the EM field at each scatterer
 
@@ -985,7 +985,7 @@ class Transmission3D_scalar_hmatrices:
         '''
 
         # Generate source field for scatterer positions
-        E0j = self.generate_source(self.r, k0, u, beam_waist, print_statement='run') #(N,3,Ndirs)
+        E0j = self.generate_source(self.r, k0, u, beam_waist, print_statement='solve') #(N,3,Ndirs)
         
         # Julia-side solver with Abstract Hierarchical Matrices
         regularize = False # Not needed for solve part, writing it as a variable to make it clear what it is
@@ -997,7 +997,7 @@ class Transmission3D_scalar_hmatrices:
         
         return Ek
     
-    def calc(self, points, Ek, k0, alpha, u, beam_waist, regularize = False, radius=0.0):
+    def propagate(self, points, Ek, k0, alpha, u, beam_waist, regularize = False, radius=0.0):
         '''
         Calculates the EM field at a set of measurement points
 
@@ -1016,10 +1016,10 @@ class Transmission3D_scalar_hmatrices:
         u /= np.linalg.norm(u,axis=-1).reshape(-1,1)
 
         # generate source field for measurement points
-        E0j = self.generate_source(points, k0, u, beam_waist, print_statement='calc') #(M,3,Ndirs)
+        E0j = self.generate_source(points, k0, u, beam_waist, print_statement='propagate') #(M,3,Ndirs)
         
         # Compute full field
-        Ek_ = np.tensor(jl.Transmission3D.calc_scalar(self.r.numpy(), points.numpy(), Ek, k0, alpha, radius, regularize).to_numpy()).reshape(E0j.shape) + E0j
+        Ek_ = np.tensor(jl.Transmission3D.propagate_scalar(self.r.numpy(), points.numpy(), Ek, k0, alpha, radius, regularize).to_numpy()).reshape(E0j.shape) + E0j
         
         # Take care of cases in which measurement points are exactly scatterer positions
         for j in np.argwhere(np.isnan(Ek_[:,0])):
@@ -1037,7 +1037,7 @@ class Transmission3D_scalar_hmatrices:
                 
         return Ek_
     
-    def calc_ss(self, points, k0, alpha, u, beam_waist, regularize = False, radius = 0.0):
+    def propagate_ss(self, points, k0, alpha, u, beam_waist, regularize = False, radius = 0.0):
         '''
         Calculates the EM field at a set of measurement points, using a single-scattering approximation
 
@@ -1051,10 +1051,10 @@ class Transmission3D_scalar_hmatrices:
         '''
 
         points = np.tensor(points)
-        E0_meas = self.generate_source(points, k0, u, beam_waist, print_statement='calc_ss')
-        E0_scat = self.generate_source(self.r, k0, u, beam_waist, print_statement='calc_ss')
+        E0_meas = self.generate_source(points, k0, u, beam_waist, print_statement='propagate_ss')
+        E0_scat = self.generate_source(self.r, k0, u, beam_waist, print_statement='propagate_ss')
         E0_scat = E0_scat.reshape(self.r.shape[0],-1)        
-        Ek_ = np.tensor(jl.Transmission3D.calc_scalar(self.r.numpy(), points.numpy(), E0_scat.numpy(), k0, alpha, radius, regularize).to_numpy().reshape(E0_meas.shape)) + E0_meas
+        Ek_ = np.tensor(jl.Transmission3D.propagate_scalar(self.r.numpy(), points.numpy(), E0_scat.numpy(), k0, alpha, radius, regularize).to_numpy().reshape(E0_meas.shape)) + E0_meas
         
         # Take care of cases in which measurement points are exactly scatterer positions
         for j in np.argwhere(np.isnan(Ek_[:,0])):

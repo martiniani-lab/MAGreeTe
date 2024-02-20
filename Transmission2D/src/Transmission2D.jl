@@ -296,7 +296,7 @@ module Transmission2D
         
     end
     
-    function calc_TM(python_points_scat::AbstractArray, python_points_meas::AbstractArray, points_Escat::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
+    function propagate_TM(python_points_scat::AbstractArray, python_points_meas::AbstractArray, points_Escat::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
         
         if debug
             println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
@@ -364,7 +364,7 @@ module Transmission2D
         
     end
 
-    function calc_TE(python_points_scat::AbstractArray, python_points_meas::AbstractArray, points_Escat::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
+    function propagate_TE(python_points_scat::AbstractArray, python_points_meas::AbstractArray, points_Escat::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
             
         if debug
             println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")

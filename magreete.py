@@ -237,12 +237,12 @@ def main(ndim, # Required arguments
                     ETMall_scat = []
                     
                     for k0, alpha in zip(k0range,alpharange):
-                        EjTE, EjTM = solver.run_EM(k0, alpha, thetas, radius, w, self_interaction=self_interaction)
+                        EjTE, EjTM = solver.solve_EM(k0, alpha, thetas, radius, w, self_interaction=self_interaction)
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                         params = [alpha, k0]
                         hkl.dump([onp.array(EjTE), onp.array(EjTM), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
 
-                        EkTE, EkTM = solver.calc_EM(measurement_points, EjTE, EjTM, k0, alpha, thetas, w, regularize = regularize, radius=radius)
+                        EkTE, EkTM = solver.propagate_EM(measurement_points, EjTE, EjTM, k0, alpha, thetas, w, regularize = regularize, radius=radius)
                         
                         E0TM, u_meas = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='scattered_fields')
                         E0TE = E0TM.reshape(measurement_points.shape[0],1,len(thetas))*u_meas
@@ -288,7 +288,7 @@ def main(ndim, # Required arguments
                             print("Choose a valid method")
                             sys.exit()
 
-                        EkTE, EkTM = solver.calc_EM(measurement_points, EjTE, EjTM, k0, alpha, thetas, w, regularize=regularize, radius=radius)
+                        EkTE, EkTM = solver.propagate_EM(measurement_points, EjTE, EjTM, k0, alpha, thetas, w, regularize=regularize, radius=radius)
                         
                         E0TM, u_meas = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='scattered_fields')
                         E0TE = E0TM.reshape(measurement_points.shape[0],1,len(thetas))*u_meas
@@ -388,7 +388,7 @@ def main(ndim, # Required arguments
                 
                 for k0, alpha in zip(k0range,alpharange):
                     
-                    EkTE_ss, EkTM_ss = solver.calc_EM_ss(measurement_points, k0, alpha, thetas, w, regularize=regularize, radius=radius)
+                    EkTE_ss, EkTM_ss = solver.propagate_EM_ss(measurement_points, k0, alpha, thetas, w, regularize=regularize, radius=radius)
                     
                     if scattered_fields:
                         E0TM, u_meas = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='scattered_fields')
@@ -514,7 +514,7 @@ def main(ndim, # Required arguments
                         k0 = onp.float64(k0)
                         alpha = onp.complex128(alpha)
                     else:
-                        EjTE, EjTM = solver.run_EM(k0, alpha, thetas, radius, w, self_interaction=self_interaction)
+                        EjTE, EjTM = solver.solve_EM(k0, alpha, thetas, radius, w, self_interaction=self_interaction)
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                         params = [alpha, k0]
                         hkl.dump([onp.array(EjTE), onp.array(EjTM), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
@@ -530,7 +530,7 @@ def main(ndim, # Required arguments
                             print("Batch "+str(batch+1))
                             batch_points = batches[batch]
 
-                            EkTE, EkTM = solver.calc_EM(batch_points, EjTE[:,index], EjTM[:,index].unsqueeze(-1), k0, alpha, [angle], w, regularize=regularize, radius=radius)
+                            EkTE, EkTM = solver.propagate_EM(batch_points, EjTE[:,index], EjTM[:,index].unsqueeze(-1), k0, alpha, [angle], w, regularize=regularize, radius=radius)
 
                             ETEall.append(EkTE)
                             ETMall.append(EkTM)
@@ -763,14 +763,14 @@ def main(ndim, # Required arguments
                     Eall_scat = []
                     
                     for k0, alpha in zip(k0range,alpharange):
-                        Ej = solver.run(k0, alpha, u, p, radius, w, self_interaction=self_interaction)
+                        Ej = solver.solve(k0, alpha, u, p, radius, w, self_interaction=self_interaction)
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                         params = [alpha, k0]
                         hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
 
-                        Ek = solver.calc(measurement_points, Ej, k0, alpha, u, p, w, regularize = regularize, radius=radius)
+                        Ek = solver.propagate(measurement_points, Ej, k0, alpha, u, p, w, regularize = regularize, radius=radius)
 
-                        E0meas = solver.generate_source(np.tensor(measurement_points), k0, u, p, beam_waist, print_statement='calc') #(M,3,Ndirs)
+                        E0meas = solver.generate_source(np.tensor(measurement_points), k0, u, p, beam_waist, print_statement='propagate') #(M,3,Ndirs)
 
                         if scattered_fields:
                             Ekscat = Ek - E0meas
@@ -809,9 +809,9 @@ def main(ndim, # Required arguments
                             print("Choose a valid method")
                             sys.exit()
 
-                        Ek = solver.calc(measurement_points, Ej, k0, alpha, u, p, w, regularize=regularize, radius = radius)
+                        Ek = solver.propagate(measurement_points, Ej, k0, alpha, u, p, w, regularize=regularize, radius = radius)
                         
-                        E0meas = solver.generate_source(np.tensor(measurement_points), k0, u, p, beam_waist, print_statement='calc') #(M,3,Ndirs)
+                        E0meas = solver.generate_source(np.tensor(measurement_points), k0, u, p, beam_waist, print_statement='propagate') #(M,3,Ndirs)
 
                         if scattered_fields:
                             Ekscat = Ek - E0meas
@@ -883,10 +883,10 @@ def main(ndim, # Required arguments
                 Eall_scat_ss = []
                 
                 for k0, alpha in zip(k0range,alpharange):
-                    Ek_ss = solver.calc_ss(measurement_points, k0, alpha, u, p, w, regularize=regularize, radius=radius)
+                    Ek_ss = solver.propagate_ss(measurement_points, k0, alpha, u, p, w, regularize=regularize, radius=radius)
                     
                     if scattered_fields:
-                        E0meas = solver.generate_source(np.tensor(measurement_points), k0, u, p, beam_waist, print_statement='calc') #(M,3,Ndirs)
+                        E0meas = solver.generate_source(np.tensor(measurement_points), k0, u, p, beam_waist, print_statement='propagate') #(M,3,Ndirs)
                         Ekscat_ss = Ek_ss - E0meas
                         Eall_scat_ss.append(Ekscat_ss.numpy())
                     
@@ -994,7 +994,7 @@ def main(ndim, # Required arguments
                         p = np.zeros(u.shape)
                         p[:,2] = 1
                         Eall = []
-                        Ej = solver.run(k0, alpha, u, p, radius, w, self_interaction=self_interaction)
+                        Ej = solver.solve(k0, alpha, u, p, radius, w, self_interaction=self_interaction)
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                         params = [alpha, k0]
                         hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')   
@@ -1009,7 +1009,7 @@ def main(ndim, # Required arguments
                             print("Batch "+str(batch+1))
                             batch_points = batches[batch]
 
-                            E = solver.calc(batch_points, Ej[:,index], k0, alpha, u[index].reshape(1,3), p[index].reshape(1,3), w, regularize=regularize, radius=radius)
+                            E = solver.propagate(batch_points, Ej[:,index], k0, alpha, u[index].reshape(1,3), p[index].reshape(1,3), w, regularize=regularize, radius=radius)
 
                             Eall.append(E)
 
@@ -1454,6 +1454,8 @@ if __name__ == '__main__':
         default = (301,301)", default=(301,301))
     parser.add_argument("-w","--window_width", type=float, help="Width of the viewfield for real-space plots, in units of system diameters, \
         default = 1.2", default = 1.2)
+    parser.add_argument("-b", "--batch_size", type = int, help = "Batch size (in number of pixels/batch) used to compute full field images, \
+        default = 101x101", default = 101*101)
     parser.add_argument("-aw", "--angular_width", type = float, help="Angular width used in the definition of transmission, as a fraction of half the number of used angles: 0 is a single-point and 1 is the full half-space. Warning: this only uses angles defined in the list of computed angles!\
         Default = 0", default = 0.0)
     parser.add_argument("--plot_theta_index", type = int, help="Index of special theta to use for some plots\
@@ -1511,6 +1513,7 @@ if __name__ == '__main__':
     write_ldos                      = args.write_ldos
     gridsize                        = tuple(args.gridsize)
     window_width                    = args.window_width
+    batch_size                      = args.batch_size
     angular_width                   = args.angular_width
     plot_theta_index                = args.plot_theta_index
     output_directory                = args.output
@@ -1531,7 +1534,7 @@ if __name__ == '__main__':
         compute_transmission = compute_transmission, plot_transmission=plot_transmission, single_scattering_transmission=single_scattering_transmission, scattered_fields=scattered_fields, transmission_radius=transmission_radius,
         compute_DOS=compute_DOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS,
         intensity_fields = intensity_fields, amplitude_fields=amplitude_fields, phase_fields=phase_fields, just_compute_averages=just_compute_averages,
-        dospoints=dospoints, spacing_factor=spacing_factor, write_eigenvalues=write_eigenvalues, write_ldos=write_ldos, gridsize=gridsize, window_width=window_width, angular_width=angular_width, plot_theta_index=plot_theta_index,
+        dospoints=dospoints, spacing_factor=spacing_factor, write_eigenvalues=write_eigenvalues, write_ldos=write_ldos, gridsize=gridsize, window_width=window_width, batch_size = batch_size, angular_width=angular_width, plot_theta_index=plot_theta_index,
         output_directory=output_directory
         )
     sys.exit()
