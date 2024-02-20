@@ -14,10 +14,10 @@ Create a new conda environment named `magreete` from `MAGreeTe.yml`, which will 
 conda env create --name magreete --file=MAGreeTe.yml
 ```
 
-Upon executing `magreete.py` for the first time, julia will take some time to set itself up. You can take the time to view possible command-line arguments with:
+Upon executing `magreete_scalar.py` for the first time, julia will take some time to set itself up. You can take the time to view possible command-line arguments with:
 
 ```bash
-python magreete.py -h
+python magreete_scalar.py -h
 ```
 
 In order to utilize Julia and its hmatrices, you will need to install a few Julia packages. Open a `julia` runtime in the terminal and run the following:
