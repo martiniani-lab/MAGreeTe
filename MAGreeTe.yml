@@ -1,5 +1,6 @@
 name: magreete
 channels:
+  - pytorch
   - conda-forge
 dependencies:
   - python=3.7
@@ -10,5 +11,10 @@ dependencies:
   - hickle==3.4.5
   - cmasher>=1.6
   - pandas>=1.3
-  # Also need to run 
-  # pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+  - pytorch
+  - torchvision
+  - torchaudio
+  - cpuonly
+  - pip
+  - pip:
+    - juliacall
