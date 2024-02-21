@@ -22,7 +22,7 @@ def main(ndim, # Required arguments
         refractive_n = 1.65 - 0.025j, phi = 0.1, regularize = True, N_raw = 16384, beam_waist = 0.2, L = 1, # Physical parameters
         lattice=None, cold_atoms=False, annulus = 0, composite = False, kick = 0.0, input_files_args = None, method = "torch", # Special cases
         k0range_args = None, thetarange_args = None, # Range of values to use
-        compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, scattered_fields=False, transmission_radius = 2.0,
+        compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, scattered_fields=False, no_save=False, transmission_radius = 2.0,
 	just_compute_averages = False, compute_DOS=False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, intensity_fields = False, amplitude_fields = False, phase_fields = False, # Computations to perform
         dospoints=1, spacing_factor = 1.0,  write_eigenvalues=False, write_ldos= False,  gridsize=(301,301), window_width=1.2, angular_width = 0.0, plot_theta_index = 0, batch_size = 101*101, output_directory="" # Parameters for outputs
         ):
@@ -232,7 +232,8 @@ def main(ndim, # Required arguments
                         Ej = solver.solve(k0, alpha, thetas, radius, w, self_interaction=self_interaction)
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                         params = [alpha, k0]
-                        hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
+                        if not no_save:
+                            hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
 
                         Ek = solver.propagate(measurement_points, Ej, k0, alpha, thetas, w, regularize = regularize, radius=radius)
                         
@@ -1134,6 +1135,8 @@ if __name__ == '__main__':
         default=False", default=False)
     parser.add_argument("--scattered_fields", action="store_true", help="Plot scattered fields instead of total fields wherever applicable \
         default=False", default=False)
+    parser.add_argument("--no_save", action="store_true", help="Don't dump compute solutions to file. Only works with both compute_transmission and plot_transmission together \
+        default=False", default=False)
     parser.add_argument("-trad","--transmission_radius", type = float, help = "Radius of the sphere on which transmission measurements are performed, in units of L,\
         default=2.0", default = 2.0)
     parser.add_argument("-dos","--compute_DOS", action='store_true', help="Compute the mean DOS of the medium  \
@@ -1206,6 +1209,7 @@ if __name__ == '__main__':
     plot_transmission               = args.plot_transmission
     single_scattering_transmission  = args.single_scattering_transmission
     scattered_fields                = args.scattered_fields
+    no_save                         = args.no_save
     transmission_radius             = args.transmission_radius
     compute_DOS                     = args.compute_DOS
     compute_interDOS                = args.compute_interDOS
@@ -1233,7 +1237,7 @@ if __name__ == '__main__':
         refractive_n = refractive_n,  phi=phi, regularize=regularize, N_raw=N, beam_waist=beam_waist, L=boxsize,
         k0range_args = k0range_args, thetarange_args=thetarange_args, input_files_args = input_files_args,
         cold_atoms=cold_atoms, lattice=lattice, annulus = annulus, composite = composite, kick = kick, method = method,
-        compute_transmission = compute_transmission, plot_transmission=plot_transmission, single_scattering_transmission=single_scattering_transmission, scattered_fields=scattered_fields, transmission_radius=transmission_radius,
+        compute_transmission = compute_transmission, plot_transmission=plot_transmission, single_scattering_transmission=single_scattering_transmission, scattered_fields=scattered_fields, no_save=no_save, transmission_radius=transmission_radius,
         compute_DOS=compute_DOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS,
         intensity_fields = intensity_fields, amplitude_fields=amplitude_fields, phase_fields=phase_fields, just_compute_averages=just_compute_averages,
         dospoints=dospoints, spacing_factor=spacing_factor, write_eigenvalues=write_eigenvalues, write_ldos=write_ldos, gridsize=gridsize, window_width=window_width, angular_width=angular_width, plot_theta_index=plot_theta_index,
