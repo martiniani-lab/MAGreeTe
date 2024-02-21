@@ -204,6 +204,8 @@ def main(ndim, # Required arguments
         utils.plot_optical_thickness(k0range, L, alpharange, ndim, phi, volume, file_name)
         # Also plot the values of ka to check whether hypotheses are consistent
         utils.plot_k_times_radius(k0range, radius, L, file_name)
+        # Finally, plot dressed polarizability of a single scatterer to pinpoint resonances
+        utils.plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, self_interaction, file_name)
 
         # If the code is run solely to put together data already obtained for several copies, skip this
         if just_compute_averages:

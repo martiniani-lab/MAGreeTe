@@ -2,6 +2,7 @@ import numpy as onp
 import torch as np
 import scipy as sp
 import os
+import sys
 
 import matplotlib
 matplotlib.use('Agg')
@@ -342,6 +343,85 @@ def plot_optical_thickness(k0range, L, alpharange, ndim, phi, volume, file_name,
     ax.legend()
     plt.savefig(file_name+'_opticalthickness'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
     plt.close()
+
+def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, self_interaction, file_name, appended_string = ''):
+    # Plot dressed polarizability taking into account self_interaction to find resonances
+    
+    if ndim == 3:
+        
+        alpha_d = alpharange.copy()
+        
+        if self_interaction:
+            self_int = ( (2.0/3.0)*onp.exp(1j*k0range*radius)*(1- 1j*k0range*radius) - 1.0 ) / k0range**2
+            alpha_d /= (1 - k0range**2 * alpharange * self_int / volume)
+            
+        alpha_d = onp.absolute(alpha_d)
+        
+        max_alpha = onp.argmax(alpha_d)
+        k0_max = k0range[max_alpha] * L / (2 * onp.pi)
+        if max_alpha != alpha_d.shape[0] - 1:
+            print("Resonance in the explored interval, at k0 = "+ str(k0_max) +"!")
+            
+        fig = plt.figure()
+        ax = fig.gca()
+        freqs = onp.real(k0range*L/(2*onp.pi))
+        ax.plot(freqs, alpha_d, c = 'r', label = 'dressed')
+        ax.plot(freqs, onp.absolute(alpharange), c='k', ls = '--', label = 'bare')
+        deltaeps = alpharange.copy() / volume
+        clausius = 3 * volume * deltaeps / (deltaeps + 3)
+        ax.plot(freqs, onp.absolute(clausius), c='k', ls =':', label = 'Clausius-Mossotti')
+        ax.set_xlabel(r'$k_0L/2\pi$')
+        ax.set_ylabel(r"|\alpha_d|")
+        ax.legend()
+        plt.savefig(file_name+'_alphad'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
+        plt.close()
+        
+    elif ndim == 2:
+        
+        alpha_d_TE = alpharange.copy()
+        alpha_d_TM = alpharange.copy()
+        
+        if self_interaction:
+            self_int_TM = (-1/(k0range**2) + 0.5j*volume*sp.special.hankel1(1,k0range*radius)/(k0range*radius))
+            alpha_d_TM /= (1 - k0range**2 * alpharange * self_int_TM / volume)
+            
+            self_int_TE = (-1/(k0range**2) + 0.25j*volume*sp.special.hankel1(1,k0range*radius)/(k0range*radius))
+            alpha_d_TE /= (1 - k0range**2 * alpharange * self_int_TE / volume)
+            
+            
+        alpha_d_TE = onp.absolute(alpha_d_TE)
+        alpha_d_TM = onp.absolute(alpha_d_TM)
+        
+        max_TE = onp.argmax(alpha_d_TE)
+        k0_max_TE = k0range[max_TE] * L / (2 * onp.pi)
+        if max_TE != alpha_d_TE.shape[0] - 1:
+            print("TE Resonance in the explored interval, at k0 = "+ str(k0_max_TE) +"!")
+            
+        max_TM = onp.argmax(alpha_d_TM)
+        k0_max_TM = k0range[max_TM] * L / (2 * onp.pi)
+        if onp.argmax(alpha_d_TM) != alpha_d_TM.shape[0] - 1:
+            print("TM Resonance in the explored interval, at k0 = "+ str(k0_max_TM) +"!")
+            
+        fig = plt.figure()
+        ax = fig.gca()
+        freqs = onp.real(k0range*L/(2*onp.pi))
+        ax.plot(freqs, alpha_d_TE, c = 'r', label = 'TE')
+        ax.plot(freqs, alpha_d_TM, c = 'b', label = 'TM')
+        ax.plot(freqs, onp.absolute(alpharange), c='k', ls ='--', label = 'bare')
+        deltaeps = alpharange.copy() / volume
+        clausius = 2 * volume * deltaeps / (deltaeps + 2)
+        ax.plot(freqs, onp.absolute(clausius), c='k', ls =':', label = 'Clausius-Mossotti')
+        ax.set_xlabel(r'$k_0L/2\pi$')
+        ax.set_ylabel(r"|\alpha_d|")
+        ax.legend()
+        plt.savefig(file_name+'_alphad'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
+        plt.close()
+        
+        print(file_name+'_alphad_'+appended_string+'.png')
+        
+    else:
+        print("ndim not implemented!")
+        sys.exit()
 
 def plot_k_times_radius(k0range, radius, L, file_name, appended_string=''):
     # Plot the value of k times a to check whether hypotheses are still consistent
