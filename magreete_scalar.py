@@ -163,9 +163,11 @@ def main(ndim, # Required arguments
 
             # Polarizability list
             if cold_atoms:
-                #TODO: Adapt constants in there
-                alpharange = utils.alpha_cold_atoms_2d(k0range)
-                self_interaction = False
+                kresonant = 2 * onp.pi * 0.1 * L / radius
+                kplasma = 0.1 * kresonant
+                damping = 0.1 * kplasma
+                alpharange = utils.alpha_Lorentz(k0range, volume, kresonant, kplasma, damping)
+                self_interaction = True
                 print("Effective indices:"+str(onp.sqrt(alpharange/volume + 1)))
             else:
                 alpharange = onp.ones(len(k0range)) * utils.alpha_small_dielectric_object(refractive_n,volume)
@@ -194,8 +196,11 @@ def main(ndim, # Required arguments
 
             # Polarizability list
             if cold_atoms:
-                alpharange = utils.alpha_cold_atoms_3d(k0range)
-                self_interaction = False
+                kresonant = 2 * onp.pi * 0.1 * L / radius
+                kplasma = 0.1 * kresonant
+                damping = 0.1 * kplasma
+                alpharange = utils.alpha_Lorentz(k0range, volume, kresonant, kplasma, damping)
+                self_interaction = True
                 print("Effective indices:"+str(onp.sqrt(alpharange/volume + 1)))
             else:
                 alpharange = onp.ones(len(k0range)) * utils.alpha_small_dielectric_object(refractive_n,volume)
