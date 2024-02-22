@@ -20,7 +20,7 @@ import argparse
 
 def main(ndim, # Required arguments
         refractive_n = 1.65 - 0.025j, phi = 0.1, regularize = True, N_raw = 16384, beam_waist = 0.2, L = 1, # Physical parameters
-        lattice=None, cold_atoms=False, annulus = 0, composite = False, kick = 0.0, input_files_args = None, method = "torch", # Special cases
+        lattice=None, cold_atoms=False, kresonant_ = None, annulus = 0, composite = False, kick = 0.0, input_files_args = None, method = "torch", # Special cases
         k0range_args = None, thetarange_args = None, # Range of values to use
         compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, scattered_fields=False, transmission_radius = 2.0,
         compute_DOS=False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, intensity_fields = False, amplitude_fields = False, phase_fields = False, just_compute_averages = False,# Computations to perform
@@ -163,9 +163,14 @@ def main(ndim, # Required arguments
 
             # Polarizability list
             if cold_atoms:
-                kresonant = 2 * onp.pi * 0.1 * L / radius
-                kplasma = 0.1 * kresonant
-                damping = 0.1 * kplasma
+                if kresonant_ == None:
+                    kresonant_ = 0.1 * L / radius
+                kresonant = 2 * onp.pi * kresonant_
+                static_deltaeps = refractive_n**2 - 1
+                # as omega -> 0, Lorentz -> omegap**2 / omega0 ** 2 
+                # Therefore kplasma = kresonant * sqrt(static_deltaeps)
+                kplasma = kresonant * onp.sqrt(onp.real(static_deltaeps))
+                damping = onp.imag(static_deltaeps) * kplasma # Just an ansatz
                 alpharange = utils.alpha_Lorentz(k0range, volume, kresonant, kplasma, damping)
                 self_interaction = True
                 print("Effective indices:"+str(onp.sqrt(alpharange/volume + 1)))
@@ -196,9 +201,14 @@ def main(ndim, # Required arguments
 
             # Polarizability list
             if cold_atoms:
-                kresonant = 2 * onp.pi * 0.1 * L / radius
-                kplasma = 0.1 * kresonant
-                damping = 0.1 * kplasma
+                if kresonant_ == None:
+                    kresonant_ = 0.1 * L / radius
+                kresonant = 2 * onp.pi * kresonant_
+                static_deltaeps = refractive_n**2 - 1
+                # as omega -> 0, Lorentz -> omegap**2 / omega0 ** 2 
+                # Therefore kplasma = kresonant * sqrt(static_deltaeps)
+                kplasma = kresonant * onp.sqrt(onp.real(static_deltaeps))
+                damping = onp.imag(static_deltaeps) * kplasma # Just an ansatz
                 alpharange = utils.alpha_Lorentz(k0range, volume, kresonant, kplasma, damping)
                 self_interaction = True
                 print("Effective indices:"+str(onp.sqrt(alpharange/volume + 1)))
@@ -1143,6 +1153,8 @@ if __name__ == '__main__':
         default = 1.65 - 0.025j", default = 1.6 - 0.025j)
     parser.add_argument("--cold_atoms", action='store_true', help="Use a Lorentz model of the electron as a polarizability \
         default = False", default = False)
+    parser.add_argument("--kres", type = float, help = "Value of the bare resonance frequency in the Lorentz polarizability \
+        default = 0.1 * L / radius", default = None)
     parser.add_argument("--phi", type=float, help="Volume fraction of scatterers within the medium \
         default = 0.1", default = 0.1)  
     parser.add_argument("-r", "--regularize", action='store_true', help="Regularize the fields and DOS inside of scatterers\
@@ -1243,6 +1255,7 @@ if __name__ == '__main__':
         input_files_args            = tuple(input_files_args)
     # Special cases
     cold_atoms                      = args.cold_atoms
+    kresonant_                      = args.kres
     lattice                         = args.lattice
     annulus                         = args.annulus
     composite                       = args.composite
@@ -1285,7 +1298,7 @@ if __name__ == '__main__':
     main(ndim,
         refractive_n = refractive_n,  phi=phi, regularize=regularize, N_raw=N, beam_waist=beam_waist, L=boxsize,
         k0range_args = k0range_args, thetarange_args=thetarange_args, input_files_args = input_files_args,
-        cold_atoms=cold_atoms, lattice=lattice, annulus = annulus, composite = composite, kick = kick, method = method,
+        cold_atoms=cold_atoms, kresonant_ = kresonant_, lattice=lattice, annulus = annulus, composite = composite, kick = kick, method = method,
         compute_transmission = compute_transmission, plot_transmission=plot_transmission, single_scattering_transmission=single_scattering_transmission, scattered_fields=scattered_fields, transmission_radius=transmission_radius,
         compute_DOS=compute_DOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS,
         intensity_fields = intensity_fields, amplitude_fields=amplitude_fields, phase_fields=phase_fields, just_compute_averages=just_compute_averages,

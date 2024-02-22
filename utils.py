@@ -386,8 +386,8 @@ def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, se
         freqs = onp.real(k0range*L/(2*onp.pi))
         ax.plot(freqs, alpha_d, c = 'r', label = 'dressed')
         if self_interaction:
-            ax.plot(freqs, onp.absolute(alpharange), c='k', ls = '--', label = 'bare')
-            deltaeps = alpharange.copy() / volume
+            ax.plot(freqs, onp.absolute(alpharange[0])*onp.ones(alpharange.shape), c='k', ls = '--', label = 'bare')
+            deltaeps = alpharange[0]*onp.ones(alpharange.shape) / volume
             clausius = 3 * volume * deltaeps / (deltaeps + 3)
             ax.plot(freqs, onp.absolute(clausius), c='k', ls =':', label = 'Clausius-Mossotti')
         ax.set_xlabel(r'$k_0L/2\pi$')
@@ -422,7 +422,7 @@ def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, se
             ax = fig.gca()
             freqs = onp.real(k0range*L/(2*onp.pi))
             ax.plot(freqs, alpha_d_TM, c = 'r')
-            ax.plot(freqs, onp.absolute(alpharange), c='k', ls ='--', label = 'bare')
+            ax.plot(freqs, onp.absolute(alpharange[0])*onp.ones(alpharange.shape), c='k', ls ='--', label = 'bare')
             ax.set_xlabel(r'$k_0L/2\pi$')
             ax.set_ylabel(r"|\alpha_d|")
             ax.legend()
@@ -446,8 +446,8 @@ def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, se
             ax.plot(freqs, alpha_d_TE, c = 'r', label = 'TE')
             ax.plot(freqs, alpha_d_TM, c = 'b', label = 'TM')
             if self_interaction:
-                ax.plot(freqs, onp.absolute(alpharange), c='k', ls ='--', label = 'bare')
-                deltaeps = alpharange.copy() / volume
+                ax.plot(freqs, onp.absolute(alpharange[0])*onp.ones(alpharange.shape), c='k', ls ='--', label = 'bare')
+                deltaeps = alpharange[0]*onp.ones(alpharange.shape) / volume
                 clausius = 2 * volume * deltaeps / (deltaeps + 2)
                 ax.plot(freqs, onp.absolute(clausius), c='k', ls =':', label = 'Clausius-Mossotti')
             ax.set_xlabel(r'$k_0L/2\pi$')
