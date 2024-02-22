@@ -23,7 +23,7 @@ def alpha_cold_atoms_2d(k0range, omega0 = 3e15, Gamma = 5e16, Lfactor = 1e-4):
     Gamma: bare linewidth, in rad/s
     Lfactor: conversion factor for lengths, the values above being given for L = 100 µm
     """
-
+    
     return (-2*Gamma/(omega0*(k0range*k0range-omega0*omega0/(c*c)+0.5j*Gamma*k0range*k0range/omega0)))/Lfactor**2
 
 def alpha_cold_atoms_3d(k0range, omega0 = 3e15, Gamma = 5e16, Lfactor = 1e-4):
@@ -39,6 +39,20 @@ def alpha_cold_atoms_3d(k0range, omega0 = 3e15, Gamma = 5e16, Lfactor = 1e-4):
     omegarange = k0range * c
     omega0sq = omega0*omega0
     return (-4*onp.pi*(c**3)*Gamma/(omega0sq*(omegarange*omegarange-omega0sq+1j*Gamma*omegarange*omegarange*omegarange/omega0sq)))/Lfactor**3
+
+
+def alpha_Lorentz(k0range, volume, kresonant, kplasma, damping):
+    """
+    Bare Lorentz polarizability
+    Arguments:
+    k0range: array of k values
+    volume: volume of scatterers
+    kresonant: resonance value for k
+    kplasma: plasma frequency converted to k-vector
+    damping: non-radiative losses in k units
+    """
+    
+    return volume * kplasma**2 / (kresonant**2 - k0range**2 - 1j * damping * k0range)
 
 def alpha_small_dielectric_object(refractive_n, volume):
     """
@@ -344,7 +358,7 @@ def plot_optical_thickness(k0range, L, alpharange, ndim, phi, volume, file_name,
     plt.savefig(file_name+'_opticalthickness'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
     plt.close()
 
-def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, self_interaction, file_name, appended_string = ''):
+def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, self_interaction, file_name, appended_string = '', scalar = False):
     # Plot dressed polarizability taking into account self_interaction to find resonances
     
     if ndim == 3:
@@ -352,7 +366,12 @@ def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, se
         alpha_d = alpharange.copy()
         
         if self_interaction:
-            self_int = ( (2.0/3.0)*onp.exp(1j*k0range*radius)*(1- 1j*k0range*radius) - 1.0 ) / k0range**2
+            
+            if scalar:
+                self_int = (onp.exp(1j*k0range*radius)*(1- 1j*k0range*radius) - 1.0 ) / k0range**2
+            else:
+                self_int = ( (2.0/3.0)*onp.exp(1j*k0range*radius)*(1- 1j*k0range*radius) - 1.0 ) / k0range**2
+                
             alpha_d /= (1 - k0range**2 * alpharange * self_int / volume)
             
         alpha_d = onp.absolute(alpha_d)
@@ -366,10 +385,11 @@ def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, se
         ax = fig.gca()
         freqs = onp.real(k0range*L/(2*onp.pi))
         ax.plot(freqs, alpha_d, c = 'r', label = 'dressed')
-        ax.plot(freqs, onp.absolute(alpharange), c='k', ls = '--', label = 'bare')
-        deltaeps = alpharange.copy() / volume
-        clausius = 3 * volume * deltaeps / (deltaeps + 3)
-        ax.plot(freqs, onp.absolute(clausius), c='k', ls =':', label = 'Clausius-Mossotti')
+        if self_interaction:
+            ax.plot(freqs, onp.absolute(alpharange), c='k', ls = '--', label = 'bare')
+            deltaeps = alpharange.copy() / volume
+            clausius = 3 * volume * deltaeps / (deltaeps + 3)
+            ax.plot(freqs, onp.absolute(clausius), c='k', ls =':', label = 'Clausius-Mossotti')
         ax.set_xlabel(r'$k_0L/2\pi$')
         ax.set_ylabel(r"|\alpha_d|")
         ax.legend()
@@ -392,32 +412,49 @@ def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, se
         alpha_d_TE = onp.absolute(alpha_d_TE)
         alpha_d_TM = onp.absolute(alpha_d_TM)
         
-        max_TE = onp.argmax(alpha_d_TE)
-        k0_max_TE = k0range[max_TE] * L / (2 * onp.pi)
-        if max_TE != alpha_d_TE.shape[0] - 1:
-            print("TE Resonance in the explored interval, at k0 = "+ str(k0_max_TE) +"!")
+        if scalar:
+            max_TM = onp.argmax(alpha_d_TM)
+            k0_max_TM = k0range[max_TM] * L / (2 * onp.pi)
+            if onp.argmax(alpha_d_TM) != alpha_d_TM.shape[0] - 1:
+                print("Resonance in the explored interval, at k0 = "+ str(k0_max_TM) +"!")
+                
+            fig = plt.figure()
+            ax = fig.gca()
+            freqs = onp.real(k0range*L/(2*onp.pi))
+            ax.plot(freqs, alpha_d_TM, c = 'r')
+            ax.plot(freqs, onp.absolute(alpharange), c='k', ls ='--', label = 'bare')
+            ax.set_xlabel(r'$k_0L/2\pi$')
+            ax.set_ylabel(r"|\alpha_d|")
+            ax.legend()
+            plt.savefig(file_name+'_alphad'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
+            plt.close()
             
-        max_TM = onp.argmax(alpha_d_TM)
-        k0_max_TM = k0range[max_TM] * L / (2 * onp.pi)
-        if onp.argmax(alpha_d_TM) != alpha_d_TM.shape[0] - 1:
-            print("TM Resonance in the explored interval, at k0 = "+ str(k0_max_TM) +"!")
-            
-        fig = plt.figure()
-        ax = fig.gca()
-        freqs = onp.real(k0range*L/(2*onp.pi))
-        ax.plot(freqs, alpha_d_TE, c = 'r', label = 'TE')
-        ax.plot(freqs, alpha_d_TM, c = 'b', label = 'TM')
-        ax.plot(freqs, onp.absolute(alpharange), c='k', ls ='--', label = 'bare')
-        deltaeps = alpharange.copy() / volume
-        clausius = 2 * volume * deltaeps / (deltaeps + 2)
-        ax.plot(freqs, onp.absolute(clausius), c='k', ls =':', label = 'Clausius-Mossotti')
-        ax.set_xlabel(r'$k_0L/2\pi$')
-        ax.set_ylabel(r"|\alpha_d|")
-        ax.legend()
-        plt.savefig(file_name+'_alphad'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
-        plt.close()
-        
-        print(file_name+'_alphad_'+appended_string+'.png')
+        else:
+            max_TE = onp.argmax(alpha_d_TE)
+            k0_max_TE = k0range[max_TE] * L / (2 * onp.pi)
+            if max_TE != alpha_d_TE.shape[0] - 1:
+                print("TE Resonance in the explored interval, at k0 = "+ str(k0_max_TE) +"!")
+                
+            max_TM = onp.argmax(alpha_d_TM)
+            k0_max_TM = k0range[max_TM] * L / (2 * onp.pi)
+            if onp.argmax(alpha_d_TM) != alpha_d_TM.shape[0] - 1:
+                print("TM Resonance in the explored interval, at k0 = "+ str(k0_max_TM) +"!")
+                
+            fig = plt.figure()
+            ax = fig.gca()
+            freqs = onp.real(k0range*L/(2*onp.pi))
+            ax.plot(freqs, alpha_d_TE, c = 'r', label = 'TE')
+            ax.plot(freqs, alpha_d_TM, c = 'b', label = 'TM')
+            if self_interaction:
+                ax.plot(freqs, onp.absolute(alpharange), c='k', ls ='--', label = 'bare')
+                deltaeps = alpharange.copy() / volume
+                clausius = 2 * volume * deltaeps / (deltaeps + 2)
+                ax.plot(freqs, onp.absolute(clausius), c='k', ls =':', label = 'Clausius-Mossotti')
+            ax.set_xlabel(r'$k_0L/2\pi$')
+            ax.set_ylabel(r"|\alpha_d|")
+            ax.legend()
+            plt.savefig(file_name+'_alphad'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
+            plt.close()
         
     else:
         print("ndim not implemented!")

@@ -165,7 +165,7 @@ def main(ndim, # Required arguments
             if cold_atoms:
                 #TODO: Adapt constants in there
                 alpharange = utils.alpha_cold_atoms_2d(k0range)
-                self_interaction = True
+                self_interaction = False
                 print("Effective indices:"+str(onp.sqrt(alpharange/volume + 1)))
             else:
                 alpharange = onp.ones(len(k0range)) * utils.alpha_small_dielectric_object(refractive_n,volume)
@@ -195,7 +195,7 @@ def main(ndim, # Required arguments
             # Polarizability list
             if cold_atoms:
                 alpharange = utils.alpha_cold_atoms_3d(k0range)
-                self_interaction = True
+                self_interaction = False
                 print("Effective indices:"+str(onp.sqrt(alpharange/volume + 1)))
             else:
                 alpharange = onp.ones(len(k0range)) * utils.alpha_small_dielectric_object(refractive_n,volume)
@@ -205,6 +205,8 @@ def main(ndim, # Required arguments
         utils.plot_optical_thickness(k0range, L, alpharange, ndim, phi, volume, file_name)
         # Also plot the values of ka to check whether hypotheses are consistent
         utils.plot_k_times_radius(k0range, radius, L, file_name)
+        # Finally, plot dressed polarizability of a single scatterer to pinpoint resonances
+        utils.plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, self_interaction, file_name, scalar = True)
 
         ### ###############
         ### 2d calculations
