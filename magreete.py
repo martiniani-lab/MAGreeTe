@@ -19,7 +19,7 @@ import argparse
 
 
 def main(ndim, # Required arguments
-        refractive_n = 1.65 - 0.025j, phi = 0.1, regularize = True, N_raw = 16384, beam_waist = 0.2, L = 1, # Physical parameters
+        refractive_n = 1.65 + 0.025j, phi = 0.1, regularize = True, N_raw = 16384, beam_waist = 0.2, L = 1, # Physical parameters
         lattice=None, cold_atoms=False, kresonant_ = None, annulus = 0, composite = False, kick = 0.0, input_files_args = None, method = "torch", # Special cases
         k0range_args = None, thetarange_args = None,# Range of values to use
         compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, scattered_fields=False, transmission_radius = 2.0,
@@ -33,6 +33,10 @@ def main(ndim, # Required arguments
     # XXX May want to expose outside
     # XXX Still adding Rayleigh option
     self_interaction_type = "Rayleigh" # Rayleigh or full
+
+    if onp.imag(refractive_n < 0):
+        print("Imaginary parts of indices should be positive!")
+        sys.exit()
 
     # Name the output directory in a human-readable way containing the three physical parameters: raw number of particles, volume fraction and refractive index
     output_directory_suffix = "phi_"+str(phi)+"/"
