@@ -358,7 +358,7 @@ def plot_optical_thickness(k0range, L, alpharange, ndim, phi, volume, file_name,
     plt.savefig(file_name+'_opticalthickness'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
     plt.close()
 
-def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, self_interaction, file_name, appended_string = '', scalar = False):
+def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, self_interaction, file_name, appended_string = '', scalar = False, self_interaction_type = "full"):
     # Plot dressed polarizability taking into account self_interaction to find resonances
     
     if ndim == 3:
@@ -368,12 +368,25 @@ def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, se
         if self_interaction:
             
             if scalar:
-                self_int = (onp.exp(1j*k0range*radius)*(1- 1j*k0range*radius) - 1.0 ) / k0range**2
+                if self_interaction_type == "full":
+                    self_int = (onp.exp(1j*k0range*radius)*(1- 1j*k0range*radius) - 1.0 ) / k0range**2
+                elif self_interaction_type == "Rayleigh":
+                    self_int = radius**2 / 2.0 + 1j * k0range * volume / (4.0 * onp.pi)
+                else: 
+                    raise NotImplementedError
             else:
-                self_int = ( (2.0/3.0)*onp.exp(1j*k0range*radius)*(1- 1j*k0range*radius) - 1.0 ) / k0range**2
+                if self_interaction_type == "full":
+                    self_int = ( (2.0/3.0)*onp.exp(1j*k0range*radius)*(1- 1j*k0range*radius) - 1.0 ) / k0range**2
+                elif self_interaction_type == "Rayleigh":
+                    self_int = (-1.0 / (3.0 * k0range**2) + radius**2 / 3.0 + 1j * k0range * volume / (6* onp.pi))
+                else:
+                    raise NotImplementedError
                 
             alpha_d /= (1 - k0range**2 * alpharange * self_int / volume)
             
+        scattering_cross_section = (1.0 / (6.0 * onp.pi)) * k0range**4 * onp.absolute(alpha_d)**2
+        extinction_cross_section = k0range * onp.imag(alpha_d)
+        
         alpha_d = onp.absolute(alpha_d)
         
         max_alpha = onp.argmax(alpha_d)
@@ -396,19 +409,45 @@ def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, se
         plt.savefig(file_name+'_alphad'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
         plt.close()
         
+        fig = plt.figure()
+        ax = fig.gca()
+        freqs = onp.real(k0range*L/(2*onp.pi))
+        ax.plot(freqs, scattering_cross_section, c='r', label = "Rayleigh scattering CS")
+        ax.plot(freqs, extinction_cross_section, c='k', label = "Rayleigh extinction CS")
+        ax.plot(freqs, extinction_cross_section - scattering_cross_section, c='b', label = "Rayleigh absorption CS")
+        ax.set_xlabel(r'$k_0L/2\pi$')
+        ax.set_ylabel('Cross-sections')
+        ax.legend()
+        plt.savefig(file_name+'_crosssections'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
+        plt.close()
+
+        
     elif ndim == 2:
         
         alpha_d_TE = alpharange.copy()
         alpha_d_TM = alpharange.copy()
         
         if self_interaction:
-            self_int_TM = (-1/(k0range**2) + 0.5j*volume*sp.special.hankel1(1,k0range*radius)/(k0range*radius))
-            alpha_d_TM /= (1 - k0range**2 * alpharange * self_int_TM / volume)
+            if self_interaction_type == "full":
+                self_int_TM = (-1/(k0range**2) + 0.5j*volume*sp.special.hankel1(1,k0range*radius)/(k0range*radius))
+                self_int_TE = (-1/(k0range**2) + 0.25j*volume*sp.special.hankel1(1,k0range*radius)/(k0range*radius))
+
+            elif self_interaction_type == "Rayleigh":
+                self_int_TM = - (radius**2 /4.0) * (2.0 * onp.euler_gamma - 1.0 + 2.0 * onp.log(k0range * radius / 2.0) - 1j * onp.pi)
+                self_int_TE = -1.0/(2.0 * k0range**2) - (radius**2 /8.0) * (2.0 * onp.euler_gamma - 1.0 + 2.0 * onp.log(k0range * radius / 2.0) - 1j * onp.pi)
+            else:
+                raise NotImplementedError
             
-            self_int_TE = (-1/(k0range**2) + 0.25j*volume*sp.special.hankel1(1,k0range*radius)/(k0range*radius))
+            alpha_d_TM /= (1 - k0range**2 * alpharange * self_int_TM / volume)
             alpha_d_TE /= (1 - k0range**2 * alpharange * self_int_TE / volume)
             
-            
+        
+        scattering_cross_section_TE = (1.0 / 8.0) * k0range**3 * onp.absolute(alpha_d_TE)**2
+        extinction_cross_section_TE = k0range * onp.imag(alpha_d_TE)
+        
+        scattering_cross_section_TM = (1.0 / 4.0) * k0range**3 * onp.absolute(alpha_d_TM)**2
+        extinction_cross_section_TM = k0range * onp.imag(alpha_d_TM)
+        
         alpha_d_TE = onp.absolute(alpha_d_TE)
         alpha_d_TM = onp.absolute(alpha_d_TM)
         
@@ -454,6 +493,30 @@ def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, se
             ax.set_ylabel(r"|\alpha_d|")
             ax.legend()
             plt.savefig(file_name+'_alphad'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
+            plt.close()
+            
+            fig = plt.figure()
+            ax = fig.gca()
+            freqs = onp.real(k0range*L/(2*onp.pi))
+            ax.plot(freqs, scattering_cross_section_TE, c='r', label = "Rayleigh scattering CS")
+            ax.plot(freqs, extinction_cross_section_TE, c='k', label = "Rayleigh extinction CS")
+            ax.plot(freqs, extinction_cross_section_TE - scattering_cross_section_TE, c='b', label = "Rayleigh absorption CS")
+            ax.set_xlabel(r'$k_0L/2\pi$')
+            ax.set_ylabel('Cross-sections')
+            ax.legend()
+            plt.savefig(file_name+'_crosssections_TE'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
+            plt.close()
+            
+            fig = plt.figure()
+            ax = fig.gca()
+            freqs = onp.real(k0range*L/(2*onp.pi))
+            ax.plot(freqs, scattering_cross_section_TM, c='r', label = "Rayleigh scattering CS")
+            ax.plot(freqs, extinction_cross_section_TM, c='k', label = "Rayleigh extinction CS")
+            ax.plot(freqs, extinction_cross_section_TM - scattering_cross_section_TM, c='b', label = "Rayleigh absorption CS")
+            ax.set_xlabel(r'$k_0L/2\pi$')
+            ax.set_ylabel('Cross-sections')
+            ax.legend()
+            plt.savefig(file_name+'_crosssections_TM'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
             plt.close()
         
     else:

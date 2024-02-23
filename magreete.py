@@ -30,6 +30,10 @@ def main(ndim, # Required arguments
     Simple front-end for MAGreeTe
     '''
 
+    # XXX May want to expose outside
+    # XXX Still adding Rayleigh option
+    self_interaction_type = "Rayleigh" # Rayleigh or full
+
     # Name the output directory in a human-readable way containing the three physical parameters: raw number of particles, volume fraction and refractive index
     output_directory_suffix = "phi_"+str(phi)+"/"
     if cold_atoms:
@@ -220,7 +224,7 @@ def main(ndim, # Required arguments
         # Also plot the values of ka to check whether hypotheses are consistent
         utils.plot_k_times_radius(k0range, radius, L, file_name)
         # Finally, plot dressed polarizability of a single scatterer to pinpoint resonances
-        utils.plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, self_interaction, file_name)
+        utils.plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, self_interaction, file_name, self_interaction_type=self_interaction_type)
 
         # If the code is run solely to put together data already obtained for several copies, skip this
         if just_compute_averages:
@@ -254,7 +258,7 @@ def main(ndim, # Required arguments
                     ETMall_scat = []
                     
                     for k0, alpha in zip(k0range,alpharange):
-                        EjTE, EjTM = solver.solve_EM(k0, alpha, thetas, radius, w, self_interaction=self_interaction)
+                        EjTE, EjTM = solver.solve_EM(k0, alpha, thetas, radius, w, self_interaction=self_interaction, self_interaction_type=self_interaction_type)
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                         params = [alpha, k0]
                         hkl.dump([onp.array(EjTE), onp.array(EjTM), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
@@ -531,7 +535,7 @@ def main(ndim, # Required arguments
                         k0 = onp.float64(k0)
                         alpha = onp.complex128(alpha)
                     else:
-                        EjTE, EjTM = solver.solve_EM(k0, alpha, thetas, radius, w, self_interaction=self_interaction)
+                        EjTE, EjTM = solver.solve_EM(k0, alpha, thetas, radius, w, self_interaction=self_interaction, self_interaction_type=self_interaction_type)
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                         params = [alpha, k0]
                         hkl.dump([onp.array(EjTE), onp.array(EjTM), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
@@ -780,7 +784,7 @@ def main(ndim, # Required arguments
                     Eall_scat = []
                     
                     for k0, alpha in zip(k0range,alpharange):
-                        Ej = solver.solve(k0, alpha, u, p, radius, w, self_interaction=self_interaction)
+                        Ej = solver.solve(k0, alpha, u, p, radius, w, self_interaction=self_interaction, self_interaction_type=self_interaction_type)
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                         params = [alpha, k0]
                         hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
@@ -1011,7 +1015,7 @@ def main(ndim, # Required arguments
                         p = np.zeros(u.shape)
                         p[:,2] = 1
                         Eall = []
-                        Ej = solver.solve(k0, alpha, u, p, radius, w, self_interaction=self_interaction)
+                        Ej = solver.solve(k0, alpha, u, p, radius, w, self_interaction=self_interaction, self_interaction_type=self_interaction_type)
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                         params = [alpha, k0]
                         hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')   

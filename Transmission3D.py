@@ -126,7 +126,7 @@ class Transmission3D:
                 
         return Ek_
    
-    def solve(self, k0, alpha, u, p, radius, beam_waist, self_interaction=True):
+    def solve(self, k0, alpha, u, p, radius, beam_waist, self_interaction=True, self_interaction_type="full"):
         '''
         Solves the EM field at each scatterer
 
@@ -137,6 +137,7 @@ class Transmission3D:
         radius              - (1)           radius of scatterers, used in self-interaction
         beam_waist          - (1)           beam waist of Gaussian beam source
         self_interaction    - (bool)        include or not self-interactions, defaults to True 
+        self_interaction_type - (string)      what order of approximation of S to use, "Rayleigh" or "full"
         '''
 
         # Generate source field for scatterer positions
@@ -150,7 +151,12 @@ class Transmission3D:
             # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
             dims = M_tensor.shape[0]
             volume = 4*onp.pi*(radius**3)/3
-            self_int = (alpha/volume) * np.eye(dims)*((2.0/3.0)*onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
+            if self_interaction_type == "full":
+                self_int = (alpha/volume) * np.eye(dims)*((2.0/3.0)*onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0)
+            elif self_interaction_type == "Rayleigh":
+                self_int = (alpha/volume) * (- 1.0 / 3.0 + k0**2 * radius**2 / 3.0 + 1j * k0**3 * volume / (6.0 * onp.pi))
+            else:
+                raise NotImplementedError
             M_tensor -= self_int
         # Solve M_tensor.Ek = E0j
         Ek = np.linalg.solve(M_tensor, E0j.reshape(3*self.N,-1)) 
@@ -413,7 +419,7 @@ class Transmission3D_hmatrices:
         
         return E0j.reshape(points.shape[0],1,-1)*pvec.reshape(1,3,-1)
 
-    def solve(self, k0, alpha, u, p, radius, beam_waist, self_interaction=True):
+    def solve(self, k0, alpha, u, p, radius, beam_waist, self_interaction=True, self_interaction_type="full"):
         '''
         Solves the EM field at each scatterer
 
@@ -423,7 +429,8 @@ class Transmission3D_hmatrices:
         p                   - (Ndirs, 3)    polarization directions for the source
         radius              - (1)           radius of scatterers, used in self-interaction
         beam_waist          - (1)           beam waist of Gaussian beam source
-        self_interaction    - (bool)        include or not self-interactions, defaults to True 
+        self_interaction    - (bool)        include or not self-interactions, defaults to True
+        self_interaction_type - (string)      what order of approximation of S to use, "Rayleigh" or "full"
         '''
 
         # Generate source field for scatterer positions
@@ -435,7 +442,7 @@ class Transmission3D_hmatrices:
         atol = 0 # Absolute tolerance used in HMatrices
         rtol = 1e-3 # Relative tolerance
         debug = False
-        Ek = jl.Transmission3D.solve(self.r.numpy(), E0j.reshape(3*self.N,-1).numpy(), k0, alpha, radius, self_interaction, regularize = regularize, use_lu = use_lu, atol = atol, rtol = rtol, debug=debug)
+        Ek = jl.Transmission3D.solve(self.r.numpy(), E0j.reshape(3*self.N,-1).numpy(), k0, alpha, radius, self_interaction, regularize = regularize, self_interaction_type = self_interaction_type, use_lu = use_lu, atol = atol, rtol = rtol, debug=debug)
         
         return Ek
     
@@ -696,7 +703,7 @@ class Transmission3D_scalar:
                 
         return Ek_
    
-    def solve(self, k0, alpha, u, radius, beam_waist, self_interaction=True):
+    def solve(self, k0, alpha, u, radius, beam_waist, self_interaction=True, self_interaction_type="full"):
         '''
         Solves the EM field at each scatterer
 
@@ -706,6 +713,8 @@ class Transmission3D_scalar:
         radius              - (1)           radius of scatterers, used in self-interaction
         beam_waist          - (1)           beam waist of Gaussian beam source
         self_interaction    - (bool)        include or not self-interactions, defaults to True 
+        self_interaction_type - (string)      what order of approximation of S to use, "Rayleigh" or "full"
+
         '''
 
         # Generate source field for scatterer positions
@@ -719,7 +728,12 @@ class Transmission3D_scalar:
             # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
             dims = M_tensor.shape[0]
             volume = 4*onp.pi*(radius**3)/3
-            self_int = (alpha/volume) * np.eye(dims) * (onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) # XXX FIND ACTUAL SHAPE HERE
+            if self_interaction_type == "full":
+                self_int = (alpha/volume) * np.eye(dims) * (onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0)
+            elif self_interaction_type == "Rayleigh":
+                self_int = (k0**2 * alpha) * ( radius**2 / (2.0 * volume) + 1j * k0 / (4.0 * onp.pi))
+            else:
+                raise NotImplementedError
             M_tensor -= self_int
         # Solve M_tensor.Ek = E0j
         Ek = np.linalg.solve(M_tensor, E0j.reshape(self.N,-1)) 
@@ -972,7 +986,7 @@ class Transmission3D_scalar_hmatrices:
         
         return E0j.reshape(points.shape[0],-1)
 
-    def solve(self, k0, alpha, u, radius, beam_waist, self_interaction=True):
+    def solve(self, k0, alpha, u, radius, beam_waist, self_interaction=True, self_interaction_type="full"):
         '''
         Solves the EM field at each scatterer
 
@@ -982,6 +996,8 @@ class Transmission3D_scalar_hmatrices:
         radius              - (1)           radius of scatterers, used in self-interaction
         beam_waist          - (1)           beam waist of Gaussian beam source
         self_interaction    - (bool)        include or not self-interactions, defaults to True 
+        self_interaction_type - (string)      what order of approximation of S to use, "Rayleigh" or "full"
+        
         '''
 
         # Generate source field for scatterer positions
@@ -993,7 +1009,7 @@ class Transmission3D_scalar_hmatrices:
         atol = 0 # Absolute tolerance used in HMatrices
         rtol = 1e-3 # Relative tolerance
         debug = False
-        Ek = jl.Transmission3D.solve_scalar(self.r.numpy(), E0j.reshape(self.N,-1).numpy(), k0, alpha, radius, self_interaction, regularize = regularize, use_lu = use_lu, atol = atol, rtol = rtol, debug=debug)
+        Ek = jl.Transmission3D.solve_scalar(self.r.numpy(), E0j.reshape(self.N,-1).numpy(), k0, alpha, radius, self_interaction, regularize = regularize, self_interaction_type = self_interaction_type, use_lu = use_lu, atol = atol, rtol = rtol, debug=debug)
         
         return Ek
     

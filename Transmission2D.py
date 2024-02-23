@@ -165,16 +165,17 @@ class Transmission2D:
                 
         return EkTE_, EkTM_
    
-    def solve_EM(self, k0, alpha, thetas, radius, beam_waist, self_interaction=True):
+    def solve_EM(self, k0, alpha, thetas, radius, beam_waist, self_interaction=True, self_interaction_type = "full"):
         '''
         Solves the EM field at each scatterer
 
-        k0                  - (1)           frequency being measured
-        alpha               - (1)           bare static polarizability at given k0
-        thetas              - (Ndirs)       propagation directions for the source
-        radius              - (1)           radius of scatterers, used in self-interaction
-        beam_waist          - (1)           beam waist of Gaussian beam source
-        self_interaction    - (bool)        include or not self-interactions, defaults to True 
+        k0                    - (1)           frequency being measured
+        alpha                 - (1)           bare static polarizability at given k0
+        thetas                - (Ndirs)       propagation directions for the source
+        radius                - (1)           radius of scatterers, used in self-interaction
+        beam_waist            - (1)           beam waist of Gaussian beam source
+        self_interaction      - (bool)        include or not self-interactions, defaults to True 
+        self_interaction_type - (string)      what order of approximation of S to use, "Rayleigh" or "full"
         '''
 
         ### TM calculation
@@ -186,8 +187,13 @@ class Transmission2D:
             # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
             volume = onp.pi*radius*radius
             dims = M_tensor.shape[0]
-            self_int_TM = np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-            M_tensor -= alpha*k0*k0*self_int_TM
+            if self_interaction_type == "full":
+                self_int_TM = np.eye(dims) * (-1/(k0*k0) + 0.5j * volume * sp.special.hankel1(1,k0*radius)/(k0*radius))
+            elif self_interaction_type == "Rayleigh":
+                self_int_TM = np.eye(dims) * (-1.0 * radius**2 / 4.0) * (2.0 * onp.euler_gamma - 1.0 + 2.0 * onp.log(k0 * radius / 2.0) - 1j * onp.pi)
+            else:
+                raise NotImplementedError
+            M_tensor -= alpha*k0*k0*self_int_TM/volume
         # Solve M_tensor.Ek = E0j
         # NB: this uses an LU decomposition according to torch https://pytorch.org/docs/stable/generated/torch.linalg.lu.html
         EkTM = np.linalg.solve(M_tensor,E0j)
@@ -200,8 +206,13 @@ class Transmission2D:
         if self_interaction:
             # Add self-interaction
             dims = M_tensor.shape[0]
-            self_int_TE = np.eye(dims) * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-            M_tensor -= alpha*k0*k0*self_int_TE
+            if self_interaction_type == "full":
+                self_int_TE = np.eye(dims) * (-1/(k0*k0) + 0.25j* volume * sp.special.hankel1(1,k0*radius)/(k0*radius))
+            elif self_interaction_type == "Rayleigh":
+                self_int_TE = np.eye(dims) * (-1/(k0*k0) - (radius**2 / 8.0) * (2.0 * onp.euler_gamma - 1.0 + 2.0 * onp.log(k0 * radius / 2.0) - 1j * onp.pi))
+            else:
+                raise NotImplementedError
+            M_tensor -= alpha*k0*k0*self_int_TE/volume
         # Solve M_tensor.Ek = E0j
         EkTE = np.linalg.solve(M_tensor, E0j.reshape(2*self.N,-1)) 
         return EkTE, EkTM
@@ -891,7 +902,7 @@ class Transmission2D_scalar:
                 
         return Ek_
    
-    def solve(self, k0, alpha, thetas, radius, beam_waist, self_interaction=True):
+    def solve(self, k0, alpha, thetas, radius, beam_waist, self_interaction=True, self_interaction_type="full"):
         '''
         Solves for the field at each scatterer
 
@@ -901,6 +912,7 @@ class Transmission2D_scalar:
         radius              - (1)           radius of scatterers, used in self-interaction
         beam_waist          - (1)           beam waist of Gaussian beam source
         self_interaction    - (bool)        include or not self-interactions, defaults to True 
+        self_interaction_type - (string)      what order of approximation of S to use, "Rayleigh" or "full"
         '''
 
         ### TM calculation
@@ -912,8 +924,13 @@ class Transmission2D_scalar:
             # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
             volume = onp.pi*radius*radius
             dims = M_tensor.shape[0]
-            self_int_TM = np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-            M_tensor -= alpha*k0*k0*self_int_TM
+            if self_interaction_type == "full":
+                self_int_TM = np.eye(dims) * (-1/(k0*k0) + 0.5j * volume * sp.special.hankel1(1,k0*radius)/(k0*radius))
+            elif self_interaction_type == "Rayleigh":
+                self_int_TM = np.eye(dims) * (-1.0 * radius**2 / 4.0) * (2.0 * onp.euler_gamma - 1.0 + 2.0 * onp.log(k0 * radius / 2.0) - 1j * onp.pi)
+            else:
+                raise NotImplementedError
+            M_tensor -= alpha*k0*k0*self_int_TM/volume
         # Solve M_tensor.Ek = E0j
         # NB: this uses an LU decomposition according to torch https://pytorch.org/docs/stable/generated/torch.linalg.lu.html
         Ek = np.linalg.solve(M_tensor,E0j)
