@@ -361,7 +361,7 @@ def plot_optical_thickness(k0range, L, alpharange, ndim, phi, volume, file_name,
     plt.savefig(file_name+'_opticalthickness'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
     plt.close()
 
-def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, self_interaction, file_name, appended_string = '', scalar = False, self_interaction_type = "full"):
+def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, self_interaction, file_name, appended_string = '', scalar = False, self_interaction_type = "Rayleigh"):
     # Plot dressed polarizability taking into account self_interaction to find resonances
     
     if ndim == 3:

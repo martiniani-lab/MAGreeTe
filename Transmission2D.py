@@ -190,7 +190,7 @@ class Transmission2D:
                 
         return EkTE_, EkTM_
    
-    def solve_EM(self, k0, alpha, thetas, radius, beam_waist, self_interaction = True, self_interaction_type = "full"):
+    def solve_EM(self, k0, alpha, thetas, radius, beam_waist, self_interaction = True, self_interaction_type = "Rayleigh"):
         '''
         Solves the EM field at each scatterer
 
@@ -911,7 +911,7 @@ class Transmission2D_scalar:
                 
         return Ek_
    
-    def solve(self, k0, alpha, thetas, radius, beam_waist, self_interaction = True, self_interaction_type = "full"):
+    def solve(self, k0, alpha, thetas, radius, beam_waist, self_interaction = True, self_interaction_type = "Rayleigh"):
         '''
         Solves for the field at each scatterer
 

@@ -152,7 +152,7 @@ class Transmission3D:
                 
         return Ek_
    
-    def solve(self, k0, alpha, u, p, radius, beam_waist, self_interaction = True, self_interaction_type = "full"):
+    def solve(self, k0, alpha, u, p, radius, beam_waist, self_interaction = True, self_interaction_type = "Rayleigh"):
         '''
         Solves the EM field at each scatterer
 
@@ -434,7 +434,7 @@ class Transmission3D_hmatrices:
         
         return E0j.reshape(points.shape[0],1,-1)*pvec.reshape(1,3,-1)
 
-    def solve(self, k0, alpha, u, p, radius, beam_waist, self_interaction = True, self_interaction_type = "full"):
+    def solve(self, k0, alpha, u, p, radius, beam_waist, self_interaction = True, self_interaction_type = "Rayleigh"):
         '''
         Solves the EM field at each scatterer
 
@@ -718,7 +718,7 @@ class Transmission3D_scalar:
                 
         return Ek_
    
-    def solve(self, k0, alpha, u, radius, beam_waist, self_interaction = True, self_interaction_type="full"):
+    def solve(self, k0, alpha, u, radius, beam_waist, self_interaction = True, self_interaction_type = "Rayleigh"):
         '''
         Solves the EM field at each scatterer
 
@@ -990,7 +990,7 @@ class Transmission3D_scalar_hmatrices:
         
         return E0j.reshape(points.shape[0],-1)
 
-    def solve(self, k0, alpha, u, radius, beam_waist, self_interaction = True, self_interaction_type = "full"):
+    def solve(self, k0, alpha, u, radius, beam_waist, self_interaction = True, self_interaction_type = "Rayleigh"):
         '''
         Solves the EM field at each scatterer
 
