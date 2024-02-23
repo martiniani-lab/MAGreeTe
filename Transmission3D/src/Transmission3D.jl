@@ -132,7 +132,37 @@ module Transmission3D
     Base.getindex(K::GreensMatrixScalar,i::Int,j::Int) = M_scalar(K.X[i], K.Y[j], K.k0, K.alpha, K.radius, K.regularize, K.G0_center_value, K.solve)
     Base.size(K::GreensMatrixScalar) = length(K.X), length(K.Y)
     
-    function solve(python_points::AbstractArray, points_Einc::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
+    function self_interaction_integral_vector(k0, radius, self_interaction_type)
+        
+        volume = 4.0 * pi * radius^3 / 3.0
+        
+        if self_interaction_type == "full"
+            (1/k0^2) * ((2.0/3.0) * exp(1.0im * k0 * radius) * (1 - 1im * k0*radius) - 1.0)
+        elseif self_interaction_type == "Rayleigh"
+            (-1.0 / (3.0 * k0^2)) + radius^2 / 3.0 + 1im * k0 * volume / (6.0 * pi)
+        else
+            println("Self-interaction type not implemented!")
+            exit()
+        end
+        
+    end
+    
+    function self_interaction_integral_scalar(k0, radius, self_interaction_type)
+        
+        volume = 4.0 * pi * radius^3 / 3.0
+        
+        if self_interaction_type == "full"
+            (1/k0^2) * (exp(1.0im * k0 * radius) * (1 - 1im * k0*radius) - 1.0)
+        elseif self_interaction_type == "Rayleigh"
+            radius^2 / 2.0 + 1im * k0 * volume / (4.0 * pi)
+        else
+            println("Self-interaction type not implemented!")
+            exit()
+        end
+        
+    end
+    
+    function solve(python_points::AbstractArray, points_Einc::AbstractArray, k0, alpha, radius, self_interaction; self_interaction_type = "Rayleigh", regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
         
         if debug
             println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
@@ -156,7 +186,7 @@ module Transmission3D
         if self_interaction
             # G0 integrated over a finite ball
             volume = 4.0 * pi * radius^3 / 3.0
-            G0_center_value = (1.0 / (k0*k0*volume)) * ((2.0/3.0)*exp(1.0im*k0*radius)*(1.0- 1.0im*k0*radius) - 1.0) 
+            G0_center_value = self_interaction_integral_vector(k0, radius, self_interaction_type) / volume
         else
             # G0 discarded at center if volume is neglected completely
             G0_center_value = 0.0
@@ -217,7 +247,7 @@ module Transmission3D
         
     end
 
-    function propagate(python_points_scat::AbstractArray, python_points_meas::AbstractArray, points_Escat::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
+    function propagate(python_points_scat::AbstractArray, python_points_meas::AbstractArray, points_Escat::AbstractArray, k0, alpha, radius, self_interaction; self_interaction_type = "Rayleigh", regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
             
         if debug
             println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
@@ -246,7 +276,7 @@ module Transmission3D
         if self_interaction
             # G0 integrated over a finite ball
             volume = 4.0 * pi * radius^3 / 3.0
-            G0_center_value = (1.0 / (k0*k0*volume)) * ((2.0/3.0)*exp(1.0im*k0*radius)*(1.0- 1.0im*k0*radius) - 1.0) 
+            G0_center_value = self_interaction_integral_vector(k0, radius, self_interaction_type) / volume
         else
             # G0 discarded at center if volume is neglected completely
             G0_center_value = 0.0
@@ -288,7 +318,7 @@ module Transmission3D
         
     end
     
-    function mean_dos(python_points_scat::AbstractArray, python_points_meas::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, discard_absorption = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
+    function mean_dos(python_points_scat::AbstractArray, python_points_meas::AbstractArray, k0, alpha, radius, self_interaction; self_interaction_type = "Rayleigh", regularize = false, discard_absorption = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
         
         if debug
             println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
@@ -316,7 +346,7 @@ module Transmission3D
         if self_interaction
             # G0 integrated over a finite ball
             volume = 4.0 * pi * radius^3 / 3.0
-            G0_center_value = (1.0 / (k0*k0*volume)) * ((2.0/3.0)*exp(1.0im*k0*radius)*(1.0- 1.0im*k0*radius) - 1.0) 
+            G0_center_value = self_interaction_integral_vector(k0, radius, self_interaction_type) / volume
         else
             # G0 discarded at center if volume is neglected completely
             G0_center_value = 0.0
@@ -396,7 +426,7 @@ module Transmission3D
         
     end
     
-    function ldos(python_points_scat::AbstractArray, python_points_meas::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, discard_absorption = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
+    function ldos(python_points_scat::AbstractArray, python_points_meas::AbstractArray, k0, alpha, radius, self_interaction; self_interaction_type = "Rayleigh", regularize = false, discard_absorption = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
         
         if debug
             println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
@@ -424,7 +454,7 @@ module Transmission3D
         if self_interaction
             # G0 integrated over a finite ball
             volume = 4.0 * pi * radius^3 / 3.0
-            G0_center_value = (1.0 / (k0*k0*volume)) * ((2.0/3.0)*exp(1.0im*k0*radius)*(1.0- 1.0im*k0*radius) - 1.0) 
+            G0_center_value = self_interaction_integral_vector(k0, radius, self_interaction_type) / volume
         else
             # G0 discarded at center if volume is neglected completely
             G0_center_value = 0.0
@@ -498,7 +528,7 @@ module Transmission3D
         
     end
     
-    function spectrum(python_points::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
+    function spectrum(python_points::AbstractArray, k0, alpha, radius, self_interaction; self_interaction_type = "Rayleigh", regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
         
         if debug
             println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
@@ -522,7 +552,7 @@ module Transmission3D
         if self_interaction
             # G0 integrated over a finite ball
             volume = 4.0 * pi * radius^3 / 3.0
-            G0_center_value = (1.0 / (k0*k0*volume)) * ((2.0/3.0)*exp(1.0im*k0*radius)*(1.0- 1.0im*k0*radius) - 1.0) 
+            G0_center_value = self_interaction_integral_vector(k0, radius, self_interaction_type) / volume
         else
             # G0 discarded at center if volume is neglected completely
             G0_center_value = 0.0
@@ -554,7 +584,7 @@ module Transmission3D
         
     end
 
-    function solve_scalar(python_points::AbstractArray, points_Einc::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
+    function solve_scalar(python_points::AbstractArray, points_Einc::AbstractArray, k0, alpha, radius, self_interaction; self_interaction_type = "Rayleigh", regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
         
         if debug
             println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
@@ -578,7 +608,7 @@ module Transmission3D
         if self_interaction
             # G0 integrated over a finite ball
             volume = 4.0 * pi * radius^3 / 3.0
-            G0_center_value = (1.0 / (k0*k0*volume)) * (exp(1.0im*k0*radius)*(1.0- 1.0im*k0*radius) - 1.0) 
+            G0_center_value = self_interaction_integral_scalar(k0, radius, self_interaction_type) / volume
         else
             # G0 discarded at center if volume is neglected completely
             G0_center_value = 0.0
@@ -638,7 +668,7 @@ module Transmission3D
         
     end
 
-    function propagate_scalar(python_points_scat::AbstractArray, python_points_meas::AbstractArray, points_Escat::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
+    function propagate_scalar(python_points_scat::AbstractArray, python_points_meas::AbstractArray, points_Escat::AbstractArray, k0, alpha, radius, self_interaction; self_interaction_type = "Rayleigh", regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
             
         if debug
             println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
@@ -667,7 +697,7 @@ module Transmission3D
         if self_interaction
             # G0 integrated over a finite ball
             volume = 4.0 * pi * radius^3 / 3.0
-            G0_center_value = (1.0 / (k0*k0*volume)) * (exp(1.0im*k0*radius)*(1.0- 1.0im*k0*radius) - 1.0) 
+            G0_center_value = self_interaction_integral_scalar(k0, radius, self_interaction_type) / volume
         else
             # G0 discarded at center if volume is neglected completely
             G0_center_value = 0.0
@@ -707,7 +737,7 @@ module Transmission3D
         
     end
     
-    function mean_dos_scalar(python_points_scat::AbstractArray, python_points_meas::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, discard_absorption = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
+    function mean_dos_scalar(python_points_scat::AbstractArray, python_points_meas::AbstractArray, k0, alpha, radius, self_interaction; self_interaction_type = "Rayleigh", regularize = false, discard_absorption = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
         
         if debug
             println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
@@ -735,7 +765,7 @@ module Transmission3D
         if self_interaction
             # G0 integrated over a finite ball
             volume = 4.0 * pi * radius^3 / 3.0
-            G0_center_value = (1.0 / (k0*k0*volume)) * (exp(1.0im*k0*radius)*(1.0- 1.0im*k0*radius) - 1.0) 
+            G0_center_value = self_interaction_integral_scalar(k0, radius, self_interaction_type) / volume
         else
             # G0 discarded at center if volume is neglected completely
             G0_center_value = 0.0
@@ -813,7 +843,7 @@ module Transmission3D
         
     end
     
-    function ldos_scalar(python_points_scat::AbstractArray, python_points_meas::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, discard_absorption = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
+    function ldos_scalar(python_points_scat::AbstractArray, python_points_meas::AbstractArray, k0, alpha, radius, self_interaction; self_interaction_type = "Rayleigh", regularize = false, discard_absorption = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
         
         if debug
             println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
@@ -841,7 +871,7 @@ module Transmission3D
         if self_interaction
             # G0 integrated over a finite ball
             volume = 4.0 * pi * radius^3 / 3.0
-            G0_center_value = (1.0 / (k0*k0*volume)) * (exp(1.0im*k0*radius)*(1.0- 1.0im*k0*radius) - 1.0) 
+            G0_center_value = self_interaction_integral_scalar(k0, radius, self_interaction_type) / volume
         else
             # G0 discarded at center if volume is neglected completely
             G0_center_value = 0.0
@@ -914,7 +944,7 @@ module Transmission3D
         
     end
     
-    function spectrum_scalar(python_points::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
+    function spectrum_scalar(python_points::AbstractArray, k0, alpha, radius, self_interaction; self_interaction_type = "Rayleigh", regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
         
         if debug
             println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
@@ -938,7 +968,7 @@ module Transmission3D
         if self_interaction
             # G0 integrated over a finite ball
             volume = 4.0 * pi * radius^3 / 3.0
-            G0_center_value = (1.0 / (k0*k0*volume)) * (exp(1.0im*k0*radius)*(1.0- 1.0im*k0*radius) - 1.0) 
+            G0_center_value = self_interaction_integral_scalar(k0, radius, self_interaction_type) / volume
         else
             # G0 discarded at center if volume is neglected completely
             G0_center_value = 0.0

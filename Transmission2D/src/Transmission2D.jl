@@ -10,6 +10,7 @@ module Transmission2D
 
     # Define static vector with fixed size globally
     PointdD = SVector{2,Float64}
+    eulergamma = Base.MathConstants.eulergamma
     
     # Even though it's not strictly necessary for TM, follow the steps in https://waveprop.github.io/HMatrices.jl/dev/
     # This is more consistent with the TE definition and makes it easier to modify
@@ -127,7 +128,37 @@ module Transmission2D
     Base.getindex(K::GreensTEMatrix,i::Int,j::Int) = M_TE(K.X[block_id(i)], K.Y[block_id(j)], 1+(i-1)%2, 1+(j-1)%2, K.k0, K.alpha, K.radius, K.regularize, K.G0_center_value, K.solve)
     Base.size(K::GreensTEMatrix) = 2*length(K.X), 2*length(K.Y)
     
-    function solve_TM(python_points::AbstractArray, points_Einc::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
+    function self_interaction_integral_TM(k0, radius, self_interaction_type)
+        
+        volume = pi * radius * radius
+        
+        if self_interaction_type == "full"
+            (-1/(k0*k0) + 0.5im * volume * hankelh1(1,k0*radius)/(k0*radius))
+        elseif self_interaction_type == "Rayleigh"
+            (-1.0 * radius^2 / 4.0) * (2.0 * eulergamma - 1.0 + 2.0 * log(k0 * radius / 2.0) - 1.0im * pi)
+        else
+            println("Self-interaction type not implemented!")
+            exit()
+        end
+        
+    end
+    
+    function self_interaction_integral_TE(k0, radius, self_interaction_type)
+        
+        volume = pi * radius * radius
+        
+        if self_interaction_type == "full"
+            (-1/(k0*k0) + 0.25im * volume * hankelh1(1,k0*radius)/(k0*radius))
+        elseif self_interaction_type == "Rayleigh"
+            (-1 / k0^2) - (1.0 * radius^2 / 8.0) * (2.0 * eulergamma - 1.0 + 2.0 * log(k0 * radius / 2.0) - 1.0im * pi)
+        else
+            println("Self-interaction type not implemented!")
+            exit()
+        end
+        
+    end
+    
+    function solve_TM(python_points::AbstractArray, points_Einc::AbstractArray, k0, alpha, radius, self_interaction; self_interaction_type = "Rayleigh", regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
         
         if debug
             println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
@@ -150,7 +181,7 @@ module Transmission2D
         if self_interaction
             # G0 integrated over a finite disk
             volume = pi*radius*radius
-            G0_center_value = (-1.0 / (k0*k0*volume)) + 0.5im * hankelh1(1,k0*radius)/(k0*radius)
+            G0_center_value = self_interaction_integral_TM(k0, radius, self_interaction_type) / volume
         else
             # G0 discarded at center if volume is neglected completely
             G0_center_value = 0.0
@@ -211,7 +242,7 @@ module Transmission2D
     end
     
     
-    function solve_TE(python_points::AbstractArray, points_Einc::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
+    function solve_TE(python_points::AbstractArray, points_Einc::AbstractArray, k0, alpha, radius, self_interaction; self_interaction_type = "Rayleigh", regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
         
         if debug
             println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
@@ -235,7 +266,7 @@ module Transmission2D
         if self_interaction
             # G0 integrated over a finite disk
             volume = pi*radius*radius
-            G0_center_value = (-1.0 / (k0*k0*volume)) + 0.25im * hankelh1(1,k0*radius)/(k0*radius)
+            G0_center_value = self_interaction_integral_TE(k0, radius, self_interaction_type) / volume
         else
             # G0 discarded at center if volume is neglected completely
             G0_center_value = 0.0
@@ -296,7 +327,7 @@ module Transmission2D
         
     end
     
-    function propagate_TM(python_points_scat::AbstractArray, python_points_meas::AbstractArray, points_Escat::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
+    function propagate_TM(python_points_scat::AbstractArray, python_points_meas::AbstractArray, points_Escat::AbstractArray, k0, alpha, radius, self_interaction; self_interaction_type = "Rayleigh", regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
         
         if debug
             println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
@@ -324,7 +355,7 @@ module Transmission2D
         if self_interaction
             # G0 integrated over a finite disk
             volume = pi*radius*radius
-            G0_center_value = (-1.0 / (k0*k0*volume)) + 0.5im * hankelh1(1,k0*radius)/(k0*radius)
+            G0_center_value = self_interaction_integral_TM(k0, radius, self_interaction_type) / volume
         else
             # G0 discarded at center if volume is neglected completely
             G0_center_value = 0.0
@@ -364,7 +395,7 @@ module Transmission2D
         
     end
 
-    function propagate_TE(python_points_scat::AbstractArray, python_points_meas::AbstractArray, points_Escat::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
+    function propagate_TE(python_points_scat::AbstractArray, python_points_meas::AbstractArray, points_Escat::AbstractArray, k0, alpha, radius, self_interaction; self_interaction_type = "Rayleigh", regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
             
         if debug
             println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
@@ -393,7 +424,7 @@ module Transmission2D
         if self_interaction
             # G0 integrated over a finite disk
             volume = pi*radius*radius
-            G0_center_value = (-1.0 / (k0*k0*volume)) + 0.25im * hankelh1(1,k0*radius)/(k0*radius)
+            G0_center_value = self_interaction_integral_TE(k0, radius, self_interaction_type) / volume
         else
             # G0 discarded at center if volume is neglected completely
             G0_center_value = 0.0
@@ -435,7 +466,7 @@ module Transmission2D
         
     end
     
-    function mean_dos_TM(python_points_scat::AbstractArray, python_points_meas::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, discard_absorption = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
+    function mean_dos_TM(python_points_scat::AbstractArray, python_points_meas::AbstractArray, k0, alpha, radius, self_interaction; self_interaction_type = "Rayleigh", regularize = false, discard_absorption = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
         
         if debug
             println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
@@ -463,7 +494,7 @@ module Transmission2D
         if self_interaction
             # G0 integrated over a finite disk
             volume = pi*radius*radius
-            G0_center_value = (-1.0 / (k0*k0*volume)) + 0.5im * hankelh1(1,k0*radius)/(k0*radius)
+            G0_center_value = self_interaction_integral_TM(k0, radius, self_interaction_type) / volume
         else
             # G0 discarded at center if volume is neglected completely
             G0_center_value = 0.0
@@ -541,7 +572,7 @@ module Transmission2D
     end
     
     
-    function mean_dos_TE(python_points_scat::AbstractArray, python_points_meas::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, discard_absorption = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
+    function mean_dos_TE(python_points_scat::AbstractArray, python_points_meas::AbstractArray, k0, alpha, radius, self_interaction; self_interaction_type = "Rayleigh", regularize = false, discard_absorption = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
         
         if debug
             println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
@@ -569,7 +600,7 @@ module Transmission2D
         if self_interaction
             # G0 integrated over a finite disk
             volume = pi*radius*radius
-            G0_center_value = (-1.0 / (k0*k0*volume)) + 0.25im * hankelh1(1,k0*radius)/(k0*radius)
+            G0_center_value = self_interaction_integral_TE(k0, radius, self_interaction_type) / volume
         else
             # G0 discarded at center if volume is neglected completely
             G0_center_value = 0.0
@@ -649,7 +680,7 @@ module Transmission2D
         
     end
     
-    function ldos_TM(python_points_scat::AbstractArray, python_points_meas::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, discard_absorption = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
+    function ldos_TM(python_points_scat::AbstractArray, python_points_meas::AbstractArray, k0, alpha, radius, self_interaction; self_interaction_type = "Rayleigh", regularize = false, discard_absorption = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
         
         if debug
             println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
@@ -677,7 +708,7 @@ module Transmission2D
         if self_interaction
             # G0 integrated over a finite disk
             volume = pi*radius*radius
-            G0_center_value = (-1.0 / (k0*k0*volume)) + 0.5im * hankelh1(1,k0*radius)/(k0*radius)
+            G0_center_value = self_interaction_integral_TM(k0, radius, self_interaction_type) / volume
         else
             # G0 discarded at center if volume is neglected completely
             G0_center_value = 0.0
@@ -749,7 +780,7 @@ module Transmission2D
     end
     
     
-    function ldos_TE(python_points_scat::AbstractArray, python_points_meas::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, discard_absorption = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
+    function ldos_TE(python_points_scat::AbstractArray, python_points_meas::AbstractArray, k0, alpha, radius, self_interaction; self_interaction_type = "Rayleigh", regularize = false, discard_absorption = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
         
         if debug
             println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
@@ -777,7 +808,7 @@ module Transmission2D
         if self_interaction
             # G0 integrated over a finite disk
             volume = pi*radius*radius
-            G0_center_value = (-1.0 / (k0*k0*volume)) + 0.25im * hankelh1(1,k0*radius)/(k0*radius)
+            G0_center_value = self_interaction_integral_TE(k0, radius, self_interaction_type) / volume
         else
             # G0 discarded at center if volume is neglected completely
             G0_center_value = 0.0
@@ -852,7 +883,7 @@ module Transmission2D
     end
     
     
-    function spectrum_TM(python_points::AbstractArray, k0, alpha, radius, self_interaction; regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
+    function spectrum_TM(python_points::AbstractArray, k0, alpha, radius, self_interaction; self_interaction_type = "Rayleigh", regularize = false, use_lu = true, atol = 0, rtol = 1e-2, debug=false, threads=true)
         
         if debug
             println("Number of threads used by julia (UNSAFE if >1 through python!): $(Threads.nthreads())")
@@ -875,7 +906,7 @@ module Transmission2D
         if self_interaction
             # G0 integrated over a finite disk
             volume = pi*radius*radius
-            G0_center_value = (-1.0 / (k0*k0*volume)) + 0.5im * hankelh1(1,k0*radius)/(k0*radius)
+            G0_center_value = self_interaction_integral_TM(k0, radius, self_interaction_type) / volume
         else
             # G0 discarded at center if volume is neglected completely
             G0_center_value = 0.0
@@ -931,7 +962,7 @@ module Transmission2D
         if self_interaction
             # G0 integrated over a finite disk
             volume = pi*radius*radius
-            G0_center_value = (-1.0 / (k0*k0*volume)) + 0.25im * hankelh1(1,k0*radius)/(k0*radius)
+            G0_center_value = self_interaction_integral_TE(k0, radius, self_interaction_type) / volume
         else
             # G0 discarded at center if volume is neglected completely
             G0_center_value = 0.0
