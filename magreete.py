@@ -34,7 +34,7 @@ def main(ndim, # Required arguments
     # XXX Still adding Rayleigh option
     self_interaction_type = "Rayleigh" # Rayleigh or full
 
-    if onp.imag(refractive_n < 0):
+    if onp.imag(refractive_n) < 0:
         print("Imaginary parts of indices should be positive!")
         sys.exit()
 
