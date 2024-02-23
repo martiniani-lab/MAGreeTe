@@ -423,7 +423,6 @@ def main(ndim, # Required arguments
             # Pretty expensive!
             some_fields = intensity_fields+amplitude_fields+phase_fields
             if some_fields:
-                # XXX CHECK: DEFINITION OF TE INTENSITY! 
                 # Expensive computation
                 ngridx = gridsize[0]
                 ngridy = gridsize[1]

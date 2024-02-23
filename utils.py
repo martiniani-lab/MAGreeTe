@@ -376,8 +376,11 @@ def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, se
                 self_int = self_interaction_integral_vector(k0range, radius, self_interaction_type)
                 
             alpha_d /= (1 - k0range**2 * alpharange * self_int / volume)
-            
-        scattering_cross_section = (1.0 / (6.0 * onp.pi)) * k0range**4 * onp.absolute(alpha_d)**2
+        
+        if scalar:
+            scattering_cross_section = (1.0 / (4.0 * onp.pi)) * k0range**4 * onp.absolute(alpha_d)**2
+        else:
+            scattering_cross_section = (1.0 / (6.0 * onp.pi)) * k0range**4 * onp.absolute(alpha_d)**2
         extinction_cross_section = k0range * onp.imag(alpha_d)
         
         alpha_d = onp.absolute(alpha_d)
@@ -452,6 +455,18 @@ def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, se
             ax.set_ylabel(r"|\alpha_d|")
             ax.legend()
             plt.savefig(file_name+'_alphad'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
+            plt.close()
+            
+            fig = plt.figure()
+            ax = fig.gca()
+            freqs = onp.real(k0range*L/(2*onp.pi))
+            ax.plot(freqs, scattering_cross_section_TM, c='r', label = "Rayleigh scattering CS")
+            ax.plot(freqs, extinction_cross_section_TM, c='k', label = "Rayleigh extinction CS")
+            ax.plot(freqs, extinction_cross_section_TM - scattering_cross_section_TM, c='b', label = "Rayleigh absorption CS")
+            ax.set_xlabel(r'$k_0L/2\pi$')
+            ax.set_ylabel('Cross-sections')
+            ax.legend()
+            plt.savefig(file_name+'_crosssections'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
             plt.close()
             
         else:
