@@ -10,6 +10,32 @@ from juliacall import Pkg as jlPkg
 
 I = np.tensor(onp.identity(3)).reshape(1,3,3) #identity matrix
 
+def self_interaction_integral_vector(k0, radius, self_interaction_type = "Rayleigh"):
+    
+    volume = 4.0 * onp.pi * radius**3 / 3.0
+    
+    if self_interaction_type == "full":
+        self_int = (1.0/k0**2) * ((2.0 / 3.0) * onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0)
+    elif self_interaction_type == "Rayleigh":
+        self_int = -1.0/(3.0 * k0**2) + radius**2 / 3.0 + 1j * k0 * volume / (6.0 * onp.pi)
+    else:
+        raise NotImplementedError
+    
+    return self_int
+
+def self_interaction_integral_scalar(k0, radius, self_interaction_type = "Rayleigh"):
+    
+    volume = 4.0 * onp.pi * radius**3 / 3.0
+    
+    if self_interaction_type == "full":
+        self_int = (1.0/k0**2) * (onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0)
+    elif self_interaction_type == "Rayleigh":
+        self_int = radius**2 / 2.0 + 1j * k0 * volume / (4.0 * onp.pi)
+    else:
+        raise NotImplementedError
+    
+    return self_int
+
 class Transmission3D:
     
 
@@ -126,7 +152,7 @@ class Transmission3D:
                 
         return Ek_
    
-    def solve(self, k0, alpha, u, p, radius, beam_waist, self_interaction=True, self_interaction_type="full"):
+    def solve(self, k0, alpha, u, p, radius, beam_waist, self_interaction = True, self_interaction_type = "full"):
         '''
         Solves the EM field at each scatterer
 
@@ -148,16 +174,10 @@ class Transmission3D:
         M_tensor = -alpha*k0*k0*self.G0(None, k0, print_statement='solve')
         M_tensor.fill_diagonal_(1)
         if self_interaction:
-            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
+            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_interaction / volume
             dims = M_tensor.shape[0]
             volume = 4*onp.pi*(radius**3)/3
-            if self_interaction_type == "full":
-                self_int = (alpha/volume) * np.eye(dims)*((2.0/3.0)*onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0)
-            elif self_interaction_type == "Rayleigh":
-                self_int = (alpha/volume) * (- 1.0 / 3.0 + k0**2 * radius**2 / 3.0 + 1j * k0**3 * volume / (6.0 * onp.pi))
-            else:
-                raise NotImplementedError
-            M_tensor -= self_int
+            M_tensor -= k0**2 * alpha * self_interaction_integral_vector(k0, radius, self_interaction_type) / volume * np.eye(dims)
         # Solve M_tensor.Ek = E0j
         Ek = np.linalg.solve(M_tensor, E0j.reshape(3*self.N,-1)) 
         return Ek
@@ -227,7 +247,7 @@ class Transmission3D:
         G0 = np.transpose(G0,1,2).reshape(3*G0.shape[0],3*G0.shape[1]).to(np.complex128)
         return G0
 
-    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False, discard_absorption = False):
+    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, self_interaction_type = "Rayleigh", regularize = False, discard_absorption = False):
         '''
         Computes the LDOS averaged at a list of measurement points.
         This computation is a bit less expensive than the actual LDOS one,
@@ -250,11 +270,10 @@ class Transmission3D:
         M_tensor = -alpha*k0*k0*self.G0(None, k0, print_statement='DOS inverse')
         M_tensor.fill_diagonal_(1)
         if self_interaction:
-            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
+            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_interaction / volume
             dims = M_tensor.shape[0]
             volume = 4*onp.pi*(radius**3)/3
-            self_int = (alpha/volume) * np.eye(dims)*((2.0/3.0)*onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
-            M_tensor -= self_int
+            M_tensor -= k0**2 * alpha * self_interaction_integral_vector(k0, radius, self_interaction_type) / volume * np.eye(dims)
         # Compute W_tensor = inverse(M_tensor)
         W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
 
@@ -268,8 +287,7 @@ class Transmission3D:
             G0_measure[point_idx][scatter_idx] = 0
             if self_interaction:
                 volume = 4*onp.pi*(radius**3)/3
-                self_int = (1/(volume*k0*k0)) * ((2.0/3.0)*onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
-                G0_measure[point_idx][scatter_idx] += self_int
+                G0_measure[point_idx][scatter_idx] += self_interaction_integral_vector(k0, radius, self_interaction_type) / volume
         #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
@@ -284,7 +302,7 @@ class Transmission3D:
 
         return dos_factor
 
-    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False, discard_absorption = False):
+    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, self_interaction_type = "Rayleigh", regularize = False, discard_absorption = False):
         '''
         Computes the LDOS at a list of measurement points
         This computation is fairly expensive, the number of measurement points should be small to avoid saturating resources
@@ -304,11 +322,10 @@ class Transmission3D:
         M_tensor = -alpha*k0*k0*self.G0(None, k0, print_statement='DOS inverse')
         M_tensor.fill_diagonal_(1)
         if self_interaction:
-            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
+            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_interaction / volume
             dims = M_tensor.shape[0]
             volume = 4*onp.pi*(radius**3)/3
-            self_int = (alpha/volume) * np.eye(dims)*((2.0/3.0)*onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
-            M_tensor -= self_int
+            M_tensor -= k0**2 * alpha * self_interaction_integral_vector(k0, radius, self_interaction_type) / volume * np.eye(dims)
         # Compute W_tensor = inverse(M_tensor)
         W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
 
@@ -322,8 +339,7 @@ class Transmission3D:
             G0_measure[point_idx][scatter_idx] = 0
             if self_interaction:
                 volume = 4*onp.pi*(radius**3)/3
-                self_int = (1/(volume*k0*k0)) * ((2.0/3.0)*onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
-                G0_measure[point_idx][scatter_idx] += self_int
+                G0_measure[point_idx][scatter_idx] += self_interaction_integral_vector(k0, radius, self_interaction_type) / volume
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, W_tensor),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
         ldos_factor = np.einsum('ij, ji->i',np.matmul(G0_measure, W_tensor), (G0_measure).t() )
@@ -339,7 +355,7 @@ class Transmission3D:
 
         return ldos_factor
 
-    def compute_eigenvalues_and_scatterer_LDOS(self, k0, alpha, radius, file_name, self_interaction= True, write_eigenvalues=True):
+    def compute_eigenvalues_and_scatterer_LDOS(self, k0, alpha, radius, file_name, self_interaction= True, self_interaction_type = "Rayleigh", write_eigenvalues=True):
         '''
         Computes the eigenvalues of the Green's matrix, and the corresponding LDOS at scatterers.
         This computation is way less expensive than the other LDOS, due to simple dependence on the eigenvalues
@@ -359,11 +375,10 @@ class Transmission3D:
         M_tensor = -alpha*k0*k0*self.G0(None, k0, print_statement='DOS inverse')
         M_tensor.fill_diagonal_(1)
         if self_interaction:
-            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
+            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_interaction / volume
             dims = M_tensor.shape[0]
             volume = 4*onp.pi*(radius**3)/3
-            self_int = (alpha/volume) * np.eye(dims)*((2.0/3.0)*onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
-            M_tensor -= self_int
+            M_tensor -= k0**2 * alpha * self_interaction_integral_vector(k0, radius, self_interaction_type) / volume * np.eye(dims)
         # Compute the spectrum of the M_tensor
         lambdas = np.linalg.eigvals(M_tensor)
 
@@ -419,7 +434,7 @@ class Transmission3D_hmatrices:
         
         return E0j.reshape(points.shape[0],1,-1)*pvec.reshape(1,3,-1)
 
-    def solve(self, k0, alpha, u, p, radius, beam_waist, self_interaction=True, self_interaction_type="full"):
+    def solve(self, k0, alpha, u, p, radius, beam_waist, self_interaction = True, self_interaction_type = "full"):
         '''
         Solves the EM field at each scatterer
 
@@ -526,7 +541,7 @@ class Transmission3D_hmatrices:
                 
         return Ek_
     
-    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False, discard_absorption = False):
+    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", regularize = False, discard_absorption = False):
         '''
         Computes the LDOS averaged at a list of measurement points.
         This computation is a bit less expensive than the actual LDOS one,
@@ -546,11 +561,11 @@ class Transmission3D_hmatrices:
         print("Computing mean DOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
 
         ### Calculation
-        dos_factor = jl.Transmission3D.mean_dos(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, regularize=regularize, discard_absorption=discard_absorption)
+        dos_factor = jl.Transmission3D.mean_dos(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type, regularize = regularize, discard_absorption = discard_absorption)
 
         return dos_factor
 
-    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False, discard_absorption = False):
+    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, self_interaction_type = "Rayleigh", regularize = False, discard_absorption = False):
         '''
         Computes the LDOS at a list of measurement points
         This computation is fairly expensive, the number of measurement points should be small to avoid saturating resources
@@ -565,12 +580,12 @@ class Transmission3D_hmatrices:
         '''
         
         ### Calculation
-        ldos_factor = jl.Transmission3D.ldos(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, regularize=regularize, discard_absorption=discard_absorption)
+        ldos_factor = jl.Transmission3D.ldos(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type, regularize = regularize, discard_absorption = discard_absorption)
         ldos_factor = np.tensor(ldos_factor).unsqueeze(1)
 
         return ldos_factor
 
-    def compute_eigenvalues_and_scatterer_LDOS(self, k0, alpha, radius, file_name, self_interaction= True, write_eigenvalues=True):
+    def compute_eigenvalues_and_scatterer_LDOS(self, k0, alpha, radius, file_name, self_interaction = True, self_interaction_type = "Rayleigh", write_eigenvalues = True):
         '''
         Computes the eigenvalues of the Green's matrix, and the corresponding LDOS at scatterers, for TM and TE.
         This computation is way less expensive than the other LDOS, due to simple dependence on the eigenvalues
@@ -588,7 +603,7 @@ class Transmission3D_hmatrices:
         Npoints = self.r.shape[0]
         print("Computing spectrum and scatterer LDOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
 
-        lambdas = jl.Transmission3D.spectrum(self.r.numpy(), k0, alpha, radius, self_interaction)
+        lambdas = jl.Transmission3D.spectrum(self.r.numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type)
         
         if write_eigenvalues:
             onp.savetxt(file_name+'_lambdas_'+str(k0_)+'.csv', onp.stack([np.real(lambdas).numpy(), np.imag(lambdas).numpy()]).T)
@@ -609,7 +624,7 @@ class Transmission3D_scalar:
         self.N = self.r.shape[0]
         self.source = source
     
-    def greens(self,r,k0,periodic = '', regularize = False, radius=0.0):
+    def greens(self, r, k0, periodic = '', regularize = False, radius = 0.0):
         '''
         Torch implementation of the 3d Green's function for scalar waves, taking tensors as entries
         r          - (M,2)      distances to propagate over
@@ -663,7 +678,7 @@ class Transmission3D_scalar:
         
         return E0j.reshape(points.shape[0],u.shape[0])
  
-    def propagate(self, points, Ek, k0, alpha, u, beam_waist, regularize = False, radius=0.0):
+    def propagate(self, points, Ek, k0, alpha, u, beam_waist, regularize = False, radius = 0.0):
         '''
         Calculates the EM field at a set of measurement points
 
@@ -703,7 +718,7 @@ class Transmission3D_scalar:
                 
         return Ek_
    
-    def solve(self, k0, alpha, u, radius, beam_waist, self_interaction=True, self_interaction_type="full"):
+    def solve(self, k0, alpha, u, radius, beam_waist, self_interaction = True, self_interaction_type="full"):
         '''
         Solves the EM field at each scatterer
 
@@ -725,16 +740,10 @@ class Transmission3D_scalar:
         M_tensor = -alpha*k0*k0*self.G0(None, k0, print_statement='solve')
         M_tensor.fill_diagonal_(1)
         if self_interaction:
-            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
+            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_interaction / volume
             dims = M_tensor.shape[0]
             volume = 4*onp.pi*(radius**3)/3
-            if self_interaction_type == "full":
-                self_int = (alpha/volume) * np.eye(dims) * (onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0)
-            elif self_interaction_type == "Rayleigh":
-                self_int = (k0**2 * alpha) * ( radius**2 / (2.0 * volume) + 1j * k0 / (4.0 * onp.pi))
-            else:
-                raise NotImplementedError
-            M_tensor -= self_int
+            M_tensor -= k0**2 * alpha * self_interaction_integral_scalar(k0, radius, self_interaction_type) / volume * np.eye(dims)
         # Solve M_tensor.Ek = E0j
         Ek = np.linalg.solve(M_tensor, E0j.reshape(self.N,-1)) 
         return Ek
@@ -801,7 +810,7 @@ class Transmission3D_scalar:
 
         return G0
 
-    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False, discard_absorption = False):
+    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", regularize = False, discard_absorption = False):
         '''
         Computes the LDOS averaged at a list of measurement points.
         This computation is a bit less expensive than the actual LDOS one,
@@ -824,11 +833,10 @@ class Transmission3D_scalar:
         M_tensor = -alpha*k0*k0*self.G0(None, k0, print_statement='DOS inverse')
         M_tensor.fill_diagonal_(1)
         if self_interaction:
-            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
+            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_interaction / volume
             dims = M_tensor.shape[0]
             volume = 4*onp.pi*(radius**3)/3
-            self_int = (alpha/volume) * np.eye(dims) * (onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
-            M_tensor -= self_int
+            M_tensor -= k0**2 * alpha * self_interaction_integral_scalar(k0, radius, self_interaction_type) / volume * np.eye(dims)
         # Compute W_tensor = inverse(M_tensor)
         W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
 
@@ -842,8 +850,7 @@ class Transmission3D_scalar:
             G0_measure[point_idx][scatter_idx] = 0
             if self_interaction:
                 volume = 4*onp.pi*(radius**3)/3
-                self_int = (1/(volume*k0*k0)) * (onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
-                G0_measure[point_idx][scatter_idx] += self_int
+                G0_measure[point_idx][scatter_idx] += self_interaction_integral_scalar(k0, radius, self_interaction_type) / volume
         #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
@@ -858,7 +865,7 @@ class Transmission3D_scalar:
 
         return dos_factor
 
-    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False, discard_absorption = False):
+    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", regularize = False, discard_absorption = False):
         '''
         Computes the LDOS at a list of measurement points
         This computation is fairly expensive, the number of measurement points should be small to avoid saturating resources
@@ -878,11 +885,10 @@ class Transmission3D_scalar:
         M_tensor = -alpha*k0*k0*self.G0(None, k0, print_statement='DOS inverse')
         M_tensor.fill_diagonal_(1)
         if self_interaction:
-            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
+            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_interaction / volume
             dims = M_tensor.shape[0]
             volume = 4*onp.pi*(radius**3)/3
-            self_int = (alpha/volume) *  np.eye(dims) * (onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
-            M_tensor -= self_int
+            M_tensor -= k0**2 * alpha * self_interaction_integral_scalar(k0, radius, self_interaction_type) / volume * np.eye(dims)
         # Compute W_tensor = inverse(M_tensor)
         W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
 
@@ -896,8 +902,7 @@ class Transmission3D_scalar:
             G0_measure[point_idx][scatter_idx] = 0
             if self_interaction:
                 volume = 4*onp.pi*(radius**3)/3
-                self_int = (1/(volume*k0*k0)) * (onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
-                G0_measure[point_idx][scatter_idx] += self_int
+                G0_measure[point_idx][scatter_idx] += self_interaction_integral_scalar(k0, radius, self_interaction_type) / volume
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, W_tensor),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
         ldos_factor = np.einsum('ij, ji->i',np.matmul(G0_measure, W_tensor), (G0_measure).t() )
@@ -913,7 +918,7 @@ class Transmission3D_scalar:
 
         return ldos_factor
 
-    def compute_eigenvalues_and_scatterer_LDOS(self, k0, alpha, radius, file_name, self_interaction= True, write_eigenvalues=True):
+    def compute_eigenvalues_and_scatterer_LDOS(self, k0, alpha, radius, file_name, self_interaction = True, self_interaction_type = "Rayleigh", write_eigenvalues = True):
         '''
         Computes the eigenvalues of the Green's matrix, and the corresponding LDOS at scatterers.
         This computation is way less expensive than the other LDOS, due to simple dependence on the eigenvalues
@@ -933,11 +938,10 @@ class Transmission3D_scalar:
         M_tensor = -alpha*k0*k0*self.G0(None, k0, print_statement='DOS inverse')
         M_tensor.fill_diagonal_(1)
         if self_interaction:
-            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
+            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_interaction / volume
             dims = M_tensor.shape[0]
             volume = 4*onp.pi*(radius**3)/3
-            self_int = (alpha/volume) * np.eye(dims)*(onp.exp(1j*k0*radius)*(1- 1j*k0*radius) - 1.0) 
-            M_tensor -= self_int
+            M_tensor -= k0**2 * alpha * self_interaction_integral_scalar(k0, radius, self_interaction_type) / volume * np.eye(dims)
         # Compute the spectrum of the M_tensor
         lambdas = np.linalg.eigvals(M_tensor)
 
@@ -986,7 +990,7 @@ class Transmission3D_scalar_hmatrices:
         
         return E0j.reshape(points.shape[0],-1)
 
-    def solve(self, k0, alpha, u, radius, beam_waist, self_interaction=True, self_interaction_type="full"):
+    def solve(self, k0, alpha, u, radius, beam_waist, self_interaction = True, self_interaction_type = "full"):
         '''
         Solves the EM field at each scatterer
 
@@ -1009,11 +1013,11 @@ class Transmission3D_scalar_hmatrices:
         atol = 0 # Absolute tolerance used in HMatrices
         rtol = 1e-3 # Relative tolerance
         debug = False
-        Ek = jl.Transmission3D.solve_scalar(self.r.numpy(), E0j.reshape(self.N,-1).numpy(), k0, alpha, radius, self_interaction, regularize = regularize, self_interaction_type = self_interaction_type, use_lu = use_lu, atol = atol, rtol = rtol, debug=debug)
+        Ek = jl.Transmission3D.solve_scalar(self.r.numpy(), E0j.reshape(self.N,-1).numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type, regularize = regularize, use_lu = use_lu, atol = atol, rtol = rtol, debug=debug)
         
         return Ek
     
-    def propagate(self, points, Ek, k0, alpha, u, beam_waist, regularize = False, radius=0.0):
+    def propagate(self, points, Ek, k0, alpha, u, beam_waist, regularize = False, radius = 0.0):
         '''
         Calculates the EM field at a set of measurement points
 
@@ -1087,7 +1091,7 @@ class Transmission3D_scalar_hmatrices:
                 
         return Ek_
     
-    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False, discard_absorption = False):
+    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", regularize = False, discard_absorption = False):
         '''
         Computes the LDOS averaged at a list of measurement points.
         This computation is a bit less expensive than the actual LDOS one,
@@ -1107,11 +1111,11 @@ class Transmission3D_scalar_hmatrices:
         print("Computing mean DOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
 
         ### Calculation
-        dos_factor = jl.Transmission3D.mean_dos_scalar(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, regularize=regularize, discard_absorption=discard_absorption)
+        dos_factor = jl.Transmission3D.mean_dos_scalar(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type, regularize = regularize, discard_absorption=discard_absorption)
 
         return dos_factor
 
-    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False, discard_absorption = False):
+    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", regularize = False, discard_absorption = False):
         '''
         Computes the LDOS at a list of measurement points
         This computation is fairly expensive, the number of measurement points should be small to avoid saturating resources
@@ -1126,12 +1130,12 @@ class Transmission3D_scalar_hmatrices:
         '''
         
         ### Calculation
-        ldos_factor = jl.Transmission3D.ldos_scalar(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, regularize=regularize, discard_absorption=discard_absorption)
+        ldos_factor = jl.Transmission3D.ldos_scalar(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type, regularize = regularize, discard_absorption = discard_absorption)
         ldos_factor = np.tensor(ldos_factor).unsqueeze(1)
 
         return ldos_factor
 
-    def compute_eigenvalues_and_scatterer_LDOS(self, k0, alpha, radius, file_name, self_interaction= True, write_eigenvalues=True):
+    def compute_eigenvalues_and_scatterer_LDOS(self, k0, alpha, radius, file_name, self_interaction = True, write_eigenvalues = True):
         '''
         Computes the eigenvalues of the Green's matrix, and the corresponding LDOS at scatterers, for TM and TE.
         This computation is way less expensive than the other LDOS, due to simple dependence on the eigenvalues
@@ -1149,7 +1153,7 @@ class Transmission3D_scalar_hmatrices:
         Npoints = self.r.shape[0]
         print("Computing spectrum and scatterer LDOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
 
-        lambdas = jl.Transmission3D.spectrum(self.r.numpy(), k0, alpha, radius, self_interaction)
+        lambdas = jl.Transmission3D.spectrum(self.r.numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type)
         
         if write_eigenvalues:
             onp.savetxt(file_name+'_lambdas_'+str(k0_)+'.csv', onp.stack([np.real(lambdas).numpy(), np.imag(lambdas).numpy()]).T)

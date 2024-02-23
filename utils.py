@@ -12,6 +12,9 @@ import matplotlib.colors as clr
 
 import cmasher as cmr # https://github.com/1313e/CMasher
 
+from Transmission2D import self_interaction_integral_TM, self_interaction_integral_TE
+from Transmission3D import self_interaction_integral_scalar, self_interaction_integral_vector
+
 c = 3e8   #speed of light in vacuum, m/s
 
 def alpha_cold_atoms_2d(k0range, omega0 = 3e15, Gamma = 5e16, Lfactor = 1e-4):
@@ -368,19 +371,9 @@ def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, se
         if self_interaction:
             
             if scalar:
-                if self_interaction_type == "full":
-                    self_int = (onp.exp(1j*k0range*radius)*(1- 1j*k0range*radius) - 1.0 ) / k0range**2
-                elif self_interaction_type == "Rayleigh":
-                    self_int = radius**2 / 2.0 + 1j * k0range * volume / (4.0 * onp.pi)
-                else: 
-                    raise NotImplementedError
+                self_int = self_interaction_integral_scalar(k0range, radius, self_interaction_type)
             else:
-                if self_interaction_type == "full":
-                    self_int = ( (2.0/3.0)*onp.exp(1j*k0range*radius)*(1- 1j*k0range*radius) - 1.0 ) / k0range**2
-                elif self_interaction_type == "Rayleigh":
-                    self_int = (-1.0 / (3.0 * k0range**2) + radius**2 / 3.0 + 1j * k0range * volume / (6* onp.pi))
-                else:
-                    raise NotImplementedError
+                self_int = self_interaction_integral_vector(k0range, radius, self_interaction_type)
                 
             alpha_d /= (1 - k0range**2 * alpharange * self_int / volume)
             
@@ -428,15 +421,8 @@ def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, se
         alpha_d_TM = alpharange.copy()
         
         if self_interaction:
-            if self_interaction_type == "full":
-                self_int_TM = (-1/(k0range**2) + 0.5j*volume*sp.special.hankel1(1,k0range*radius)/(k0range*radius))
-                self_int_TE = (-1/(k0range**2) + 0.25j*volume*sp.special.hankel1(1,k0range*radius)/(k0range*radius))
-
-            elif self_interaction_type == "Rayleigh":
-                self_int_TM = - (radius**2 /4.0) * (2.0 * onp.euler_gamma - 1.0 + 2.0 * onp.log(k0range * radius / 2.0) - 1j * onp.pi)
-                self_int_TE = -1.0/(2.0 * k0range**2) - (radius**2 /8.0) * (2.0 * onp.euler_gamma - 1.0 + 2.0 * onp.log(k0range * radius / 2.0) - 1j * onp.pi)
-            else:
-                raise NotImplementedError
+            self_int_TM = self_interaction_integral_TM(k0range, radius, self_interaction_type)
+            self_int_TE = self_interaction_integral_TE(k0range, radius, self_interaction_type)
             
             alpha_d_TM /= (1 - k0range**2 * alpharange * self_int_TM / volume)
             alpha_d_TE /= (1 - k0range**2 * alpharange * self_int_TE / volume)

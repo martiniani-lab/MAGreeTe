@@ -10,16 +10,41 @@ from juliacall import Pkg as jlPkg
 
 I = np.tensor(onp.identity(2)).reshape(1,1,2,2) #identity matrix
 
+def self_interaction_integral_TM(k0, radius, self_interaction_type = "Rayleigh"):
+    
+    volume = onp.pi * radius**2
+    
+    if self_interaction_type == "full":
+        self_int_TM = (-1/(k0*k0) + 0.5j * volume * sp.special.hankel1(1,k0*radius)/(k0*radius))
+    elif self_interaction_type == "Rayleigh":
+        self_int_TM = (-1.0 * radius**2 / 4.0) * (2.0 * onp.euler_gamma - 1.0 + 2.0 * onp.log(k0 * radius / 2.0) - 1j * onp.pi)
+    else:
+        raise NotImplementedError
+    
+    return self_int_TM
+
+def self_interaction_integral_TE(k0, radius, self_interaction_type = "Rayleigh"):
+    
+    volume = onp.pi * radius**2
+    
+    if self_interaction_type == "full":
+        self_int_TE = (-1/(k0*k0) + 0.25j* volume * sp.special.hankel1(1,k0*radius)/(k0*radius))
+    elif self_interaction_type == "Rayleigh":
+        self_int_TE = (-1/(k0*k0) - (radius**2 / 8.0) * (2.0 * onp.euler_gamma - 1.0 + 2.0 * onp.log(k0 * radius / 2.0) - 1j * onp.pi))
+    else:
+        raise NotImplementedError
+    
+    return self_int_TE
 
 class Transmission2D:
     
 
-    def __init__(self, points, source='beam'):
+    def __init__(self, points, source = "beam"):
         self.r = points.reshape(-1,2)
         self.N = self.r.shape[0]
         self.source = source
-
-    def torch_hankel1(self,nu, x):
+        
+    def torch_hankel1(self, nu, x):
         '''
         Torch implementation of hankel1(nu,x), for nu = 0 or 1.
         Uses the fact that Hankel(nu,z) = J(nu,z) + i Y(nu,z).
@@ -36,7 +61,7 @@ class Transmission2D:
         else:
             exit("torch Hankel function only implemented for orders 0 and 1!")
 
-    def torch_greensTE(self, r, k0,periodic = '', regularize = False, radius = 0.0):
+    def torch_greensTE(self, r, k0, periodic = '', regularize = False, radius = 0.0):
         '''
         Torch implementation of the TE Green's function, taking tensors as entries
         r          - (M,2)      distances to propagate over
@@ -66,7 +91,7 @@ class Transmission2D:
 
         return 0.25j*((I-RxR)*self.torch_hankel1(0,R).reshape(N,M,1,1)-(I-2*RxR)*(self.torch_hankel1(1,R)/R).reshape(N,M,1,1))
 
-    def torch_greensTM(self, r, k0, periodic='', regularize = False, radius = 0.0):
+    def torch_greensTM(self, r, k0, periodic = '', regularize = False, radius = 0.0):
         '''
         Torch implementation of the TM Green's function, taking tensors as entries
         r          - (M,2)      distances to propagate over
@@ -90,7 +115,7 @@ class Transmission2D:
             R = np.where(R < radius, 0.0, R)
 
         return 0.25j*self.torch_hankel1(0,R*k0)
-
+    
     def generate_source(self, points, k0, thetas, w, print_statement=''):
         '''
         Generates the EM field of a source at a set of points
@@ -100,7 +125,7 @@ class Transmission2D:
         thetas      - (Ndirs)    propagation directions for the source
         w           - (1)        beam waist for beam sources
         '''
-        if self.source == 'beam':
+        if self.source == "beam":
             k0_ = onp.round(k0/(2.0*onp.pi),1)
             print('Calculating Beam Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
             E0j = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
@@ -126,7 +151,7 @@ class Transmission2D:
                 E0j[:,idx] = np.exp(1j*rrot[:,0]*k0)
         return E0j, u
  
-    def propagate_EM(self,points, EkTE, EkTM, k0, alpha, thetas, beam_waist, regularize = False, radius = 0.0):
+    def propagate_EM(self, points, EkTE, EkTM, k0, alpha, thetas, beam_waist, regularize = False, radius = 0.0):
         '''
         Calculates the EM field at a set of measurement points
 
@@ -165,7 +190,7 @@ class Transmission2D:
                 
         return EkTE_, EkTM_
    
-    def solve_EM(self, k0, alpha, thetas, radius, beam_waist, self_interaction=True, self_interaction_type = "full"):
+    def solve_EM(self, k0, alpha, thetas, radius, beam_waist, self_interaction = True, self_interaction_type = "full"):
         '''
         Solves the EM field at each scatterer
 
@@ -187,13 +212,7 @@ class Transmission2D:
             # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
             volume = onp.pi*radius*radius
             dims = M_tensor.shape[0]
-            if self_interaction_type == "full":
-                self_int_TM = np.eye(dims) * (-1/(k0*k0) + 0.5j * volume * sp.special.hankel1(1,k0*radius)/(k0*radius))
-            elif self_interaction_type == "Rayleigh":
-                self_int_TM = np.eye(dims) * (-1.0 * radius**2 / 4.0) * (2.0 * onp.euler_gamma - 1.0 + 2.0 * onp.log(k0 * radius / 2.0) - 1j * onp.pi)
-            else:
-                raise NotImplementedError
-            M_tensor -= alpha*k0*k0*self_int_TM/volume
+            M_tensor -= alpha*k0*k0*self_interaction_integral_TM(k0, radius, self_interaction_type) /volume * np.eye(dims)
         # Solve M_tensor.Ek = E0j
         # NB: this uses an LU decomposition according to torch https://pytorch.org/docs/stable/generated/torch.linalg.lu.html
         EkTM = np.linalg.solve(M_tensor,E0j)
@@ -206,13 +225,7 @@ class Transmission2D:
         if self_interaction:
             # Add self-interaction
             dims = M_tensor.shape[0]
-            if self_interaction_type == "full":
-                self_int_TE = np.eye(dims) * (-1/(k0*k0) + 0.25j* volume * sp.special.hankel1(1,k0*radius)/(k0*radius))
-            elif self_interaction_type == "Rayleigh":
-                self_int_TE = np.eye(dims) * (-1/(k0*k0) - (radius**2 / 8.0) * (2.0 * onp.euler_gamma - 1.0 + 2.0 * onp.log(k0 * radius / 2.0) - 1j * onp.pi))
-            else:
-                raise NotImplementedError
-            M_tensor -= alpha*k0*k0*self_int_TE/volume
+            M_tensor -= alpha*k0*k0*self_interaction_integral_TE(k0, radius, self_interaction_type) /volume * np.eye(dims)
         # Solve M_tensor.Ek = E0j
         EkTE = np.linalg.solve(M_tensor, E0j.reshape(2*self.N,-1)) 
         return EkTE, EkTM
@@ -257,7 +270,7 @@ class Transmission2D:
                 
         return EkTE_, EkTM_
 
-    def G0_TM(self, points, k0, print_statement='', regularize = False, radius=0.0):
+    def G0_TM(self, points, k0, print_statement = '', regularize = False, radius = 0.0):
         '''
         Returns a Green's tensor linking all points to all scatterers for the TM polarization
         '''
@@ -267,7 +280,7 @@ class Transmission2D:
         G0 = self.torch_greensTM(points.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0, regularize=regularize, radius=radius)
         return G0
 
-    def G0_TE(self, points, k0, print_statement='', regularize = False, radius = 0.0):
+    def G0_TE(self, points, k0, print_statement = '', regularize = False, radius = 0.0):
         '''
         Returns a Green's tensor linking all points to all scatterers for the TE polarization
         '''
@@ -286,7 +299,7 @@ class Transmission2D:
         G0 = np.transpose(G0,1,2).reshape(2*G0.shape[0],2*G0.shape[1]).to(np.complex128)
         return G0
 
-    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False, discard_absorption = False):
+    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", regularize = False, discard_absorption = False):
         '''
         Computes the LDOS averaged at a list of measurement points, for TM and TE.
         This computation is a bit less expensive than the actual LDOS one,
@@ -298,6 +311,7 @@ class Transmission2D:
         alpha               - (1)    bare static polarizability at given k0
         radius              - (1)    radius of the scatterers
         self_interaction    - (bool) include or not self-interactions, defaults to True 
+        self_interaction_type - (string)      what order of approximation of S to use, "Rayleigh" or "full"
         '''
 
         Npoints = measure_points.shape[0]
@@ -312,8 +326,7 @@ class Transmission2D:
             # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
             volume = onp.pi*radius*radius
             dims = M_tensor.shape[0]
-            self_int_TM = np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-            M_tensor -= alpha*k0*k0*self_int_TM
+            M_tensor -= alpha*k0*k0*self_interaction_integral_TM(k0, radius, self_interaction_type) /volume * np.eye(dims)
         # Compute W_tensor = inverse(M_tensor)
         W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
 
@@ -327,8 +340,7 @@ class Transmission2D:
             G0_measure[point_idx][scatter_idx] = 0
             if self_interaction:
                 volume = onp.pi*radius*radius
-                self_int_TM = (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-                G0_measure[point_idx][scatter_idx] += self_int_TM
+                G0_measure[point_idx][scatter_idx] += self_interaction_integral_TM(k0, radius, self_interaction_type) / volume
         #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
@@ -349,8 +361,7 @@ class Transmission2D:
         if self_interaction:
             # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
             dims = M_tensor.shape[0]
-            self_int_TE = np.eye(dims) * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-            M_tensor -= alpha*k0*k0*self_int_TE
+            M_tensor -= alpha*k0*k0*self_interaction_integral_TE(k0, radius, self_interaction_type) /volume * np.eye(dims)
         # Compute W_tensor = inverse(M_tensor)
         W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
 
@@ -364,8 +375,7 @@ class Transmission2D:
             G0_measure[point_idx][scatter_idx] = 0
             if self_interaction:
                 volume = onp.pi*radius*radius
-                self_int_TE = (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-                G0_measure[point_idx][scatter_idx] += self_int_TE
+                G0_measure[point_idx][scatter_idx] += self_interaction_integral_TE(k0, radius, self_interaction_type) / volume
         #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
@@ -380,7 +390,7 @@ class Transmission2D:
 
         return dos_factor_TE, dos_factor_TM
 
-    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False, discard_absorption = False):
+    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", regularize = False, discard_absorption = False):
         '''
         Computes the LDOS at a list of measurement points, for TM and TE.
         This computation is fairly expensive, the number of measurement points should be small to avoid saturating resources.
@@ -391,6 +401,7 @@ class Transmission2D:
         alpha               - (1)    bare static polarizability at given k0
         radius              - (1)    radius of the scatterers
         self_interaction    - (bool) include or not self-interactions, defaults to True 
+        self_interaction_type - (string)      what order of approximation of S to use, "Rayleigh" or "full"
         '''
 
         M = measure_points.shape[0]
@@ -403,8 +414,7 @@ class Transmission2D:
             # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
             volume = onp.pi*radius*radius
             dims = M_tensor.shape[0]
-            self_int_TM = np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-            M_tensor -= alpha*k0*k0*self_int_TM
+            M_tensor -= alpha*k0*k0*self_interaction_integral_TM(k0, radius, self_interaction_type)/volume * np.eye(dims)
         # Compute W_tensor = inverse(M_tensor)
         W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
 
@@ -418,8 +428,7 @@ class Transmission2D:
             G0_measure[point_idx][scatter_idx] = 0
             if self_interaction:
                 volume = onp.pi*radius*radius
-                self_int_TM = (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-                G0_measure[point_idx][scatter_idx] += self_int_TM
+                G0_measure[point_idx][scatter_idx] += self_interaction_integral_TM(k0, radius, self_interaction_type) /volume
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, W_tensor),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
         ldos_factor_TM = np.einsum('ij, ji->i',np.matmul(G0_measure, W_tensor), (G0_measure).t() )
@@ -438,8 +447,7 @@ class Transmission2D:
         if self_interaction:
             # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
             dims = M_tensor.shape[0]
-            self_int_TE = np.eye(dims) * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-            M_tensor -= alpha*k0*k0*self_int_TE
+            M_tensor -= alpha*k0*k0*self_interaction_integral_TE(k0, radius, self_interaction_type)/volume * np.eye(dims)
         # Compute W_tensor = inverse(M_tensor)
         W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
 
@@ -453,8 +461,7 @@ class Transmission2D:
             G0_measure[point_idx][scatter_idx] = 0
             if self_interaction:
                 volume = onp.pi*radius*radius
-                self_int_TE = (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-                G0_measure[point_idx][scatter_idx] += self_int_TE
+                G0_measure[point_idx][scatter_idx] += self_interaction_integral_TE(k0, radius, self_interaction_type)/volume
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
         ldos_factor_TE = np.einsum('ij, ji->i',np.matmul(G0_measure, W_tensor), (G0_measure).t() )
@@ -470,7 +477,7 @@ class Transmission2D:
 
         return ldos_factor_TE, ldos_factor_TM
 
-    def compute_eigenvalues_and_scatterer_LDOS(self, k0, alpha, radius, file_name, self_interaction= True, write_eigenvalues=True):
+    def compute_eigenvalues_and_scatterer_LDOS(self, k0, alpha, radius, file_name, self_interaction = True, self_interaction_type = "Rayleigh", write_eigenvalues = True):
         '''
         Computes the eigenvalues of the Green's matrix, and the corresponding LDOS at scatterers, for TM and TE.
         This computation is way less expensive than the other LDOS, due to simple dependence on the eigenvalues
@@ -479,6 +486,7 @@ class Transmission2D:
         alpha               - (1)    bare static polarizability at given k0
         radius              - (1)    radius of the scatterers
         self_interaction    - (bool) include or not self-interactions, defaults to True 
+        self_interaction_type - (string)      what order of approximation of S to use, "Rayleigh" or "full"
         '''
 
         Npoints = self.r.shape[0]
@@ -494,8 +502,7 @@ class Transmission2D:
             # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
             volume = onp.pi*radius*radius
             dims = M_tensor.shape[0]
-            self_int_TM = np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-            M_tensor -= alpha*k0*k0*self_int_TM
+            M_tensor -= alpha*k0*k0*self_interaction_integral_TM(k0, radius, self_interaction_type)/volume * np.eye(dims)
         # Compute the spectrum of the M_tensor
         lambdas = np.linalg.eigvals(M_tensor)
 
@@ -514,8 +521,7 @@ class Transmission2D:
         if self_interaction:
             # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
             dims = M_tensor.shape[0]
-            self_int_TE = np.eye(dims) * (-1/(k0*k0*volume) + 0.25j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-            M_tensor -= alpha*k0*k0*self_int_TE
+            M_tensor -= alpha*k0*k0*self_interaction_integral_TE(k0, radius, self_interaction_type)/volume * np.eye(dims)
         # Compute the spectrum of the M_tensor
         lambdas = np.linalg.eigvals(M_tensor)
 
@@ -532,7 +538,7 @@ class Transmission2D:
 class Transmission2D_hmatrices:
     
 
-    def __init__(self, points, source='beam'):
+    def __init__(self, points, source = "beam"):
         self.r = points.reshape(-1,2)
         self.N = self.r.shape[0]
         self.source = source
@@ -540,7 +546,7 @@ class Transmission2D_hmatrices:
         jl.seval("using Transmission2D")
     
     
-    def generate_source(self, points, k0, thetas, w, print_statement=''):
+    def generate_source(self, points, k0, thetas, w, print_statement = ''):
         '''
         Generates the EM field of a source at a set of points
 
@@ -549,7 +555,7 @@ class Transmission2D_hmatrices:
         thetas      - (Ndirs)    propagation directions for the source
         w           - (1)        beam waist for beam sources
         '''
-        if self.source == 'beam':
+        if self.source == "beam":
             k0_ = onp.round(k0/(2.0*onp.pi),1)
             print('Calculating Beam Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
             E0j = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
@@ -575,7 +581,7 @@ class Transmission2D_hmatrices:
                 E0j[:,idx] = np.exp(1j*rrot[:,0]*k0)
         return E0j, u
 
-    def solve_EM(self, k0, alpha, thetas, radius, beam_waist, self_interaction=True):
+    def solve_EM(self, k0, alpha, thetas, radius, beam_waist, self_interaction = True, self_interaction_type = "Rayleigh"):
         '''
         Solves the EM field at each scatterer
 
@@ -585,6 +591,7 @@ class Transmission2D_hmatrices:
         radius              - (1)           radius of scatterers, used in self-interaction
         beam_waist          - (1)           beam waist of Gaussian beam source
         self_interaction    - (bool)        include or not self-interactions, defaults to True 
+        self_interaction_type - (string)      what order of approximation of S to use, "Rayleigh" or "full"
         '''
 
         ### TM calculation
@@ -597,7 +604,7 @@ class Transmission2D_hmatrices:
         atol = 0 # Absolute tolerance used in HMatrices
         rtol = 1e-3 # Relative tolerance
         debug = False
-        EkTM = jl.Transmission2D.solve_TM(self.r.numpy(), E0j.numpy(), k0, alpha, radius, self_interaction, regularize = regularize, use_lu = use_lu, atol = atol, rtol = rtol, debug=debug)
+        EkTM = jl.Transmission2D.solve_TM(self.r.numpy(), E0j.numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type, regularize = regularize, use_lu = use_lu, atol = atol, rtol = rtol, debug=debug)
         
         ### TE calculation
         # Switch the source to TE polarization
@@ -609,11 +616,11 @@ class Transmission2D_hmatrices:
         atol = 0 # Absolute tolerance used in HMatrices
         rtol = 1e-3 # Relative tolerance
         debug = False
-        EkTE = jl.Transmission2D.solve_TE(self.r.numpy(), E0j.reshape(2*self.N,-1).numpy(), k0, alpha, radius, self_interaction, regularize = regularize, use_lu = use_lu, atol = atol, rtol = rtol, debug=debug)
+        EkTE = jl.Transmission2D.solve_TE(self.r.numpy(), E0j.reshape(2*self.N,-1).numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type, regularize = regularize, use_lu = use_lu, atol = atol, rtol = rtol, debug=debug)
 
         return EkTE, EkTM
     
-    def propagate_EM(self,points, EkTE, EkTM, k0, alpha, thetas, beam_waist, regularize = False, radius = 0.0):
+    def propagate_EM(self, points, EkTE, EkTM, k0, alpha, thetas, beam_waist, regularize = False, radius = 0.0):
         '''
         Calculates the EM field at a set of measurement points
 
@@ -698,7 +705,7 @@ class Transmission2D_hmatrices:
                 
         return EkTE_, EkTM_
     
-    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False, discard_absorption = False):
+    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", regularize = False, discard_absorption = False):
         '''
         Computes the LDOS averaged at a list of measurement points, for TM and TE.
         This computation is a bit less expensive than the actual LDOS one,
@@ -709,7 +716,8 @@ class Transmission2D_hmatrices:
         k0                  - (1)    frequency of source beam
         alpha               - (1)    bare static polarizability at given k0
         radius              - (1)    radius of the scatterers
-        self_interaction    - (bool) include or not self-interactions, defaults to True 
+        self_interaction    - (bool) include or not self-interactions, defaults to True
+        self_interaction_type - (string)      what order of approximation of S to use, "Rayleigh" or "full"
         '''
 
         Npoints = measure_points.shape[0]
@@ -717,14 +725,14 @@ class Transmission2D_hmatrices:
         print("Computing mean DOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
 
         ### TM Calculation
-        dos_factor_TM = jl.Transmission2D.mean_dos_TM(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, regularize=regularize, discard_absorption=discard_absorption)
+        dos_factor_TM = jl.Transmission2D.mean_dos_TM(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type, regularize = regularize, discard_absorption = discard_absorption)
         
         ### TE Calculation
-        dos_factor_TE = jl.Transmission2D.mean_dos_TE(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, regularize=regularize, discard_absorption=discard_absorption)
+        dos_factor_TE = jl.Transmission2D.mean_dos_TE(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type, regularize = regularize, discard_absorption = discard_absorption)
 
         return dos_factor_TE, dos_factor_TM
 
-    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False, discard_absorption = False):
+    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", regularize = False, discard_absorption = False):
         '''
         Computes the LDOS at a list of measurement points, for TM and TE.
         This computation is fairly expensive, the number of measurement points should be small to avoid saturating resources.
@@ -738,16 +746,16 @@ class Transmission2D_hmatrices:
         '''
         
         ### TM Calculation
-        ldos_factor_TM = jl.Transmission2D.ldos_TM(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, regularize=regularize, discard_absorption=discard_absorption)
+        ldos_factor_TM = jl.Transmission2D.ldos_TM(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type, regularize=regularize, discard_absorption=discard_absorption)
         ldos_factor_TM = np.tensor(ldos_factor_TM)
         
         ### TE Calculation
-        ldos_factor_TE = jl.Transmission2D.ldos_TE(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, regularize=regularize, discard_absorption=discard_absorption)
+        ldos_factor_TE = jl.Transmission2D.ldos_TE(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type, regularize=regularize, discard_absorption=discard_absorption)
         ldos_factor_TE = np.tensor(ldos_factor_TE).unsqueeze(1)
 
         return ldos_factor_TE, ldos_factor_TM
 
-    def compute_eigenvalues_and_scatterer_LDOS(self, k0, alpha, radius, file_name, self_interaction= True, write_eigenvalues=True):
+    def compute_eigenvalues_and_scatterer_LDOS(self, k0, alpha, radius, file_name, self_interaction = True, self_interaction_type = "Rayleigh", write_eigenvalues = True):
         '''
         Computes the eigenvalues of the Green's matrix, and the corresponding LDOS at scatterers, for TM and TE.
         This computation is way less expensive than the other LDOS, due to simple dependence on the eigenvalues
@@ -755,7 +763,8 @@ class Transmission2D_hmatrices:
         k0                  - (1)    frequency of source beam
         alpha               - (1)    bare static polarizability at given k0
         radius              - (1)    radius of the scatterers
-        self_interaction    - (bool) include or not self-interactions, defaults to True 
+        self_interaction    - (bool) include or not self-interactions, defaults to True
+        self_interaction_type - (string)      what order of approximation of S to use, "Rayleigh" or "full"
         '''
 
         print("eigvals not implemented in HMatrices")
@@ -765,7 +774,7 @@ class Transmission2D_hmatrices:
         Npoints = self.r.shape[0]
         print("Computing spectrum and scatterer LDOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
 
-        lambdas_TM = jl.Transmission2D.spectrum_TM(self.r.numpy(), k0, alpha, radius, self_interaction)
+        lambdas_TM = jl.Transmission2D.spectrum_TM(self.r.numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type)
         
         if write_eigenvalues:
             onp.savetxt(file_name+'_lambdas_'+str(k0_)+'_TM.csv', onp.stack([np.real(lambdas_TM).numpy(), np.imag(lambdas_TM).numpy()]).T)
@@ -775,7 +784,7 @@ class Transmission2D_hmatrices:
         dos_factor_TM *= 4.0 / ( k0**2 * alpha) # For prefactor in systems invariant along z, see https://www.sciencedirect.com/science/article/pii/S1569441007000387
         dos_factor_TM = np.imag(dos_factor_TM)
 
-        lambdas_TE = jl.Transmission2D.spectrum_TE(self.r.numpy(), k0, alpha, radius, self_interaction)
+        lambdas_TE = jl.Transmission2D.spectrum_TE(self.r.numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type)
         
         if write_eigenvalues:
             onp.savetxt(file_name+'_lambdas_'+str(k0_)+'_TE.csv', onp.stack([np.real(lambdas_TE).numpy(), np.imag(lambdas_TE).numpy()]).T)
@@ -790,12 +799,12 @@ class Transmission2D_hmatrices:
 class Transmission2D_scalar:
     
 
-    def __init__(self, points, source='beam'):
+    def __init__(self, points, source = "beam"):
         self.r = points.reshape(-1,2)
         self.N = self.r.shape[0]
         self.source = source
 
-    def torch_hankel1(self,nu, x):
+    def torch_hankel1(self, nu, x):
         '''
         Torch implementation of hankel1(nu,x), for nu = 0 or 1.
         Uses the fact that Hankel(nu,z) = J(nu,z) + i Y(nu,z).
@@ -812,7 +821,7 @@ class Transmission2D_scalar:
         else:
             exit("torch Hankel function only implemented for orders 0 and 1!")
             
-    def torch_greens(self, r, k0, periodic='', regularize = False, radius = 0.0):
+    def torch_greens(self, r, k0, periodic = '', regularize = False, radius = 0.0):
         '''
         Torch implementation of the TM Green's function, taking tensors as entries
         r          - (M,2)      distances to propagate over
@@ -837,7 +846,7 @@ class Transmission2D_scalar:
 
         return 0.25j*self.torch_hankel1(0,R*k0)
 
-    def generate_source(self, points, k0, thetas, w, print_statement=''):
+    def generate_source(self, points, k0, thetas, w, print_statement = ''):
         '''
         Generates the EM field of a source at a set of points
 
@@ -846,7 +855,7 @@ class Transmission2D_scalar:
         thetas      - (Ndirs)    propagation directions for the source
         w           - (1)        beam waist for beam sources
         '''
-        if self.source == 'beam':
+        if self.source == "beam":
             k0_ = onp.round(k0/(2.0*onp.pi),1)
             print('Calculating Beam Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
             E0j = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
@@ -868,7 +877,7 @@ class Transmission2D_scalar:
                 E0j[:,idx] = np.exp(1j*rrot[:,0]*k0)
         return E0j
  
-    def propagate(self,points, Ek, k0, alpha, thetas, beam_waist, regularize = False, radius = 0.0):
+    def propagate(self, points, Ek, k0, alpha, thetas, beam_waist, regularize = False, radius = 0.0):
         '''
         Calculates the EM field at a set of measurement points
 
@@ -902,7 +911,7 @@ class Transmission2D_scalar:
                 
         return Ek_
    
-    def solve(self, k0, alpha, thetas, radius, beam_waist, self_interaction=True, self_interaction_type="full"):
+    def solve(self, k0, alpha, thetas, radius, beam_waist, self_interaction = True, self_interaction_type = "full"):
         '''
         Solves for the field at each scatterer
 
@@ -924,13 +933,7 @@ class Transmission2D_scalar:
             # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
             volume = onp.pi*radius*radius
             dims = M_tensor.shape[0]
-            if self_interaction_type == "full":
-                self_int_TM = np.eye(dims) * (-1/(k0*k0) + 0.5j * volume * sp.special.hankel1(1,k0*radius)/(k0*radius))
-            elif self_interaction_type == "Rayleigh":
-                self_int_TM = np.eye(dims) * (-1.0 * radius**2 / 4.0) * (2.0 * onp.euler_gamma - 1.0 + 2.0 * onp.log(k0 * radius / 2.0) - 1j * onp.pi)
-            else:
-                raise NotImplementedError
-            M_tensor -= alpha*k0*k0*self_int_TM/volume
+            M_tensor -= alpha*k0*k0*self_interaction_integral_TM(k0, radius, self_interaction_type)/volume * np.eye(dims)
         # Solve M_tensor.Ek = E0j
         # NB: this uses an LU decomposition according to torch https://pytorch.org/docs/stable/generated/torch.linalg.lu.html
         Ek = np.linalg.solve(M_tensor,E0j)
@@ -970,7 +973,7 @@ class Transmission2D_scalar:
                 
         return Ek_
 
-    def G0(self, points, k0, print_statement='', regularize = False, radius=0.0):
+    def G0(self, points, k0, print_statement = '', regularize = False, radius=0.0):
         '''
         Returns a Green's tensor linking all points to all scatterers for the TM polarization
         '''
@@ -980,7 +983,7 @@ class Transmission2D_scalar:
         G0_scalar = self.torch_greens(points.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0, regularize=regularize, radius=radius)
         return G0_scalar
 
-    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False, discard_absorption = False):
+    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, self_interaction_type = "Rayleigh", regularize = False, discard_absorption = False):
         '''
         Computes the LDOS averaged at a list of measurement points, for TM and TE.
         This computation is a bit less expensive than the actual LDOS one,
@@ -992,6 +995,7 @@ class Transmission2D_scalar:
         alpha               - (1)    bare static polarizability at given k0
         radius              - (1)    radius of the scatterers
         self_interaction    - (bool) include or not self-interactions, defaults to True 
+        self_interaction_type - (string)      what order of approximation of S to use, "Rayleigh" or "full"
         '''
 
         Npoints = measure_points.shape[0]
@@ -1005,8 +1009,7 @@ class Transmission2D_scalar:
             # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
             volume = onp.pi*radius*radius
             dims = M_tensor.shape[0]
-            self_int_TM = np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-            M_tensor -= alpha*k0*k0*self_int_TM
+            M_tensor -= alpha*k0*k0*self_interaction_integral_TM(k0, radius, self_interaction_type)/volume * np.eye(dims)
         # Compute W_tensor = inverse(M_tensor)
         W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
 
@@ -1020,8 +1023,7 @@ class Transmission2D_scalar:
             G0_measure[point_idx][scatter_idx] = 0
             if self_interaction:
                 volume = onp.pi*radius*radius
-                self_int_TM = (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-                G0_measure[point_idx][scatter_idx] += self_int_TM
+                G0_measure[point_idx][scatter_idx] += self_interaction_integral_TM(k0, radius, self_interaction_type)/volume
         #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
@@ -1037,7 +1039,7 @@ class Transmission2D_scalar:
 
         return dos_factor_TM
 
-    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False, discard_absorption = False):
+    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, self_interaction_type = "Rayleigh", regularize = False, discard_absorption = False):
         '''
         Computes the LDOS at a list of measurement points, for TM and TE.
         This computation is fairly expensive, the number of measurement points should be small to avoid saturating resources.
@@ -1047,7 +1049,8 @@ class Transmission2D_scalar:
         k0                  - (1)    frequency of source beam
         alpha               - (1)    bare static polarizability at given k0
         radius              - (1)    radius of the scatterers
-        self_interaction    - (bool) include or not self-interactions, defaults to True 
+        self_interaction    - (bool) include or not self-interactions, defaults to True
+        self_interaction_type - (string)      what order of approximation of S to use, "Rayleigh" or "full"
         '''
 
         M = measure_points.shape[0]
@@ -1059,8 +1062,7 @@ class Transmission2D_scalar:
             # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
             volume = onp.pi*radius*radius
             dims = M_tensor.shape[0]
-            self_int_TM = np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-            M_tensor -= alpha*k0*k0*self_int_TM
+            M_tensor -= alpha*k0*k0*self_interaction_integral_TM(k0, radius, self_interaction_type)/volume * np.eye(dims)
         # Compute W_tensor = inverse(M_tensor)
         W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
 
@@ -1074,8 +1076,7 @@ class Transmission2D_scalar:
             G0_measure[point_idx][scatter_idx] = 0
             if self_interaction:
                 volume = onp.pi*radius*radius
-                self_int_TM = (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-                G0_measure[point_idx][scatter_idx] += self_int_TM
+                G0_measure[point_idx][scatter_idx] += self_interaction_integral_TM(k0, radius, self_interaction_type)/volume
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, W_tensor),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
         ldos_factor_TM = np.einsum('ij, ji->i',np.matmul(G0_measure, W_tensor), (G0_measure).t() )
@@ -1089,7 +1090,7 @@ class Transmission2D_scalar:
 
         return ldos_factor_TM
 
-    def compute_eigenvalues_and_scatterer_LDOS(self, k0, alpha, radius, file_name, self_interaction= True, write_eigenvalues=True):
+    def compute_eigenvalues_and_scatterer_LDOS(self, k0, alpha, radius, file_name, self_interaction = True, self_interaction_type = "Rayleigh", write_eigenvalues = True):
         '''
         Computes the eigenvalues of the Green's matrix, and the corresponding LDOS at scatterers, for TM and TE.
         This computation is way less expensive than the other LDOS, due to simple dependence on the eigenvalues
@@ -1097,7 +1098,8 @@ class Transmission2D_scalar:
         k0                  - (1)    frequency of source beam
         alpha               - (1)    bare static polarizability at given k0
         radius              - (1)    radius of the scatterers
-        self_interaction    - (bool) include or not self-interactions, defaults to True 
+        self_interaction    - (bool) include or not self-interactions, defaults to True
+        self_interaction_type - (string)      what order of approximation of S to use, "Rayleigh" or "full"
         '''
 
         Npoints = self.r.shape[0]
@@ -1113,8 +1115,7 @@ class Transmission2D_scalar:
             # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
             volume = onp.pi*radius*radius
             dims = M_tensor.shape[0]
-            self_int_TM = np.eye(dims) * (-1/(k0*k0*volume) + 0.5j*sp.special.hankel1(1,k0*radius)/(k0*radius))
-            M_tensor -= alpha*k0*k0*self_int_TM
+            M_tensor -= alpha*k0*k0*self_interaction_integral_TM(k0, radius, self_interaction_type)/volume * np.eye(dims)
         # Compute the spectrum of the M_tensor
         lambdas = np.linalg.eigvals(M_tensor)
 
@@ -1130,7 +1131,7 @@ class Transmission2D_scalar:
     
 class Transmission2D_scalar_hmatrices:
 
-    def __init__(self, points, source='beam'):
+    def __init__(self, points, source = "beam"):
         self.r = points.reshape(-1,2)
         self.N = self.r.shape[0]
         self.source = source
@@ -1138,7 +1139,7 @@ class Transmission2D_scalar_hmatrices:
         jl.seval("using Transmission2D")
     
     
-    def generate_source(self, points, k0, thetas, w, print_statement=''):
+    def generate_source(self, points, k0, thetas, w, print_statement = ''):
         '''
         Generates the EM field of a source at a set of points
 
@@ -1147,7 +1148,7 @@ class Transmission2D_scalar_hmatrices:
         thetas      - (Ndirs)    propagation directions for the source
         w           - (1)        beam waist for beam sources
         '''
-        if self.source == 'beam':
+        if self.source == "beam":
             k0_ = onp.round(k0/(2.0*onp.pi),1)
             print('Calculating Beam Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
             E0j = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
@@ -1169,7 +1170,7 @@ class Transmission2D_scalar_hmatrices:
                 E0j[:,idx] = np.exp(1j*rrot[:,0]*k0)
         return E0j, u
 
-    def solve(self, k0, alpha, thetas, radius, beam_waist, self_interaction=True):
+    def solve(self, k0, alpha, thetas, radius, beam_waist, self_interaction = True, self_interaction_type = "Rayleigh"):
         '''
         Solves for the field at each scatterer
 
@@ -1178,7 +1179,8 @@ class Transmission2D_scalar_hmatrices:
         thetas              - (Ndirs)       propagation directions for the source
         radius              - (1)           radius of scatterers, used in self-interaction
         beam_waist          - (1)           beam waist of Gaussian beam source
-        self_interaction    - (bool)        include or not self-interactions, defaults to True 
+        self_interaction    - (bool)        include or not self-interactions, defaults to True
+        self_interaction_type - (string)      what order of approximation of S to use, "Rayleigh" or "full"
         '''
 
         ### TM calculation
@@ -1191,11 +1193,11 @@ class Transmission2D_scalar_hmatrices:
         atol = 0 # Absolute tolerance used in HMatrices
         rtol = 1e-3 # Relative tolerance
         debug = False
-        Ek = jl.Transmission2D.solve_TM(self.r.numpy(), E0j.numpy(), k0, alpha, radius, self_interaction, regularize = regularize, use_lu = use_lu, atol = atol, rtol = rtol, debug=debug)
+        Ek = jl.Transmission2D.solve_TM(self.r.numpy(), E0j.numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type, regularize = regularize, use_lu = use_lu, atol = atol, rtol = rtol, debug=debug)
         
         return Ek
     
-    def propagate(self,points, Ek, k0, alpha, thetas, beam_waist, regularize = False, radius = 0.0):
+    def propagate(self, points, Ek, k0, alpha, thetas, beam_waist, regularize = False, radius = 0.0):
         '''
         Calculates the field at a set of measurement points
 
@@ -1263,7 +1265,7 @@ class Transmission2D_scalar_hmatrices:
                 
         return Ek_
     
-    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False, discard_absorption = False):
+    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, self_interaction_type = "Rayleigh", regularize = False, discard_absorption = False):
         '''
         Computes the LDOS averaged at a list of measurement points, for TM and TE.
         This computation is a bit less expensive than the actual LDOS one,
@@ -1274,7 +1276,8 @@ class Transmission2D_scalar_hmatrices:
         k0                  - (1)    frequency of source beam
         alpha               - (1)    bare static polarizability at given k0
         radius              - (1)    radius of the scatterers
-        self_interaction    - (bool) include or not self-interactions, defaults to True 
+        self_interaction    - (bool) include or not self-interactions, defaults to True
+        self_interaction_type - (string)      what order of approximation of S to use, "Rayleigh" or "full"
         '''
 
         Npoints = measure_points.shape[0]
@@ -1282,11 +1285,11 @@ class Transmission2D_scalar_hmatrices:
         print("Computing mean DOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
 
         ### TM Calculation
-        dos_factor_TM = jl.Transmission2D.mean_dos_TM(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, regularize=regularize, discard_absorption=discard_absorption)
+        dos_factor_TM = jl.Transmission2D.mean_dos_TM(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type, regularize=regularize, discard_absorption=discard_absorption)
         
         return dos_factor_TM
 
-    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, regularize = False, discard_absorption = False):
+    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", regularize = False, discard_absorption = False):
         '''
         Computes the LDOS at a list of measurement points, for TM and TE.
         This computation is fairly expensive, the number of measurement points should be small to avoid saturating resources.
@@ -1296,15 +1299,16 @@ class Transmission2D_scalar_hmatrices:
         k0                  - (1)    frequency of source beam
         alpha               - (1)    bare static polarizability at given k0
         radius              - (1)    radius of the scatterers
-        self_interaction    - (bool) include or not self-interactions, defaults to True 
+        self_interaction    - (bool) include or not self-interactions, defaults to True
+        self_interaction_type - (string)      what order of approximation of S to use, "Rayleigh" or "full"
         '''
         
-        ldos_factor_TM = jl.Transmission2D.ldos_TM(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, regularize=regularize, discard_absorption=discard_absorption)
+        ldos_factor_TM = jl.Transmission2D.ldos_TM(self.r.numpy(), measure_points.numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type, regularize=regularize, discard_absorption=discard_absorption)
         ldos_factor_TM = np.tensor(ldos_factor_TM)
 
         return ldos_factor_TM
 
-    def compute_eigenvalues_and_scatterer_LDOS(self, k0, alpha, radius, file_name, self_interaction= True, write_eigenvalues=True):
+    def compute_eigenvalues_and_scatterer_LDOS(self, k0, alpha, radius, file_name, self_interaction= True, self_interaction_type = "Rayleigh", write_eigenvalues=True):
         '''
         Computes the eigenvalues of the Green's matrix, and the corresponding LDOS at scatterers, for TM and TE.
         This computation is way less expensive than the other LDOS, due to simple dependence on the eigenvalues
@@ -1313,6 +1317,7 @@ class Transmission2D_scalar_hmatrices:
         alpha               - (1)    bare static polarizability at given k0
         radius              - (1)    radius of the scatterers
         self_interaction    - (bool) include or not self-interactions, defaults to True 
+        self_interaction_type - (string)      what order of approximation of S to use, "Rayleigh" or "full"
         '''
 
         print("eigvals not implemented in HMatrices")
@@ -1322,7 +1327,7 @@ class Transmission2D_scalar_hmatrices:
         Npoints = self.r.shape[0]
         print("Computing spectrum and scatterer LDOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
 
-        lambdas_TM = jl.Transmission2D.spectrum_TM(self.r.numpy(), k0, alpha, radius, self_interaction)
+        lambdas_TM = jl.Transmission2D.spectrum_TM(self.r.numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type)
         
         if write_eigenvalues:
             onp.savetxt(file_name+'_lambdas_'+str(k0_)+'_TM.csv', onp.stack([np.real(lambdas_TM).numpy(), np.imag(lambdas_TM).numpy()]).T)
