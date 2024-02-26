@@ -23,7 +23,7 @@ def main(ndim, # Required arguments
         lattice=None, cold_atoms=False, kresonant_ = None, annulus = 0, composite = False, kick = 0.0, input_files_args = None, method = "torch", # Special cases
         k0range_args = None, thetarange_args = None,# Range of values to use
         compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, scattered_fields=False, transmission_radius = 2.0,
-        compute_DOS=False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, intensity_fields = False, amplitude_fields = False, phase_fields = False, just_compute_averages = False,# Computations to perform
+        compute_DOS=False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, dos_sizes_args = None, intensity_fields = False, amplitude_fields = False, phase_fields = False, just_compute_averages = False,# Computations to perform
         dospoints=1, spacing_factor = 1.0,  write_eigenvalues=False, write_ldos= False,  gridsize=(301,301), window_width=1.2, angular_width = 0.0, plot_theta_index = 0, batch_size = 101*101, output_directory="" # Parameters for outputs
         ):
     '''
@@ -63,6 +63,22 @@ def main(ndim, # Required arguments
         else:
             thetas = onp.arange(thetarange_args[0],thetarange_args[1]+thetarange_args[2],thetarange_args[2]) * np.pi / 180.0
             Ntheta = len(thetas)
+            
+    # Sizes to use for DOS
+    if dos_sizes_args == None:
+        Ndos_sizes = 1
+        dos_sizes  = onp.array([1.0])
+    else:
+        if len(dos_sizes_args)==1:
+            Ndos_sizes = 1
+            dos_sizes  = onp.array([dos_sizes_args])
+        elif len(dos_sizes_args)==2:
+            dos_sizes = onp.linspace(dos_sizes_args[0],dos_sizes_args[1],num=10) 
+            Ndos_sizes = len(dos_sizes)
+        else:
+            dos_sizes = onp.arange(dos_sizes_args[0],dos_sizes_args[1]+dos_sizes_args[2],dos_sizes_args[2])
+            Ndos_sizes = len(dos_sizes)
+            
     # Keep a copy of the thetas used to plot if thetas get overwritten when loading files
     thetas_plot = thetas 
     # Figure out how many angles around the central one to use for the definition of transmission
@@ -649,59 +665,63 @@ def main(ndim, # Required arguments
                 utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'dos', appended_string='_'+str(file_index)+'_TM')
 
             if compute_interDOS:
-                if method == "torch":
-                    solver = Transmission2D(points)
-                elif method == "hmatrices":
-                    solver = Transmission2D_hmatrices(points)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
-                DOSall_TE = []
-                DOSall_TM = []
-                k0_range = []
 
-                M = dospoints
-                measurement_points = utils.uniform_unit_disk_picking(M)
-                measurement_points *= L/2
-
-                # Find all overlaps and redraw while you have some
-                # Following Pierrat et al., I use 1 diameter as the spacing there
-                spacing = 2.0*radius
-                spacing *= spacing_factor
-                # XXX TODO: use a random cavity or something similar instead!
-                overlaps = np.nonzero(np.sum(np.cdist(measurement_points.to(np.double), points.to(np.double), p=2) <= spacing, axis = -1)).squeeze()
-                count = overlaps.shape[0]
-                while count > 0:
-                    print("Removing "+str(count)+" overlaps using an exclusion distance of "+str(spacing_factor)+" scatterer diameters...")
-                    measurement_points[overlaps] = L/2 * utils.uniform_unit_disk_picking(count)
-                    overlaps = np.nonzero(np.sum(np.cdist(measurement_points.to(np.double), points.to(np.double), p=2) <= spacing, axis = -1)).squeeze()
-                    if len(overlaps.shape) == 0:
-                        count = 0
-                    else:
-                        count = overlaps.shape[0]
-
-                utils.plot_2d_points(measurement_points, file_name+'_measurement')
-
-                for k0, alpha in zip(k0range,alpharange):
-                    dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
+                for dos_size in dos_sizes[::-1]:
+                    DOSall_TE = []
+                    DOSall_TM = []
+                    k0_range = []
+                        
+                    M = dospoints
+                    measurement_points = utils.uniform_unit_disk_picking(M)
+                    measurement_points *= dos_size * L/2
+                    
+                    disk_points = lattices.cut_circle(points, rad = dos_size * 0.5)
                     if method == "torch":
-                        DOSall_TE.append(dos_TE.numpy())
-                        DOSall_TM.append(dos_TM.numpy())
+                        solver = Transmission2D(disk_points)
+                    elif method == "hmatrices":
+                        solver = Transmission2D_hmatrices(disk_points)
                     else:
-                        DOSall_TE.append(dos_TE)
-                        DOSall_TM.append(dos_TM)
+                        print("Choose a valid method")
+                        sys.exit()
 
-                    k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                    k0_range.append(k0_)
+                    # Find all overlaps and redraw while you have some
+                    # Following Pierrat et al., I use 1 diameter as the spacing there
+                    spacing = 2.0*radius
+                    spacing *= spacing_factor
+                    # XXX TODO: use a random cavity or something similar instead!
+                    overlaps = np.nonzero(np.sum(np.cdist(measurement_points.to(np.double), disk_points.to(np.double), p=2) <= spacing, axis = -1)).squeeze()
+                    count = overlaps.shape[0]
+                    while count > 0:
+                        print("Removing "+str(count)+" overlaps using an exclusion distance of "+str(spacing_factor)+" scatterer diameters...")
+                        measurement_points[overlaps] = dos_size * L/2 * utils.uniform_unit_disk_picking(count)
+                        overlaps = np.nonzero(np.sum(np.cdist(measurement_points.to(np.double), disk_points.to(np.double), p=2) <= spacing, axis = -1)).squeeze()
+                        if len(overlaps.shape) == 0:
+                            count = 0
+                        else:
+                            count = overlaps.shape[0]
 
-                    onp.savetxt(file_name+'_temp_idos_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
-                    onp.savetxt(file_name+'_temp_idos_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+                    utils.plot_2d_points(measurement_points, file_name+'_measurement_size'+str(dos_size))
 
-                onp.savetxt(file_name+'_idos_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
-                onp.savetxt(file_name+'_idos_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+                    for k0, alpha in zip(k0range,alpharange):
+                        dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
+                        if method == "torch":
+                            DOSall_TE.append(dos_TE.numpy())
+                            DOSall_TM.append(dos_TM.numpy())
+                        else:
+                            DOSall_TE.append(dos_TE)
+                            DOSall_TM.append(dos_TM)
 
-                utils.plot_averaged_DOS(k0range, L, DOSall_TE, file_name, 'idos', appended_string='_'+str(file_index)+'_TE')
-                utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'idos', appended_string='_'+str(file_index)+'_TM')
+                        k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                        k0_range.append(k0_)
+
+                        onp.savetxt(file_name+'_temp_idos_size'+str(dos_size)+'_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
+                        onp.savetxt(file_name+'_temp_idos_size'+str(dos_size)+'_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+
+                    onp.savetxt(file_name+'_idos_size'+str(dos_size)+'_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
+                    onp.savetxt(file_name+'_idos_size'+str(dos_size)+'_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+
+                    utils.plot_averaged_DOS(k0range, L, DOSall_TE, file_name, 'idos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_TE')
+                    utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'idos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_TM')
 
             if compute_LDOS:
                 if method == "torch":
@@ -1466,6 +1486,8 @@ if __name__ == '__main__':
         default=False", default=False)
     parser.add_argument("-ldos","--compute_LDOS", action='store_true', help="Compute an LDOS map  \
         default=False", default=False)
+    parser.add_argument("-ds", "--dos_sizes_args", nargs = "+", type = float, help = "System linear sizes to consider, as fractions of L\
+        default=1", default = None)
     parser.add_argument("--intensity_fields", action = "store_true", help="Output images of intensity fields for every beam used in the angular plot, in real space\
         default = False", default=False)
     parser.add_argument("--amplitude_fields", action = "store_true", help="Output images of amplitude fields for every beam used in the angular plot, in real space\
@@ -1536,6 +1558,9 @@ if __name__ == '__main__':
     compute_interDOS                = args.compute_interDOS
     compute_SDOS                    = args.compute_SDOS
     compute_LDOS                    = args.compute_LDOS
+    dos_sizes_args                       = args.dos_sizes_args
+    if dos_sizes_args     != None:
+        dos_sizes_args                   = tuple(dos_sizes_args)
     intensity_fields                = args.intensity_fields
     amplitude_fields                = args.amplitude_fields
     phase_fields                    = args.phase_fields
@@ -1566,7 +1591,7 @@ if __name__ == '__main__':
         k0range_args = k0range_args, thetarange_args=thetarange_args, input_files_args = input_files_args,
         cold_atoms=cold_atoms, kresonant_ = kresonant_, lattice=lattice, annulus = annulus, composite = composite, kick = kick, method = method,
         compute_transmission = compute_transmission, plot_transmission=plot_transmission, single_scattering_transmission=single_scattering_transmission, scattered_fields=scattered_fields, transmission_radius=transmission_radius,
-        compute_DOS=compute_DOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS,
+        compute_DOS=compute_DOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS, dos_sizes_args= dos_sizes_args,
         intensity_fields = intensity_fields, amplitude_fields=amplitude_fields, phase_fields=phase_fields, just_compute_averages=just_compute_averages,
         dospoints=dospoints, spacing_factor=spacing_factor, write_eigenvalues=write_eigenvalues, write_ldos=write_ldos, gridsize=gridsize, window_width=window_width, batch_size = batch_size, angular_width=angular_width, plot_theta_index=plot_theta_index,
         output_directory=output_directory

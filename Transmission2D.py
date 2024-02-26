@@ -30,7 +30,7 @@ def self_interaction_integral_TE(k0, radius, self_interaction_type = "Rayleigh")
     if self_interaction_type == "full":
         self_int_TE = (-1/(k0*k0) + 0.25j* volume * sp.special.hankel1(1,k0*radius)/(k0*radius))
     elif self_interaction_type == "Rayleigh":
-        self_int_TE = (-1/(k0*k0) - (radius**2 / 8.0) * (2.0 * onp.euler_gamma - 1.0 + 2.0 * onp.log(k0 * radius / 2.0) - 1j * onp.pi))
+        self_int_TE = (-1/(2.0 *k0*k0) - (radius**2 / 8.0) * (2.0 * onp.euler_gamma - 1.0 + 2.0 * onp.log(k0 * radius / 2.0) - 1j * onp.pi))
     else:
         raise NotImplementedError
     
