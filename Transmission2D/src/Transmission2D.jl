@@ -150,7 +150,7 @@ module Transmission2D
         if self_interaction_type == "full"
             (-1/(k0*k0) + 0.25im * volume * hankelh1(1,k0*radius)/(k0*radius))
         elseif self_interaction_type == "Rayleigh"
-            (-1 / k0^2) - (1.0 * radius^2 / 8.0) * (2.0 * eulergamma - 1.0 + 2.0 * log(k0 * radius / 2.0) - 1.0im * pi)
+            (-1 / (2.0 * k0^2)) - (1.0 * radius^2 / 8.0) * (2.0 * eulergamma - 1.0 + 2.0 * log(k0 * radius / 2.0) - 1.0im * pi)
         else
             println("Self-interaction type not implemented!")
             exit()
