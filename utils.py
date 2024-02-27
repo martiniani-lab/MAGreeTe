@@ -197,6 +197,20 @@ def plot_transmission_flat(k0range, L, thetas, intensity, file_name_root,  n_the
     fig.colorbar(pc)
     plt.savefig(file_name_root+'_transmission_beam_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
     plt.close()
+    
+    avg_intensity = onp.mean(total_, axis=1)
+    fig = plt.figure()
+    ax = fig.gca()
+    freqs = onp.real(k0range*L/(2*onp.pi))
+    ax.plot(freqs, avg_intensity)
+    ax.set_xlabel(r'$k_0L/2\pi$')
+    ax.set_ylabel('Intensity')
+    ax.legend()
+    ax.set_yscale('log')
+    plt.savefig(file_name_root+'_transmission_beam_avg'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
+    plt.close()
+    
+    onp.savetxt(file_name_root+'_transmission_beam_avg'+appended_string+'.csv',onp.stack([freqs,avg_intensity]).T)
 
 def plot_transmission_linear(k0range, L,x, intensity, file_name_root,cmap='viridis', appended_string=''):
     """
