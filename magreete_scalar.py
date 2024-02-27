@@ -83,7 +83,9 @@ def main(ndim, # Required arguments
 
             file_name = input_files_args[file_index]
             points = hkl.load(file_name)
-            points = np.tensor(points[:,0:ndim]-0.5,dtype=np.double)
+            points = np.tensor(points[:,0:ndim],dtype=np.double)
+            if np.amax(points) > 0.5:
+                points -= 0.5
             shape_before = points.shape
             
             # Make output dir
