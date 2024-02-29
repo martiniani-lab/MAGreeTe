@@ -107,6 +107,26 @@ def uniform_unit_ball_picking(n_points, dim):
 
     return np.tensor(points, dtype = np.float64)
 
+def fibonacci_sphere(samples=1000): 
+    '''
+    Returns a Fibonacci series sampling of the unit sphere with a set number of points.
+    See https://stackoverflow.com/questions/9600801/evenly-distributing-n-points-on-a-sphere
+    '''
+    
+    points = []
+    golden = onp.pi * (np.sqrt(5.) - 1.)  # golden angle in radians
+    i = np.arange(samples)
+    z = 1 - (i / (samples - 1)) * 2  # z goes from 1 to -1
+    radii = onp.sqrt(1 - z**2)
+    thetas = i * golden
+    x = onp.cos(thetas) * radii
+    y = onp.sin(thetas) * radii
+
+    points = onp.stack([x,y,z]).transpose()
+        
+    # plot_3d_points(np.array(points), 'testfibo')
+
+    return points
 
 def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,  n_thetas_trans = 0.0, adapt_scale = False, normalization = onp.array([]), appended_string=''):
     """

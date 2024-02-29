@@ -64,7 +64,7 @@ class Transmission2D:
     def torch_greensTE(self, r, k0, periodic = '', regularize = False, radius = 0.0):
         '''
         Torch implementation of the TE Green's function, taking tensors as entries
-        r          - (M,2)      distances to propagate over
+        r          - (N,M,2)      distances to propagate over
         k0         - (1)        wave-vector of source beam in vacuum
         periodic   - str        change boundary conditions: '' = free, ('x', 'y', 'xy') = choices of possible periodic directions
         regularize - bool       bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
@@ -125,22 +125,58 @@ class Transmission2D:
         thetas      - (Ndirs)    propagation directions for the source
         w           - (1)        beam waist for beam sources
         '''
+        
         if self.source == "beam":
+            # Collimated beam with zero curvature,
+            # from solution of the the paraxial approximation of Maxwell-Helmholtz,
+            # see https://en.wikipedia.org/wiki/Gaussian_beam
+            
             k0_ = onp.round(k0/(2.0*onp.pi),1)
             print('Calculating Beam Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
-            E0j = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
+            
+            E0TM = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
             u = np.zeros((2,len(thetas)))
             for idx, theta in enumerate(thetas):
+                # Rotate the system by - theta rather than the expression of the source
                 cost, sint = onp.cos(-theta),onp.sin(-theta)
                 u[:,idx] = np.tensor([sint, cost])
                 rot = np.tensor([[cost,-sint],[sint,cost]])
                 rrot = np.matmul(rot,points.T).T #(rparallel, rperp)
                 a = 2*rrot[:,1]/(w*w*k0)
-                E0j[:,idx] = np.exp(1j*rrot[:,0]*k0-(rrot[:,1]**2/(w*w*(1+1j*a))))/np.sqrt(1+1j*a)
+                E0TM[:,idx] = np.exp(1j*rrot[:,0]*k0-(rrot[:,1]**2/(w*w*(1+1j*a))))/np.sqrt(1+1j*a)
+                
+            # TE is just TM but with in-plane polarization perpendicular to prop
+            E0TE = E0TM.reshape(points.shape[0],1,len(thetas))*u
+                
         elif self.source == 'plane':
+            # Infinitely extended Plane wave
+            
             k0_ = onp.round(k0/(2.0*onp.pi),1)
             print('Calculating Plane Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
-            E0j = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
+            
+            E0TM = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
+            u = np.zeros((2,len(thetas)))
+            for idx in range(len(thetas)):
+                # Rotate the system by - theta rather than the expression of the source
+                theta = thetas[idx]
+                cost, sint = onp.cos(-theta),onp.sin(-theta)
+                u[:,idx] = np.tensor([sint, cost])
+                rot = np.tensor([[cost,-sint],[sint,cost]])
+                rrot = np.matmul(rot,points.T).T #(rparallel, rperp)
+                E0TM[:,idx] = np.exp(1j*rrot[:,0]*k0)
+                
+            # TE is just TM but with in-plane polarization perpendicular to prop
+            E0TE = E0TM.reshape(points.shape[0],1,len(thetas))*u
+                
+        elif self.source == 'point':
+            # One electric point dipole emitting light at source_distance * L away
+            source_distance = 2.0
+            source_intensity = 1.0
+            
+            k0_ = onp.round(k0/(2.0*onp.pi),1)
+            print('Calculating Point Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
+            
+            E0TM = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
             u = np.zeros((2,len(thetas)))
             for idx in range(len(thetas)):
                 theta = thetas[idx]
@@ -148,8 +184,14 @@ class Transmission2D:
                 u[:,idx] = np.tensor([sint, cost])
                 rot = np.tensor([[cost,-sint],[sint,cost]])
                 rrot = np.matmul(rot,points.T).T #(rparallel, rperp)
-                E0j[:,idx] = np.exp(1j*rrot[:,0]*k0)
-        return E0j, u
+                source_location = - source_distance * np.tensor([1.0, 0.0])
+                E0TM[:,idx] = self.torch_greensTM(points.reshape(-1,1,2) - source_location.reshape(1,-1,2), k0).reshape(points.shape[0])
+                E0TE[:,idx] = np.matmul(self.torch_greensTE(points.reshape(-1,1,2) - source_location.reshape(1,-1,2), k0), onp.sqrt(source_intensity) * u[:,idx])
+
+        else:
+            raise NotImplementedError
+                
+        return E0TE, E0TM
  
     def propagate_EM(self, points, EkTE, EkTM, k0, alpha, thetas, beam_waist, regularize = False, radius = 0.0):
         '''
@@ -167,11 +209,10 @@ class Transmission2D:
         '''
 
         points = np.tensor(points)
-        E0j, u = self.generate_source(points, k0, thetas, beam_waist, print_statement='propagate')
+        E0TE, E0TM = self.generate_source(points, k0, thetas, beam_waist, print_statement='propagate')
 
-        EkTM_ = np.matmul(alpha*k0*k0* self.G0_TM(points, k0, print_statement='propagate', regularize=regularize, radius=radius), EkTM) + E0j
-        E0j = E0j.reshape(points.shape[0],1,len(thetas))*u
-        EkTE_ = np.matmul(alpha*k0*k0* self.G0_TE(points, k0, print_statement='propagate', regularize=regularize, radius=radius), EkTE).reshape(points.shape[0],2,-1) + E0j 
+        EkTM_ = np.matmul(alpha*k0*k0* self.G0_TM(points, k0, print_statement='propagate', regularize=regularize, radius=radius), EkTM) + E0TM
+        EkTE_ = np.matmul(alpha*k0*k0* self.G0_TE(points, k0, print_statement='propagate', regularize=regularize, radius=radius), EkTE).reshape(points.shape[0],2,-1) + E0TE 
 
         # Take care of cases in which measurement points are exactly scatterer positions
         for j in np.argwhere(np.isnan(EkTM_[:,0])):
@@ -205,7 +246,7 @@ class Transmission2D:
 
         ### TM calculation
         # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
-        E0j, u = self.generate_source(self.r, k0, thetas, beam_waist, print_statement='solve')
+        E0TE, E0TM = self.generate_source(self.r, k0, thetas, beam_waist, print_statement='solve')
         M_tensor = -alpha*k0*k0* self.G0_TM(self.r, k0, print_statement='solve')
         M_tensor.fill_diagonal_(1)
         if self_interaction:
@@ -215,11 +256,10 @@ class Transmission2D:
             M_tensor -= alpha*k0*k0*self_interaction_integral_TM(k0, radius, self_interaction_type) /volume * np.eye(dims)
         # Solve M_tensor.Ek = E0j
         # NB: this uses an LU decomposition according to torch https://pytorch.org/docs/stable/generated/torch.linalg.lu.html
-        EkTM = np.linalg.solve(M_tensor,E0j)
+        EkTM = np.linalg.solve(M_tensor, E0TM)
         
         ### TE calculation
         # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
-        E0j = E0j.reshape(self.N,1,len(thetas))*u
         M_tensor = -alpha*k0*k0* self.G0_TE(None, k0, print_statement='solve')
         M_tensor.fill_diagonal_(1)
         if self_interaction:
@@ -227,7 +267,7 @@ class Transmission2D:
             dims = M_tensor.shape[0]
             M_tensor -= alpha*k0*k0*self_interaction_integral_TE(k0, radius, self_interaction_type) /volume * np.eye(dims)
         # Solve M_tensor.Ek = E0j
-        EkTE = np.linalg.solve(M_tensor, E0j.reshape(2*self.N,-1)) 
+        EkTE = np.linalg.solve(M_tensor, E0TE.reshape(2*self.N,-1))
         return EkTE, EkTM
     
     def propagate_EM_ss(self, points, k0, alpha, thetas, beam_waist, regularize = False, radius = 0.0):
@@ -546,7 +586,7 @@ class Transmission2D_hmatrices:
         jl.seval("using Transmission2D")
     
     
-    def generate_source(self, points, k0, thetas, w, print_statement = ''):
+    def generate_source(self, points, k0, thetas, w, print_statement=''):
         '''
         Generates the EM field of a source at a set of points
 
@@ -555,22 +595,58 @@ class Transmission2D_hmatrices:
         thetas      - (Ndirs)    propagation directions for the source
         w           - (1)        beam waist for beam sources
         '''
+        
         if self.source == "beam":
+            # Collimated beam with zero curvature,
+            # from solution of the the paraxial approximation of Maxwell-Helmholtz,
+            # see https://en.wikipedia.org/wiki/Gaussian_beam
+            
             k0_ = onp.round(k0/(2.0*onp.pi),1)
             print('Calculating Beam Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
-            E0j = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
+            
+            E0TM = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
             u = np.zeros((2,len(thetas)))
             for idx, theta in enumerate(thetas):
+                # Rotate the system by - theta rather than the expression of the source
                 cost, sint = onp.cos(-theta),onp.sin(-theta)
                 u[:,idx] = np.tensor([sint, cost])
                 rot = np.tensor([[cost,-sint],[sint,cost]])
                 rrot = np.matmul(rot,points.T).T #(rparallel, rperp)
                 a = 2*rrot[:,1]/(w*w*k0)
-                E0j[:,idx] = np.exp(1j*rrot[:,0]*k0-(rrot[:,1]**2/(w*w*(1+1j*a))))/np.sqrt(1+1j*a)
+                E0TM[:,idx] = np.exp(1j*rrot[:,0]*k0-(rrot[:,1]**2/(w*w*(1+1j*a))))/np.sqrt(1+1j*a)
+                
+            # TE is just TM but with in-plane polarization perpendicular to prop
+            E0TE = E0TM.reshape(points.shape[0],1,len(thetas))*u
+                
         elif self.source == 'plane':
+            # Infinitely extended Plane wave
+            
             k0_ = onp.round(k0/(2.0*onp.pi),1)
             print('Calculating Plane Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
-            E0j = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
+            
+            E0TM = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
+            u = np.zeros((2,len(thetas)))
+            for idx in range(len(thetas)):
+                # Rotate the system by - theta rather than the expression of the source
+                theta = thetas[idx]
+                cost, sint = onp.cos(-theta),onp.sin(-theta)
+                u[:,idx] = np.tensor([sint, cost])
+                rot = np.tensor([[cost,-sint],[sint,cost]])
+                rrot = np.matmul(rot,points.T).T #(rparallel, rperp)
+                E0TM[:,idx] = np.exp(1j*rrot[:,0]*k0)
+                
+            # TE is just TM but with in-plane polarization perpendicular to prop
+            E0TE = E0TM.reshape(points.shape[0],1,len(thetas))*u
+                
+        elif self.source == 'point':
+            # One electric point dipole emitting light at source_distance * L away
+            source_distance = 2.0
+            source_intensity = 1.0
+            
+            k0_ = onp.round(k0/(2.0*onp.pi),1)
+            print('Calculating Point Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
+            
+            E0TM = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
             u = np.zeros((2,len(thetas)))
             for idx in range(len(thetas)):
                 theta = thetas[idx]
@@ -578,8 +654,14 @@ class Transmission2D_hmatrices:
                 u[:,idx] = np.tensor([sint, cost])
                 rot = np.tensor([[cost,-sint],[sint,cost]])
                 rrot = np.matmul(rot,points.T).T #(rparallel, rperp)
-                E0j[:,idx] = np.exp(1j*rrot[:,0]*k0)
-        return E0j, u
+                source_location = - source_distance * np.tensor([1.0, 0.0])
+                E0TM[:,idx] = self.torch_greensTM(points.reshape(-1,1,2) - source_location.reshape(1,-1,2), k0).reshape(points.shape[0])
+                E0TE[:,idx] = np.matmul(self.torch_greensTE(points.reshape(-1,1,2) - source_location.reshape(1,-1,2), k0), onp.sqrt(source_intensity) * u[:,idx])
+
+        else:
+            raise NotImplementedError
+                
+        return E0TE, E0TM
 
     def solve_EM(self, k0, alpha, thetas, radius, beam_waist, self_interaction = True, self_interaction_type = "Rayleigh"):
         '''
@@ -596,7 +678,7 @@ class Transmission2D_hmatrices:
 
         ### TM calculation
         # First, define the source
-        E0j, u = self.generate_source(self.r, k0, thetas, beam_waist, print_statement='solve')
+        E0TE, E0TM = self.generate_source(self.r, k0, thetas, beam_waist, print_statement='solve')
         
         # Julia-side solver with Abstract Hierarchical Matrices
         regularize = False # Not needed for solve part, writing it as a variable to make it clear what it is
@@ -604,11 +686,9 @@ class Transmission2D_hmatrices:
         atol = 0 # Absolute tolerance used in HMatrices
         rtol = 1e-3 # Relative tolerance
         debug = False
-        EkTM = jl.Transmission2D.solve_TM(self.r.numpy(), E0j.numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type, regularize = regularize, use_lu = use_lu, atol = atol, rtol = rtol, debug=debug)
+        EkTM = jl.Transmission2D.solve_TM(self.r.numpy(), E0TM.numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type, regularize = regularize, use_lu = use_lu, atol = atol, rtol = rtol, debug=debug)
         
         ### TE calculation
-        # Switch the source to TE polarization
-        E0j = E0j.reshape(self.N,1,len(thetas))*u
         
         # Julia-side solver with Abstract Hierarchical Matrices
         regularize = False # Not needed for solve part, writing it as a variable to make it clear what it is
@@ -616,7 +696,7 @@ class Transmission2D_hmatrices:
         atol = 0 # Absolute tolerance used in HMatrices
         rtol = 1e-3 # Relative tolerance
         debug = False
-        EkTE = jl.Transmission2D.solve_TE(self.r.numpy(), E0j.reshape(2*self.N,-1).numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type, regularize = regularize, use_lu = use_lu, atol = atol, rtol = rtol, debug=debug)
+        EkTE = jl.Transmission2D.solve_TE(self.r.numpy(), E0TE.reshape(2*self.N,-1).numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type, regularize = regularize, use_lu = use_lu, atol = atol, rtol = rtol, debug=debug)
 
         return EkTE, EkTM
     
@@ -636,14 +716,13 @@ class Transmission2D_hmatrices:
         '''
 
         points = np.tensor(points)
-        E0j, u = self.generate_source(points, k0, thetas, beam_waist, print_statement='propagate')
+        E0TE, E0TM = self.generate_source(points, k0, thetas, beam_waist, print_statement='propagate')
         
         # TM part
-        EkTM_ = np.tensor(jl.Transmission2D.propagate_TM(self.r.numpy(), points.numpy(), EkTM, k0, alpha, radius, regularize).to_numpy()) + E0j
+        EkTM_ = np.tensor(jl.Transmission2D.propagate_TM(self.r.numpy(), points.numpy(), EkTM, k0, alpha, radius, regularize).to_numpy()) + E0TM
         
         # TE part
-        E0j = E0j.reshape(points.shape[0],1,len(thetas))*u
-        EkTE_ = np.tensor(jl.Transmission2D.propagate_TE(self.r.numpy(), points.numpy(), EkTE, k0, alpha, radius, regularize).to_numpy().reshape(E0j.shape)) + E0j
+        EkTE_ = np.tensor(jl.Transmission2D.propagate_TE(self.r.numpy(), points.numpy(), EkTE, k0, alpha, radius, regularize).to_numpy().reshape(E0TE.shape)) + E0TE
         
         # Take care of cases in which measurement points are exactly scatterer positions
         for j in np.argwhere(np.isnan(EkTM_[:,0])):
@@ -855,26 +934,39 @@ class Transmission2D_scalar:
         thetas      - (Ndirs)    propagation directions for the source
         w           - (1)        beam waist for beam sources
         '''
+        
         if self.source == "beam":
+            # Collimated beam with zero curvature,
+            # from solution of the the paraxial approximation of Maxwell-Helmholtz,
+            # see https://en.wikipedia.org/wiki/Gaussian_beam
+            
             k0_ = onp.round(k0/(2.0*onp.pi),1)
             print('Calculating Beam Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
+            
             E0j = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
             for idx, theta in enumerate(thetas):
+                # Rotate the system by - theta rather than the expression of the source
                 cost, sint = onp.cos(-theta),onp.sin(-theta)
                 rot = np.tensor([[cost,-sint],[sint,cost]])
                 rrot = np.matmul(rot,points.T).T #(rparallel, rperp)
                 a = 2*rrot[:,1]/(w*w*k0)
                 E0j[:,idx] = np.exp(1j*rrot[:,0]*k0-(rrot[:,1]**2/(w*w*(1+1j*a))))/np.sqrt(1+1j*a)
+                
         elif self.source == 'plane':
+            # Infinitely extended Plane wave
+            
             k0_ = onp.round(k0/(2.0*onp.pi),1)
             print('Calculating Plane Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
+            
             E0j = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
             for idx in range(len(thetas)):
+                # Rotate the system by - theta rather than the expression of the source
                 theta = thetas[idx]
                 cost, sint = onp.cos(-theta),onp.sin(-theta)
                 rot = np.tensor([[cost,-sint],[sint,cost]])
                 rrot = np.matmul(rot,points.T).T #(rparallel, rperp)
                 E0j[:,idx] = np.exp(1j*rrot[:,0]*k0)
+                
         return E0j
  
     def propagate(self, points, Ek, k0, alpha, thetas, beam_waist, regularize = False, radius = 0.0):
@@ -1148,27 +1240,40 @@ class Transmission2D_scalar_hmatrices:
         thetas      - (Ndirs)    propagation directions for the source
         w           - (1)        beam waist for beam sources
         '''
+        
         if self.source == "beam":
+            # Collimated beam with zero curvature,
+            # from solution of the the paraxial approximation of Maxwell-Helmholtz,
+            # see https://en.wikipedia.org/wiki/Gaussian_beam
+            
             k0_ = onp.round(k0/(2.0*onp.pi),1)
             print('Calculating Beam Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
+            
             E0j = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
             for idx, theta in enumerate(thetas):
+                # Rotate the system by - theta rather than the expression of the source
                 cost, sint = onp.cos(-theta),onp.sin(-theta)
                 rot = np.tensor([[cost,-sint],[sint,cost]])
                 rrot = np.matmul(rot,points.T).T #(rparallel, rperp)
                 a = 2*rrot[:,1]/(w*w*k0)
                 E0j[:,idx] = np.exp(1j*rrot[:,0]*k0-(rrot[:,1]**2/(w*w*(1+1j*a))))/np.sqrt(1+1j*a)
+                
         elif self.source == 'plane':
+            # Infinitely extended Plane wave
+            
             k0_ = onp.round(k0/(2.0*onp.pi),1)
             print('Calculating Plane Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
+            
             E0j = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
             for idx in range(len(thetas)):
+                # Rotate the system by - theta rather than the expression of the source
                 theta = thetas[idx]
                 cost, sint = onp.cos(-theta),onp.sin(-theta)
                 rot = np.tensor([[cost,-sint],[sint,cost]])
                 rrot = np.matmul(rot,points.T).T #(rparallel, rperp)
                 E0j[:,idx] = np.exp(1j*rrot[:,0]*k0)
-        return E0j, u
+                
+        return E0j
 
     def solve(self, k0, alpha, thetas, radius, beam_waist, self_interaction = True, self_interaction_type = "Rayleigh"):
         '''
