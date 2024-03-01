@@ -288,26 +288,27 @@ def plot_full_fields(field, ngridx, ngridy, k0_, angle_, intensity_fields, ampli
 
         intensity = onp.absolute(field)**2
 
-        fig = plt.figure(figsize=(ngridx/my_dpi,ngridy/my_dpi), dpi=my_dpi)
+        fig = plt.figure(figsize = (ngridx/my_dpi, ngridy/my_dpi), dpi = my_dpi)
         ax = plt.gca()
-        pc = ax.imshow(intensity,cmap='magma' ,norm=clr.LogNorm(vmin=1e-3,vmax=1e0))
+        pc = ax.imshow(intensity, cmap='magma' , norm=clr.LogNorm(vmin=1e-3,vmax=2e0))
         ax.tick_params(left = False, right = False , labelleft = False , labelbottom = False, bottom = False)
-        plt.savefig(file_name_root+'_log_capped_intensity_k0'+str(k0_)+'_angle_'+str(angle_)+appended_string+'.png', bbox_inches = 'tight',dpi=my_dpi, pad_inches = 0)
+        plt.savefig(file_name_root+'_log_capped_intensity_k0'+str(k0_)+'_angle_'+str(angle_)+appended_string+'.png', bbox_inches = 'tight', dpi=my_dpi, pad_inches = 0)
         plt.close()
 
-        fig = plt.figure(figsize=(ngridx/my_dpi,ngridy/my_dpi), dpi=my_dpi)
+        fig = plt.figure(figsize=(ngridx/my_dpi, ngridy/my_dpi), dpi = my_dpi)
         ax = plt.gca()
-        pc = ax.imshow(intensity,cmap='magma', vmin=1e-3,vmax=1e0)
+        pc = ax.imshow(intensity, cmap='magma', vmin=0, vmax=2e0)
         ax.tick_params(left = False, right = False , labelleft = False , labelbottom = False, bottom = False)
         plt.savefig(file_name_root+'_linear_capped_intensity_k0'+str(k0_)+'_angle_'+str(angle_)+appended_string+'.png', bbox_inches = 'tight',dpi=my_dpi, pad_inches = 0)
         plt.close()
 
     if amplitude_fields:
         amplitude = onp.real(field)
+        scale_max = onp.sqrt(2.0)
 
         fig = plt.figure(figsize=(ngridx/my_dpi,ngridy/my_dpi), dpi=my_dpi)
         ax = plt.gca()
-        pc = ax.imshow(amplitude,cmap=cmr.redshift, vmin=-1e0,vmax=1e0)
+        pc = ax.imshow(amplitude, cmap=cmr.redshift, vmin=-scale_max, vmax=scale_max)
         ax.tick_params(left = False, right = False , labelleft = False , labelbottom = False, bottom = False)
         plt.savefig(file_name_root+'_linear_capped_amplitude_k0'+str(k0_)+'_angle_'+str(angle_)+appended_string+'.png', bbox_inches = 'tight',dpi=my_dpi, pad_inches = 0)
         plt.close()

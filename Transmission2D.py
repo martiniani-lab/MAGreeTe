@@ -171,12 +171,13 @@ class Transmission2D:
         elif self.source == 'point':
             # One electric point dipole emitting light at source_distance * L away
             source_distance = 2.0
-            source_intensity = 1.0
+            source_intensity = 1.0 * k0 * source_distance * 2.0 * onp.pi
             
             k0_ = onp.round(k0/(2.0*onp.pi),1)
             print('Calculating Point Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
             
             E0TM = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
+            E0TE = np.zeros((points.shape[0],2,len(thetas)),dtype=np.complex128)
             u = np.zeros((2,len(thetas)))
             for idx in range(len(thetas)):
                 theta = thetas[idx]
@@ -184,9 +185,13 @@ class Transmission2D:
                 u[:,idx] = np.tensor([sint, cost])
                 rot = np.tensor([[cost,-sint],[sint,cost]])
                 rrot = np.matmul(rot,points.T).T #(rparallel, rperp)
-                source_location = - source_distance * np.tensor([1.0, 0.0])
-                E0TM[:,idx] = self.torch_greensTM(points.reshape(-1,1,2) - source_location.reshape(1,-1,2), k0).reshape(points.shape[0])
-                E0TE[:,idx] = np.matmul(self.torch_greensTE(points.reshape(-1,1,2) - source_location.reshape(1,-1,2), k0), onp.sqrt(source_intensity) * u[:,idx])
+                source_location = source_distance * np.tensor([-1.0, 0.0])
+                E0TM[:,idx] = onp.sqrt(source_intensity) * self.torch_greensTM(rrot.reshape(-1,1,2) - source_location.reshape(1,-1,2), k0).reshape(points.shape[0])
+                dipole_moment = onp.sqrt(source_intensity) * np.tensor([0.0,1.0])
+                # Compute TE field in modified coordinates
+                E0TE[:,:,idx] = np.matmul(self.torch_greensTE(rrot.reshape(-1,1,2) - source_location.reshape(1,-1,2), k0), dipole_moment.type(np.complex128)).squeeze()
+                # Rotate the TE polarization at the end to match actual coordinates
+                E0TE[:,:,idx] = np.matmul(rot.type(np.complex128).T, E0TE[:,:,idx].T).T
 
         else:
             raise NotImplementedError
@@ -641,12 +646,13 @@ class Transmission2D_hmatrices:
         elif self.source == 'point':
             # One electric point dipole emitting light at source_distance * L away
             source_distance = 2.0
-            source_intensity = 1.0
+            source_intensity = 1.0 * k0 * source_distance * 2.0 * onp.pi
             
             k0_ = onp.round(k0/(2.0*onp.pi),1)
             print('Calculating Point Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
             
             E0TM = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
+            E0TE = np.zeros((points.shape[0],2,len(thetas)),dtype=np.complex128)
             u = np.zeros((2,len(thetas)))
             for idx in range(len(thetas)):
                 theta = thetas[idx]
@@ -654,10 +660,15 @@ class Transmission2D_hmatrices:
                 u[:,idx] = np.tensor([sint, cost])
                 rot = np.tensor([[cost,-sint],[sint,cost]])
                 rrot = np.matmul(rot,points.T).T #(rparallel, rperp)
-                source_location = - source_distance * np.tensor([1.0, 0.0])
-                E0TM[:,idx] = self.torch_greensTM(points.reshape(-1,1,2) - source_location.reshape(1,-1,2), k0).reshape(points.shape[0])
-                E0TE[:,idx] = np.matmul(self.torch_greensTE(points.reshape(-1,1,2) - source_location.reshape(1,-1,2), k0), onp.sqrt(source_intensity) * u[:,idx])
-
+                source_location = source_distance * np.tensor([-1.0, 0.0])
+                E0TM[:,idx] = onp.sqrt(source_intensity) * self.torch_greensTM(rrot.reshape(-1,1,2) - source_location.reshape(1,-1,2), k0).reshape(points.shape[0])
+                dipole_moment = onp.sqrt(source_intensity) * np.tensor([0.0,1.0])
+                # Compute TE field in modified coordinates
+                E0TE[:,:,idx] = np.matmul(self.torch_greensTE(rrot.reshape(-1,1,2) - source_location.reshape(1,-1,2), k0), dipole_moment.type(np.complex128)).squeeze()
+                # Rotate the TE polarization at the end to match actual coordinates
+                # rot-1 = rotT
+                E0TE[:,:,idx] = np.matmul(rot.T, E0TE[:,:,idx].T).T
+                
         else:
             raise NotImplementedError
                 
