@@ -19,7 +19,7 @@ import argparse
 
 
 def main(ndim, # Required arguments
-        refractive_n = 1.65 + 0.025j, phi = 0.1, regularize = True, N_raw = 16384, beam_waist = 0.2, L = 1, # Physical parameters
+        refractive_n = 1.65 + 0.025j, phi = 0.1, regularize = True, N_raw = 16384, beam_waist = 0.2, L = 1, source = "beam", # Physical parameters
         lattice=None, cold_atoms=False, kresonant_ = None, annulus = 0, composite = False, kick = 0.0, input_files_args = None, method = "torch", # Special cases
         k0range_args = None, thetarange_args = None, # Range of values to use
         compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, scattered_fields=False, transmission_radius = 2.0,
@@ -245,9 +245,9 @@ def main(ndim, # Required arguments
                 # A fresh computation is required
                 if compute_transmission: 
                     if method == "torch":
-                        solver = Transmission2D_scalar(points)
+                        solver = Transmission2D_scalar(points, source = source)
                     elif method == "hmatrices":
-                        solver = Transmission2D_scalar_hmatrices(points)
+                        solver = Transmission2D_scalar_hmatrices(points, source = source)
                     else:
                         print("Choose a valid method")
                         sys.exit()
@@ -292,9 +292,9 @@ def main(ndim, # Required arguments
                         k0 = onp.float64(k0)
                         alpha = onp.complex128(alpha)
                         if method == "torch":
-                            solver = Transmission2D_scalar(points)
+                            solver = Transmission2D_scalar(points, source = source)
                         elif method == "hmatrices":
-                            solver = Transmission2D_scalar_hmatrices(points)
+                            solver = Transmission2D_scalar_hmatrices(points, source = source)
                         else:
                             print("Choose a valid method")
                             sys.exit()
@@ -358,9 +358,9 @@ def main(ndim, # Required arguments
                 # Define the list of measurement points for transmission plots
                 measurement_points = transmission_radius*L*onp.vstack([onp.cos(thetas),onp.sin(thetas)]).T
                 if method == "torch":
-                    solver = Transmission2D_scalar(points)
+                    solver = Transmission2D_scalar(points, source = source)
                 elif method == "hmatrices":
-                    solver = Transmission2D_scalar_hmatrices(points)
+                    solver = Transmission2D_scalar_hmatrices(points, source = source)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -444,9 +444,9 @@ def main(ndim, # Required arguments
 
                 thetas_plot_indices = onp.searchsorted(thetas, thetas_plot)
                 if method == "torch":
-                    solver = Transmission2D_scalar(points)
+                    solver = Transmission2D_scalar(points, source = source)
                 elif method == "hmatrices":
-                    solver = Transmission2D_scalar_hmatrices(points)
+                    solver = Transmission2D_scalar_hmatrices(points, source = source)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -509,9 +509,9 @@ def main(ndim, # Required arguments
 
             if compute_SDOS:
                 if method == "torch":
-                    solver = Transmission2D_scalar(points)
+                    solver = Transmission2D_scalar(points, source = source)
                 elif method == "hmatrices":
-                    solver = Transmission2D_scalar_hmatrices(points)
+                    solver = Transmission2D_scalar_hmatrices(points, source = source)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -532,9 +532,9 @@ def main(ndim, # Required arguments
 
             if compute_DOS:
                 if method == "torch":
-                    solver = Transmission2D_scalar(points)
+                    solver = Transmission2D_scalar(points, source = source)
                 elif method == "hmatrices":
-                    solver = Transmission2D_scalar_hmatrices(points)
+                    solver = Transmission2D_scalar_hmatrices(points, source = source)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -565,9 +565,9 @@ def main(ndim, # Required arguments
 
             if compute_interDOS:
                 if method == "torch":
-                    solver = Transmission2D_scalar(points)
+                    solver = Transmission2D_scalar(points, source = source)
                 elif method == "hmatrices":
-                    solver = Transmission2D_scalar_hmatrices(points)
+                    solver = Transmission2D_scalar_hmatrices(points, source = source)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -614,9 +614,9 @@ def main(ndim, # Required arguments
 
             if compute_LDOS:
                 if method == "torch":
-                    solver = Transmission2D_scalar(points)
+                    solver = Transmission2D_scalar(points, source = source)
                 elif method == "hmatrices":
-                    solver = Transmission2D_scalar_hmatrices(points)
+                    solver = Transmission2D_scalar_hmatrices(points, source = source)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -676,9 +676,9 @@ def main(ndim, # Required arguments
                 if compute_transmission:
 
                     if method == "torch":
-                        solver = Transmission3D_scalar(points)
+                        solver = Transmission3D_scalar(points, source = source)
                     elif method == "hmatrices":
-                        solver = Transmission3D_scalar_hmatrices(points)
+                        solver = Transmission3D_scalar_hmatrices(points, source = source)
                     else:
                         print("Choose a valid method")
                         sys.exit()
@@ -727,9 +727,9 @@ def main(ndim, # Required arguments
                         k0 = onp.float64(k0)
                         alpha = onp.complex128(alpha)
                         if method == "torch":
-                            solver = Transmission3D_scalar(points)
+                            solver = Transmission3D_scalar(points, source = source)
                         elif method == "hmatrices":
-                            solver = Transmission3D_scalar_hmatrices(points)
+                            solver = Transmission3D_scalar_hmatrices(points, source = source)
                         else:
                             print("Choose a valid method")
                             sys.exit()
@@ -791,9 +791,9 @@ def main(ndim, # Required arguments
                 # Define the list of measurement points for transmission plots
                 measurement_points = transmission_radius*L*onp.vstack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
                 if method == "torch":
-                    solver = Transmission3D_scalar(points)
+                    solver = Transmission3D_scalar(points, source = source)
                 elif method == "hmatrices":
-                    solver = Transmission3D_scalar_hmatrices(points)
+                    solver = Transmission3D_scalar_hmatrices(points, source = source)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -874,9 +874,9 @@ def main(ndim, # Required arguments
 
                 thetas_plot_indices = onp.searchsorted(thetas, thetas_plot)
                 if method == "torch":
-                    solver = Transmission3D_scalar(points)
+                    solver = Transmission3D_scalar(points, source = source)
                 elif method == "hmatrices":
-                    solver = Transmission3D_scalar_hmatrices(points)
+                    solver = Transmission3D_scalar_hmatrices(points, source = source)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -943,9 +943,9 @@ def main(ndim, # Required arguments
 
             if compute_SDOS:
                 if method == "torch":
-                    solver = Transmission3D_scalar(points)
+                    solver = Transmission3D_scalar(points, source = source)
                 elif method == "hmatrices":
-                    solver = Transmission3D_scalar_hmatrices(points)
+                    solver = Transmission3D_scalar_hmatrices(points, source = source)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -966,9 +966,9 @@ def main(ndim, # Required arguments
 
             if compute_DOS:
                 if method == "torch":
-                    solver = Transmission3D_scalar(points)
+                    solver = Transmission3D_scalar(points, source = source)
                 elif method == "hmatrices":
-                    solver = Transmission3D_scalar_hmatrices(points)
+                    solver = Transmission3D_scalar_hmatrices(points, source = source)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -999,9 +999,9 @@ def main(ndim, # Required arguments
 
             if compute_interDOS:
                 if method == "torch":
-                    solver = Transmission3D_scalar(points)
+                    solver = Transmission3D_scalar(points, source = source)
                 elif method == "hmatrices":
-                    solver = Transmission3D_scalar_hmatrices(points)
+                    solver = Transmission3D_scalar_hmatrices(points, source = source)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -1049,9 +1049,9 @@ def main(ndim, # Required arguments
             
             if compute_LDOS:
                 if method == "torch":
-                    solver = Transmission3D_scalar(points)
+                    solver = Transmission3D_scalar(points, source = source)
                 elif method == "hmatrices":
-                    solver = Transmission3D_scalar_hmatrices(points)
+                    solver = Transmission3D_scalar_hmatrices(points, source = source)
                 else:
                     print("Choose a valid method")
                     sys.exit()
@@ -1196,6 +1196,8 @@ if __name__ == '__main__':
         default=False", default=False)
     parser.add_argument("-N", "--number_particles", type = int, help="Number of particles in the system, before cutting a circle\
         default = 16384", default=16384)
+    parser.add_argument("-s", "--source", type = str, help="Type of source to use\
+        Options: beam, plane, point. Default: beam", default = "beam")
     parser.add_argument("-bw", "--beam_waist", type = float, help="Waist of the beam used for transmission plots and full fields, in units of L\
         default = 0.2", default=0.2)
     parser.add_argument("--boxsize", type=float, help="Set physical units for the box size: the results are dimensionless so that default=1", default = 1)
@@ -1249,7 +1251,7 @@ if __name__ == '__main__':
     # Parameters of outputs
     parser.add_argument("--dospoints",type=int, help="Number of points to use for the mean DOS computation \
         default = 1000", default=1000)
-    parser.add_argument("-s","--spacing_factor", type=float, help="Number of diameters to use as excluded volume around measurement points for idos\
+    parser.add_argument("--spacing_factor", type=float, help="Number of diameters to use as excluded volume around measurement points for idos\
         default = 1.0", default = 1.0)
     parser.add_argument("-ev","--write_eigenvalues", action='store_false', help="Write the eigenvalues of the Green's matrix at every frequency  \
         default=True", default=False)
@@ -1276,6 +1278,7 @@ if __name__ == '__main__':
     phi                             = args.phi
     regularize                      = args.regularize
     N                               = args.number_particles
+    source                          = args.source
     beam_waist                      = args.beam_waist
     boxsize                         = args.boxsize
     # Ranges of wave-vectors and beam orientations, index of copy for source points
@@ -1331,7 +1334,7 @@ if __name__ == '__main__':
         os.environ["OMP_NUM_THREADS"] = str(n_cpus)
     
     main(ndim,
-        refractive_n = refractive_n,  phi=phi, regularize=regularize, N_raw=N, beam_waist=beam_waist, L=boxsize,
+        refractive_n = refractive_n,  phi=phi, regularize=regularize, N_raw=N, beam_waist=beam_waist, L=boxsize, source = source,
         k0range_args = k0range_args, thetarange_args=thetarange_args, input_files_args = input_files_args,
         cold_atoms=cold_atoms, kresonant_ = kresonant_, lattice=lattice, annulus = annulus, composite = composite, kick = kick, method = method,
         compute_transmission = compute_transmission, plot_transmission=plot_transmission, single_scattering_transmission=single_scattering_transmission, scattered_fields=scattered_fields, transmission_radius=transmission_radius,

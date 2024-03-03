@@ -86,9 +86,15 @@ class Transmission3D:
         p      - (Ndirs, 3) polarization directions for the source
         w      - (1)        beam waist for beam sources
         '''
+        
         if self.source == 'beam':
+            # Collimated beam with zero curvature,
+            # from solution of the the paraxial approximation of Maxwell-Helmholtz,
+            # see https://en.wikipedia.org/wiki/Gaussian_beam
+            
             k0_ = onp.round(k0/(2.0*onp.pi),1)
             print('Calculating Beam Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
+            
             rpara = np.matmul(points,u.T)
             rperp = np.linalg.norm(points.reshape(-1,3,1) - rpara.reshape(points.shape[0],1,u.shape[0])*u.T.reshape(1,3,-1),axis=1)
             a = 2*rperp/(w*w*k0)
@@ -96,16 +102,43 @@ class Transmission3D:
             phi = np.arctan2(p[:,1], p[:,0]) #arctan(y/x)
             theta = np.arccos(p[:,2]) #arccos(z/r), r=1 for unit vector
             pvec = np.stack([np.sin(theta)*np.cos(phi), np.sin(theta)*np.sin(phi), p[:,2]])
+            
+            E0j = E0j.reshape(points.shape[0],1,-1)*pvec.reshape(1,3,-1)
+            
         elif self.source == 'plane':
+            # Infinitely extended Plane wave
+            
             k0_ = onp.round(k0/(2.0*onp.pi),1)
             print('Calculating Plane Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
+            
             rpara = np.matmul(points,u.T)
             E0j = np.exp(1j*rpara*k0)
             phi = np.arctan2(p[:,1], p[:,0]) #arctan(y/x)
             theta = np.arccos(p[:,2]) #arccos(z/r), r=1 for unit vector
             pvec = np.stack([np.sin(theta)*np.cos(phi), np.sin(theta)*np.sin(phi), p[:,2]])
+            
+            E0j = E0j.reshape(points.shape[0],1,-1)*pvec.reshape(1,3,-1)
+            
+        elif self.source == 'point':
+            # One electric point dipole emitting light at source_distance * L away
+            source_distance = 2.0
+            source_intensity = 1.0 * (k0 * source_distance)**2 * 4.0 * onp.pi
+            
+            k0_ = onp.round(k0/(2.0*onp.pi),1)
+            print('Calculating Point Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
+            
+            rpara = np.matmul(points,u.T)
+            rperp = np.linalg.norm(points.reshape(-1,3,1) - rpara.reshape(points.shape[0],1,u.shape[0])*u.T.reshape(1,3,-1),axis=1)
+            
+            source_location = source_distance * (-u)
+            dipole_moment = onp.sqrt(source_intensity) * p
+            
+            E0j = np.matmul(self.torch_greensTE(points.reshape(-1,1,3) - source_location.reshape(1,-1,3), k0), dipole_moment.type(np.complex128)).squeeze()
+            
+        else:
+            raise NotImplementedError
         
-        return E0j.reshape(points.shape[0],1,-1)*pvec.reshape(1,3,-1)
+        return E0j
  
     def propagate(self, points, Ek, k0, alpha, u, p, beam_waist, regularize = False, radius=0.0):
         '''
@@ -413,9 +446,15 @@ class Transmission3D_hmatrices:
         p      - (Ndirs, 3) polarization directions for the source
         w      - (1)        beam waist for beam sources
         '''
+        
         if self.source == 'beam':
+            # Collimated beam with zero curvature,
+            # from solution of the the paraxial approximation of Maxwell-Helmholtz,
+            # see https://en.wikipedia.org/wiki/Gaussian_beam
+            
             k0_ = onp.round(k0/(2.0*onp.pi),1)
             print('Calculating Beam Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
+            
             rpara = np.matmul(points,u.T)
             rperp = np.linalg.norm(points.reshape(-1,3,1) - rpara.reshape(points.shape[0],1,u.shape[0])*u.T.reshape(1,3,-1),axis=1)
             a = 2*rperp/(w*w*k0)
@@ -423,16 +462,43 @@ class Transmission3D_hmatrices:
             phi = np.arctan2(p[:,1], p[:,0]) #arctan(y/x)
             theta = np.arccos(p[:,2]) #arccos(z/r), r=1 for unit vector
             pvec = np.stack([np.sin(theta)*np.cos(phi), np.sin(theta)*np.sin(phi), p[:,2]])
+            
+            E0j = E0j.reshape(points.shape[0],1,-1)*pvec.reshape(1,3,-1)
+            
         elif self.source == 'plane':
+            # Infinitely extended Plane wave
+            
             k0_ = onp.round(k0/(2.0*onp.pi),1)
             print('Calculating Plane Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
+            
             rpara = np.matmul(points,u.T)
             E0j = np.exp(1j*rpara*k0)
             phi = np.arctan2(p[:,1], p[:,0]) #arctan(y/x)
             theta = np.arccos(p[:,2]) #arccos(z/r), r=1 for unit vector
             pvec = np.stack([np.sin(theta)*np.cos(phi), np.sin(theta)*np.sin(phi), p[:,2]])
+            
+            E0j = E0j.reshape(points.shape[0],1,-1)*pvec.reshape(1,3,-1)
+            
+        elif self.source == 'point':
+            # One electric point dipole emitting light at source_distance * L away
+            source_distance = 2.0
+            source_intensity = 1.0 * (k0 * source_distance)**2 * 4.0 * onp.pi
+            
+            k0_ = onp.round(k0/(2.0*onp.pi),1)
+            print('Calculating Point Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
+            
+            rpara = np.matmul(points,u.T)
+            rperp = np.linalg.norm(points.reshape(-1,3,1) - rpara.reshape(points.shape[0],1,u.shape[0])*u.T.reshape(1,3,-1),axis=1)
+            
+            source_location = source_distance * (-u)
+            dipole_moment = onp.sqrt(source_intensity) * p
+            
+            E0j = np.matmul(self.torch_greensTE(points.reshape(-1,1,3) - source_location.reshape(1,-1,3), k0), dipole_moment.type(np.complex128)).squeeze()
+            
+        else:
+            raise NotImplementedError
         
-        return E0j.reshape(points.shape[0],1,-1)*pvec.reshape(1,3,-1)
+        return E0j
 
     def solve(self, k0, alpha, u, p, radius, beam_waist, self_interaction = True, self_interaction_type = "Rayleigh"):
         '''
@@ -663,18 +729,47 @@ class Transmission3D_scalar:
         u      - (Ndirs, 3) propagation directions for the source
         w      - (1)        beam waist for beam sources
         '''
+        
         if self.source == 'beam':
+            # Collimated beam with zero curvature,
+            # from solution of the the paraxial approximation of Maxwell-Helmholtz,
+            # see https://en.wikipedia.org/wiki/Gaussian_beam
+            
             k0_ = onp.round(k0/(2.0*onp.pi),1)
             print('Calculating Beam Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
+            
             rpara = np.matmul(points,u.T)
             rperp = np.linalg.norm(points.reshape(-1,3,1) - rpara.reshape(points.shape[0],1,u.shape[0])*u.T.reshape(1,3,-1),axis=1)
             a = 2*rperp/(w*w*k0)
             E0j = np.exp(1j*rpara*k0-(rperp**2/(w*w*(1+1j*a))))/np.sqrt(1+1j*a)
+            
         elif self.source == 'plane':
+            # Infinitely extended Plane wave
+            
             k0_ = onp.round(k0/(2.0*onp.pi),1)
             print('Calculating Plane Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
+            
             rpara = np.matmul(points,u.T)
             E0j = np.exp(1j*rpara*k0)
+            
+        elif self.source == 'point':
+            # One electric point dipole emitting light at source_distance * L away
+            source_distance = 2.0
+            source_intensity = 1.0 * (k0 * source_distance)**2 * 4.0 * onp.pi
+            
+            k0_ = onp.round(k0/(2.0*onp.pi),1)
+            print('Calculating Point Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
+            
+            rpara = np.matmul(points,u.T)
+            rperp = np.linalg.norm(points.reshape(-1,3,1) - rpara.reshape(points.shape[0],1,u.shape[0])*u.T.reshape(1,3,-1),axis=1)
+            
+            source_location = source_distance * (-u)
+            dipole_moment = onp.sqrt(source_intensity)
+            
+            E0j = self.greens(points.reshape(-1,1,3) - source_location.reshape(1,-1,3), k0) * dipole_moment.type(np.complex128)
+        
+        else:
+            raise NotImplementedError
         
         return E0j.reshape(points.shape[0],u.shape[0])
  
@@ -975,20 +1070,49 @@ class Transmission3D_scalar_hmatrices:
         u      - (Ndirs, 3) propagation directions for the source
         w      - (1)        beam waist for beam sources
         '''
+        
         if self.source == 'beam':
+            # Collimated beam with zero curvature,
+            # from solution of the the paraxial approximation of Maxwell-Helmholtz,
+            # see https://en.wikipedia.org/wiki/Gaussian_beam
+            
             k0_ = onp.round(k0/(2.0*onp.pi),1)
             print('Calculating Beam Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
+            
             rpara = np.matmul(points,u.T)
             rperp = np.linalg.norm(points.reshape(-1,3,1) - rpara.reshape(points.shape[0],1,u.shape[0])*u.T.reshape(1,3,-1),axis=1)
             a = 2*rperp/(w*w*k0)
             E0j = np.exp(1j*rpara*k0-(rperp**2/(w*w*(1+1j*a))))/np.sqrt(1+1j*a)
+            
         elif self.source == 'plane':
+            # Infinitely extended Plane wave
+            
             k0_ = onp.round(k0/(2.0*onp.pi),1)
             print('Calculating Plane Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
+            
             rpara = np.matmul(points,u.T)
             E0j = np.exp(1j*rpara*k0)
+            
+        elif self.source == 'point':
+            # One electric point dipole emitting light at source_distance * L away
+            source_distance = 2.0
+            source_intensity = 1.0 * (k0 * source_distance)**2 * 4.0 * onp.pi
+            
+            k0_ = onp.round(k0/(2.0*onp.pi),1)
+            print('Calculating Point Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
+            
+            rpara = np.matmul(points,u.T)
+            rperp = np.linalg.norm(points.reshape(-1,3,1) - rpara.reshape(points.shape[0],1,u.shape[0])*u.T.reshape(1,3,-1),axis=1)
+            
+            source_location = source_distance * (-u)
+            dipole_moment = onp.sqrt(source_intensity)
+            
+            E0j = self.greens(points.reshape(-1,1,3) - source_location.reshape(1,-1,3), k0) * dipole_moment.type(np.complex128)
         
-        return E0j.reshape(points.shape[0],-1)
+        else:
+            raise NotImplementedError
+        
+        return E0j.reshape(points.shape[0], u.shape[0])
 
     def solve(self, k0, alpha, u, radius, beam_waist, self_interaction = True, self_interaction_type = "Rayleigh"):
         '''

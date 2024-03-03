@@ -978,6 +978,26 @@ class Transmission2D_scalar:
                 rrot = np.matmul(rot,points.T).T #(rparallel, rperp)
                 E0j[:,idx] = np.exp(1j*rrot[:,0]*k0)
                 
+        elif self.source == 'point':
+            # One electric point dipole emitting light at source_distance * L away
+            source_distance = 2.0
+            source_intensity = 1.0 * k0 * source_distance * 2.0 * onp.pi
+            
+            k0_ = onp.round(k0/(2.0*onp.pi),1)
+            print('Calculating Point Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
+            
+            E0j = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
+            for idx in range(len(thetas)):
+                theta = thetas[idx]
+                cost, sint = onp.cos(-theta),onp.sin(-theta)
+                rot = np.tensor([[cost,-sint],[sint,cost]])
+                rrot = np.matmul(rot,points.T).T #(rparallel, rperp)
+                source_location = source_distance * np.tensor([-1.0, 0.0])
+                E0j[:,idx] = onp.sqrt(source_intensity) * self.torch_greens(rrot.reshape(-1,1,2) - source_location.reshape(1,-1,2), k0).reshape(points.shape[0])
+                
+        else:
+            raise NotImplementedError
+                
         return E0j
  
     def propagate(self, points, Ek, k0, alpha, thetas, beam_waist, regularize = False, radius = 0.0):
@@ -1283,7 +1303,27 @@ class Transmission2D_scalar_hmatrices:
                 rot = np.tensor([[cost,-sint],[sint,cost]])
                 rrot = np.matmul(rot,points.T).T #(rparallel, rperp)
                 E0j[:,idx] = np.exp(1j*rrot[:,0]*k0)
+                        
+        elif self.source == 'point':
+            # One electric point dipole emitting light at source_distance * L away
+            source_distance = 2.0
+            source_intensity = 1.0 * k0 * source_distance * 2.0 * onp.pi
+            
+            k0_ = onp.round(k0/(2.0*onp.pi),1)
+            print('Calculating Point Source at k0L/2pi = '+str(k0_)+' ('+print_statement+')')
+            
+            E0j = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
+            for idx in range(len(thetas)):
+                theta = thetas[idx]
+                cost, sint = onp.cos(-theta),onp.sin(-theta)
+                rot = np.tensor([[cost,-sint],[sint,cost]])
+                rrot = np.matmul(rot,points.T).T #(rparallel, rperp)
+                source_location = source_distance * np.tensor([-1.0, 0.0])
+                E0j[:,idx] = onp.sqrt(source_intensity) * self.torch_greens(rrot.reshape(-1,1,2) - source_location.reshape(1,-1,2), k0).reshape(points.shape[0])
                 
+        else:
+            raise NotImplementedError
+        
         return E0j
 
     def solve(self, k0, alpha, thetas, radius, beam_waist, self_interaction = True, self_interaction_type = "Rayleigh"):
