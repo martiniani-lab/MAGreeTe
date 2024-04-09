@@ -31,7 +31,7 @@ def main(ndim, # Required arguments
     '''
 
     # Whether to snap scales in intensity maps
-    adapt_scale = False
+    adapt_scale = True
 
     # The full option does not conserve energy but is interesting to have for pedagogy?
     self_interaction_type = "Rayleigh" # Rayleigh or full
@@ -108,7 +108,9 @@ def main(ndim, # Required arguments
 
             file_name = input_files_args[file_index]
             points = hkl.load(file_name)
-            points = np.tensor(points[:,0:ndim]-0.5,dtype=np.double)
+            points = np.tensor(points[:,0:ndim],dtype=np.double)
+            if np.amax(points)>0.5:
+                points -= 0.5
             shape_before = points.shape
             
             # Make output dir
@@ -1199,12 +1201,12 @@ def main(ndim, # Required arguments
                 # Following Pierrat et al., I use 1 diameter as the spacing there
                 spacing = 2.0*radius
                 spacing *= spacing_factor
-                overlaps = np.nonzero(np.sum(np.cdist(measurement_points, points, p=2) <= spacing)).squeeze()
+                overlaps = np.nonzero(np.sum(np.cdist(measurement_points, points, p=2) <= spacing, axis = -1)).squeeze()
                 count = overlaps.shape[0]
                 while count > 0:
                     print("Removing "+str(count)+" overlaps using an exclusion distance of "+str(spacing_factor)+" scatterer diameters...")
                     measurement_points[overlaps] = L/2 * utils.uniform_unit_ball_picking(count, ndim).squeeze()
-                    overlaps = np.nonzero(np.sum(np.cdist(measurement_points, points, p=2) <= spacing))
+                    overlaps = np.nonzero(np.sum(np.cdist(measurement_points, points, p=2) <= spacing, axis = -1)).squeeze()
                     if len(overlaps.shape) == 0:
                         count = 0
                     else:
