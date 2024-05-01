@@ -433,6 +433,7 @@ class Transmission3D_hmatrices:
         self.N = self.r.shape[0]
         self.source = source
         jlPkg.activate("Transmission3D")
+        jlPkg.instantiate()
         jl.seval("using Transmission3D")
     
     
