@@ -739,14 +739,14 @@ def main(ndim, # Required arguments
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                         k0_range.append(k0_)
 
-                        onp.savetxt(file_name+'_temp_idos_size'+str(dos_size)+'_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
-                        onp.savetxt(file_name+'_temp_idos_size'+str(dos_size)+'_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+                        onp.savetxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
+                        onp.savetxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
 
-                    onp.savetxt(file_name+'_idos_size'+str(dos_size)+'_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
-                    onp.savetxt(file_name+'_idos_size'+str(dos_size)+'_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+                    onp.savetxt(file_name+'_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
+                    onp.savetxt(file_name+'_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
 
-                    utils.plot_averaged_DOS(k0range, L, DOSall_TE, file_name, 'idos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_TE')
-                    utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'idos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_TM')
+                    utils.plot_averaged_DOS(k0range, L, DOSall_TE, file_name, 'idos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TE')
+                    utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'idos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TM')
 
             if compute_LDOS:
                 if method == "torch":
@@ -1231,10 +1231,10 @@ def main(ndim, # Required arguments
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                     k0_range.append(k0_)
 
-                    onp.savetxt(file_name+'_temp_idos.csv',onp.stack([k0_range,DOSall]).T)
+                    onp.savetxt(file_name+'_irad'+str(idos_radius)+'_temp_idos.csv',onp.stack([k0_range,DOSall]).T)
 
-                onp.savetxt(file_name+'_idos.csv',onp.stack([k0_range,DOSall]).T)
-                utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'idos', appended_string = '_'+str(file_index))
+                onp.savetxt(file_name+'_irad'+str(idos_radius)+'_idos.csv',onp.stack([k0_range,DOSall]).T)
+                utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'idos', appended_string = '_irad'+str(idos_radius)+'_'+str(file_index))
 
             
             if compute_LDOS:
