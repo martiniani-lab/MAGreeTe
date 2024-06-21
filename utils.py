@@ -161,7 +161,7 @@ def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,
         vmin = None
         vmax = None
     else: 
-        vmin = 1e-2
+        vmin = 1e-3
         vmax = 1e0
     
     fig, ax = plt.subplots(subplot_kw={'projection':'polar'})

@@ -31,7 +31,7 @@ def main(ndim, # Required arguments
     '''
     cut_radius = 0.5
     # Whether to snap scales in intensity maps
-    adapt_scale = True
+    adapt_scale = False
 
     # The full option does not conserve energy but is interesting to have for pedagogy?
     self_interaction_type = "Rayleigh" # Rayleigh or full
@@ -527,7 +527,6 @@ def main(ndim, # Required arguments
                     extra_string = extra_string+"es"
                 print("Computing the full fields at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
 
-                thetas_plot_indices = onp.searchsorted(thetas, thetas_plot)
                 if method == "torch":
                     solver = Transmission2D(points, source = source)
                 elif method == "hmatrices":
@@ -558,8 +557,9 @@ def main(ndim, # Required arguments
                         params = [alpha, k0]
                         hkl.dump([onp.array(EjTE), onp.array(EjTM), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
 
-                    for index, angle in zip(thetas_plot_indices, thetas_plot):
+                    for angle in thetas_plot:
                         angle_ = onp.round(angle*180/onp.pi)
+                        index = onp.where(thetas == angle)[0][0]
                         print("angle = "+str(angle_)+"degrees")
 
                         ETEall = []
@@ -1021,7 +1021,6 @@ def main(ndim, # Required arguments
                     extra_string = extra_string+"es"
                 print("Computing the full fields at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
 
-                thetas_plot_indices = onp.searchsorted(thetas, thetas_plot)
                 if method == "torch":
                     solver = Transmission3D(points, source = source)
                 elif method == "hmatrices":
@@ -1065,8 +1064,9 @@ def main(ndim, # Required arguments
                         params = [alpha, k0]
                         hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')   
 
-                    for index, angle in zip(thetas_plot_indices,thetas_plot):
+                    for angle in thetas_plot:
                         angle_ = onp.round(angle*180/onp.pi)
+                        index = onp.where(thetas == angle)[0][0]
                         print("angle = "+str(angle_)+"degrees")
 
                         Eall = []
