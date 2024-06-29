@@ -344,7 +344,7 @@ class Transmission2D:
         G0 = np.transpose(G0,1,2).reshape(2*G0.shape[0],2*G0.shape[1]).to(np.complex128)
         return G0
 
-    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", regularize = False, discard_absorption = False):
+    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", regularize = False, discard_absorption = False, order = np.inf ):
         '''
         Computes the LDOS averaged at a list of measurement points, for TM and TE.
         This computation is a bit less expensive than the actual LDOS one,
@@ -372,8 +372,22 @@ class Transmission2D:
             volume = onp.pi*radius*radius
             dims = M_tensor.shape[0]
             M_tensor -= alpha*k0*k0*self_interaction_integral_TM(k0, radius, self_interaction_type) /volume * np.eye(dims)
-        # Compute W_tensor = inverse(M_tensor)
-        W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
+        
+        # XXX Just a silly test, make calculation less costly if conclusive
+        if order == np.inf:
+            # Compute W_tensor = inverse(M_tensor)
+            W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
+        elif order == 2:
+            # Leading-order Taylor expansion of the inverse. Fairly rough approximation but much faster than an inverse
+            dims = M_tensor.shape[0]
+            W_tensor = 2.0 * np.eye(dims) - M_tensor
+        elif order == 1:
+            # Treats scatterers like isolated ones, very quick and dirty estimate. Exact for a single one.
+            # XXX Check alpha vs alpha_d in that case
+            dims = M_tensor.shape[0]
+            W_tensor = np.eye(dims)
+        else:
+            raise NotImplementedError
 
         # Define the propagators from scatterers to measurement points
         G0_measure = self.G0_TM(measure_points, k0, print_statement='DOS measure', regularize=regularize, radius=radius)
@@ -393,6 +407,7 @@ class Transmission2D:
 
         if discard_absorption:
             # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
+            # XXX Actually follow Carminati 2006 instead to discard NR part
             alpha_ = onp.real(alpha)
         else:
             alpha_ = alpha
@@ -407,8 +422,23 @@ class Transmission2D:
             # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
             dims = M_tensor.shape[0]
             M_tensor -= alpha*k0*k0*self_interaction_integral_TE(k0, radius, self_interaction_type) /volume * np.eye(dims)
-        # Compute W_tensor = inverse(M_tensor)
-        W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
+            
+                
+        # XXX Just a silly test, make calculation less costly if conclusive
+        if order == np.inf:
+            # Compute W_tensor = inverse(M_tensor)
+            W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
+        elif order == 2:
+            # Leading-order Taylor expansion of the inverse. Fairly rough approximation but much faster than an inverse
+            dims = M_tensor.shape[0]
+            W_tensor = 2.0 * np.eye(dims) - M_tensor
+        elif order == 1:
+            # Treats scatterers like isolated ones, very quick and dirty estimate. Exact for a single one.
+            # XXX Check alpha vs alpha_d in that case
+            dims = M_tensor.shape[0]
+            W_tensor = np.eye(dims)
+        else:
+            raise NotImplementedError
 
         # Define the propagators from scatterers to measurement points
         G0_measure = self.G0_TE(measure_points, k0, print_statement='DOS measure', regularize=regularize, radius=radius)
@@ -427,6 +457,7 @@ class Transmission2D:
         dos_factor_TE = ( np.matmul(G0_measure.t(), G0_measure) * W_tensor ).sum()/Npoints
         if discard_absorption:
             # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
+            # XXX Actually follow Carminati 2006 instead to discard NR part
             alpha_ = onp.real(alpha)
         else:
             alpha_ = alpha
