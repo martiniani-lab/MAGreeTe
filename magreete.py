@@ -1549,7 +1549,7 @@ if __name__ == '__main__':
         default = 1.0", default = 1.0)
     parser.add_argument("-irad", "--idos_radius", type=float, help="Fraction of system radius within which to sample idos measurement points\
         default = 1.0", default = 1.0)
-    parser.add_argument("-ev","--write_eigenvalues", action='store_false', help="Write the eigenvalues of the Green's matrix at every frequency  \
+    parser.add_argument("-ev","--write_eigenvalues", action='store_true', help="Write the eigenvalues of the Green's matrix at every frequency  \
         default=True", default=False)
     parser.add_argument("--write_ldos", action="store_true", help="Save all computed LDOS outputs. Warning: this can grow pretty big.\
         default = False", default = False)

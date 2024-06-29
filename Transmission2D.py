@@ -584,6 +584,8 @@ class Transmission2D:
 
         if write_eigenvalues:
             onp.savetxt(file_name+'_lambdas_'+str(k0_)+'_TM.csv', onp.stack([np.real(lambdas).numpy(), np.imag(lambdas).numpy()]).T)
+            # XXX Here, also output eigenvectors, at least for special values, and compute IPR = sum(|element|^4) / (sum(|element|^2))^2. High IPR (~1/2 or >> 1/N) -> localized
+            # XXX scipy.linalg.schur sounds appropriate: G is normal bc it's complex symmetric https://numpy.org/doc/stable/reference/generated/numpy.linalg.eig.html
 
         # Compute the trace part here
         dos_factor_TM = ((1 - lambdas)**2 / lambdas).sum()/Npoints
