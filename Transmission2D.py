@@ -7,6 +7,7 @@ import hickle as hkl
 from juliacall import Main as jl
 from juliacall import Pkg as jlPkg
 
+import utils
 
 I = np.tensor(onp.identity(2)).reshape(1,1,2,2) #identity matrix
 
@@ -344,7 +345,7 @@ class Transmission2D:
         G0 = np.transpose(G0,1,2).reshape(2*G0.shape[0],2*G0.shape[1]).to(np.complex128)
         return G0
 
-    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", regularize = False, discard_absorption = False, order = np.inf ):
+    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", regularize = False, discard_absorption = True, order = np.inf ):
         '''
         Computes the LDOS averaged at a list of measurement points, for TM and TE.
         This computation is a bit less expensive than the actual LDOS one,
@@ -372,47 +373,75 @@ class Transmission2D:
             volume = onp.pi*radius*radius
             dims = M_tensor.shape[0]
             M_tensor -= alpha*k0*k0*self_interaction_integral_TM(k0, radius, self_interaction_type) /volume * np.eye(dims)
+            alpha_d_TM = alpha / (1 - k0**2 * alpha * self_interaction_integral_TM(k0, radius, self_interaction_type) / volume)
+        else:
+            alpha_d_TM = alpha
         
-        # XXX Just a silly test, make calculation less costly if conclusive
-        if order == np.inf:
+        # Choose either the full solve with an inverse, or cheaper, but only asymptotically right as k->0, approximations
+        if order == np.inf or order == -1:
             # Compute W_tensor = inverse(M_tensor)
             W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
         elif order == 2:
             # Leading-order Taylor expansion of the inverse. Fairly rough approximation but much faster than an inverse
             dims = M_tensor.shape[0]
             W_tensor = 2.0 * np.eye(dims) - M_tensor
-        elif order == 1:
-            # Treats scatterers like isolated ones, very quick and dirty estimate. Exact for a single one.
-            # XXX Check alpha vs alpha_d in that case
-            dims = M_tensor.shape[0]
-            W_tensor = np.eye(dims)
-        else:
-            raise NotImplementedError
 
         # Define the propagators from scatterers to measurement points
         G0_measure = self.G0_TM(measure_points, k0, print_statement='DOS measure', regularize=regularize, radius=radius)
+        
         # Check for measurement points falling exactly on scatterers
-        for j in np.argwhere(np.isnan(G0_measure)):
-            point_idx = j[0]
-            scatter_idx = j[1]
-            # At scatterers, replace G0(r_i, r_i) by self-interaction
-            G0_measure[point_idx][scatter_idx] = 0
-            if self_interaction:
-                volume = onp.pi*radius*radius
-                G0_measure[point_idx][scatter_idx] += self_interaction_integral_TM(k0, radius, self_interaction_type) / volume
-        #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
-        # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
-        #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
-        dos_factor_TM = ( np.matmul(G0_measure.t(), G0_measure) * W_tensor ).sum()/Npoints
-
-        if discard_absorption:
-            # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
-            # XXX Actually follow Carminati 2006 instead to discard NR part
-            alpha_ = onp.real(alpha)
+        if order == 1 or order == -1 or discard_absorption:
+            # Need the Frobenius norm of the G0 without the self-interaction!
+            for j in np.argwhere(np.isnan(G0_measure)):
+                point_idx = j[0]
+                scatter_idx = j[1]
+                # At scatterers, replace G0(r_i, r_i) by self-interaction
+                G0_measure[point_idx][scatter_idx] = 0
+                
+            # Compute the Frobenius norm here, as well as the necessary cross-sections
+            FrobG0 = np.norm(G0_measure)
+            extinction_cross_section_TM = k0 * onp.imag(alpha_d_TM)
+            leading_DOS_factor_TM = 4.0 * k0 * extinction_cross_section_TM * FrobG0**2 / Npoints
+            
+            if discard_absorption:
+                scattering_cross_section_TM = (1.0 / 4.0) * k0**3 * onp.absolute(alpha_d_TM)**2
+                absorption_cross_section_TM = extinction_cross_section_TM - scattering_cross_section_TM
+                non_radiative_DOS_factor_TM = 4.0 * k0 * absorption_cross_section_TM * FrobG0**2 / Npoints
+            
+            if order == -1:
+                # also need the self-interaction taken care of
+                for j in np.argwhere(np.isnan(G0_measure)):
+                    volume = onp.pi*radius*radius
+                    G0_measure[point_idx][scatter_idx] += self_interaction_integral_TM(k0, radius, self_interaction_type) / volume
         else:
-            alpha_ = alpha
-        dos_factor_TM *= 4.0 * k0*k0*alpha_ # For prefactor in systems invariant along z, see https://www.sciencedirect.com/science/article/pii/S1569441007000387
-        dos_factor_TM = np.imag(dos_factor_TM)
+            # For orders 2 and inf, no need for the intermediate norm
+            for j in np.argwhere(np.isnan(G0_measure)):
+                point_idx = j[0]
+                scatter_idx = j[1]
+                # At scatterers, replace G0(r_i, r_i) by self-interaction
+                G0_measure[point_idx][scatter_idx] = 0
+                if self_interaction:
+                    volume = onp.pi*radius*radius
+                    G0_measure[point_idx][scatter_idx] += self_interaction_integral_TM(k0, radius, self_interaction_type) / volume
+                    
+        if order != 1:
+            #  Use cyclic invariance of the trace: tr(G A G^T) = tr (G^T G A)
+            # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
+            #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
+            dos_factor_TM = ( np.matmul(G0_measure.t(), G0_measure) * W_tensor ).sum()/Npoints
+
+            dos_factor_TM *= 4.0 * k0*k0*alpha # For prefactor in systems invariant along z, see https://www.sciencedirect.com/science/article/pii/S1569441007000387
+            dos_factor_TM = np.imag(dos_factor_TM)
+        else:
+            dos_factor_TM = leading_DOS_factor_TM
+            
+        if order == -1:
+            # Remove leading order, that enriches DOS independently from every particle, like in Carminati 2006 https://www.sciencedirect.com/science/article/abs/pii/S0030401805013489
+            dos_factor_TM -= leading_DOS_factor_TM
+            
+        if discard_absorption:
+            # Discard the non-radiative part coming from absorption, see Carminati 2006 https://www.sciencedirect.com/science/article/abs/pii/S0030401805013489
+            dos_factor_TM -= non_radiative_DOS_factor_TM
 
         ### TE calculation
         # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
@@ -437,6 +466,11 @@ class Transmission2D:
             # XXX Check alpha vs alpha_d in that case
             dims = M_tensor.shape[0]
             W_tensor = np.eye(dims)
+        elif order == -1:
+            # Removes order 1 (independent enrichment of DOS by scatterers through their extinction CS without any interactions between them) from the full result
+            W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
+            dims = M_tensor.shape[0]
+            W_tensor -= np.eye(dims)
         else:
             raise NotImplementedError
 
@@ -553,7 +587,7 @@ class Transmission2D:
 
         return ldos_factor_TE, ldos_factor_TM
 
-    def compute_eigenvalues_and_scatterer_LDOS(self, k0, alpha, radius, file_name, self_interaction = True, self_interaction_type = "Rayleigh", write_eigenvalues = True):
+    def compute_eigenvalues_and_scatterer_LDOS(self, k0, alpha, radius, file_name, self_interaction = True, self_interaction_type = "Rayleigh", write_eigenvalues = True, compute_IPR = True):
         '''
         Computes the eigenvalues of the Green's matrix, and the corresponding LDOS at scatterers, for TM and TE.
         This computation is way less expensive than the other LDOS, due to simple dependence on the eigenvalues
@@ -580,7 +614,25 @@ class Transmission2D:
             dims = M_tensor.shape[0]
             M_tensor -= alpha*k0*k0*self_interaction_integral_TM(k0, radius, self_interaction_type)/volume * np.eye(dims)
         # Compute the spectrum of the M_tensor
-        lambdas = np.linalg.eigvals(M_tensor)
+        if compute_IPR:
+            # Works, maybe consider scipy.schur instead, and output IPRs + one / some eigenvector(s) for plotting purposes
+            lambdas, eigenvectors = np.linalg.eig(M_tensor)
+            IPRs = np.sum(np.abs(eigenvectors**4), axis = 0) / (np.sum(np.abs(eigenvectors**2), axis = 0))**2
+            print(IPRs.amax())
+            print(np.where(IPRs == IPRs.amax()))
+            indexmax = np.where(IPRs == IPRs.amax())
+            most_localized_eigenvalue = lambdas[indexmax[0]]
+            most_localized_eigenvector = eigenvectors[:, indexmax[0]]
+            print(most_localized_eigenvalue)
+            print(np.abs(most_localized_eigenvector))
+            utils.plot_IPR_damping_values(np.real(most_localized_eigenvector), np.imag(most_localized_eigenvector), file_name+'_test_')
+            utils.plot_IPR_damping_values(IPRs, np.imag(lambdas), file_name)
+            
+            # print(lambdas)
+            sys.exit()
+        else:
+            # No need for eigenvectors
+            lambdas = np.linalg.eigvals(M_tensor)
 
         if write_eigenvalues:
             onp.savetxt(file_name+'_lambdas_'+str(k0_)+'_TM.csv', onp.stack([np.real(lambdas).numpy(), np.imag(lambdas).numpy()]).T)

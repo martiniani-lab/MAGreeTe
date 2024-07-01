@@ -351,6 +351,14 @@ def plot_2d_points(points, file_name):
 
     plt.savefig(file_name+'_2dplot.png', dpi = 300)
 
+def plot_IPR_damping_values(IPRs, imlambdas, file_name):
+    fig = plt.figure(figsize=(10,10),dpi=300)
+    ax = fig.gca()
+
+    ax.scatter(imlambdas, IPRs, s = 2)
+
+    plt.savefig(file_name+'_imlambdas_IPRs.png', dpi = 300)
+
 def plot_LDOS_2D(ldos_change,k0_,ngridx,ngridy,file_name,my_dpi=1, appended_string=''):
 
     # Matplotlib deals with figure sizes in a completely idiotic way, workaround https://stackoverflow.com/questions/13714454/specifying-and-saving-a-figure-with-exact-size-in-pixels
@@ -578,7 +586,6 @@ def plot_averaged_DOS(k0range, L, DOS, file_name, DOS_type, appended_string='', 
     if debug:
         # XXX DEBUG: threshold values to -1
         DOS = onp.array(DOS)
-        DOS = onp.where(DOS < -1, -1, DOS)
     fig = plt.figure()
     ax = fig.gca()
     freqs = onp.real(k0range*L/(2*onp.pi))
