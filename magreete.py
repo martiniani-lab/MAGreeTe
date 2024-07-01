@@ -14,7 +14,6 @@ from Transmission2D import Transmission2D, Transmission2D_hmatrices
 from Transmission3D import Transmission3D, Transmission3D_hmatrices
 import lattices
 
-
 import argparse
 
 
@@ -23,7 +22,7 @@ def main(ndim, # Required arguments
         lattice=None, cold_atoms=False, kresonant_ = None, annulus = 0, composite = False, kick = 0.0, input_files_args = None, method = "torch", # Special cases
         k0range_args = None, thetarange_args = None,# Range of values to use
         compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, scattered_fields=False, transmission_radius = 2.0,
-        compute_DOS=False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, dos_sizes_args = None, intensity_fields = False, amplitude_fields = False, phase_fields = False, just_compute_averages = False,# Computations to perform
+        compute_DOS=False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, dos_sizes_args = None, compute_eigenmodes = False, number_eigenmodes = 1, intensity_fields = False, amplitude_fields = False, phase_fields = False, just_compute_averages = False,# Computations to perform
         dospoints=1, spacing_factor = 1.0, idos_radius = 1.0, write_eigenvalues=False, write_ldos= False,  gridsize=(301,301), window_width=1.2, angular_width = 0.0, plot_theta_index = 0, batch_size = 101*101, output_directory="" # Parameters for outputs
         ):
     '''
@@ -648,6 +647,75 @@ def main(ndim, # Required arguments
 
                 utils.plot_averaged_DOS(k0range, L, DOSall_TE, file_name, 'sdos', appended_string='_'+str(file_index)+'_TE')
                 utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'sdos', appended_string='_'+str(file_index)+'_TM')
+
+            if compute_eigenmodes:
+                
+                # Expensive computation
+                ngridx = gridsize[0]
+                ngridy = gridsize[1]
+                xyratio = ngridx/ngridy
+                x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5)
+                measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
+
+                batches = np.split(measurement_points, batch_size)
+                n_batches = len(batches)
+
+                extra_string=""
+                if n_batches > 1:
+                    extra_string = extra_string+"es"
+                print("Computing the full fields at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
+
+                
+                if method == "torch":
+                    solver = Transmission2D(points, source = None)
+                elif method == "hmatrices":
+                    solver = Transmission2D_hmatrices(points, source = None)
+                else:
+                    print("Choose a valid method")
+                    sys.exit()
+                    
+                k0_range = []
+
+                for k0, alpha in zip(k0range,alpharange):
+                    k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                    k0_range.append(k0_)
+                    _, eigenmodes_TM,_ = solver.compute_eigenmodes_IPR_TM( k0, alpha, radius, file_name, write_eigenvalues = True, number_eigenmodes = number_eigenmodes, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
+                    _, eigenmodes_TE,_ = solver.compute_eigenmodes_IPR_TE( k0, alpha, radius, file_name, write_eigenvalues = True, number_eigenmodes = number_eigenmodes, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
+
+                    for i in range(number_eigenmodes):
+                        
+                        ETEall = []
+                        ETMall = []
+
+                        for batch in range(0, n_batches):
+                            print("Batch "+str(batch+1))
+                            batch_points = batches[batch]
+
+                            eigenfield_TE, eigenfield_TM = solver.propagate_EM(batch_points, eigenmodes_TE[:,i], eigenmodes_TM[:,i].unsqueeze(-1), k0, alpha, [0.0], w, regularize = regularize, radius=radius)
+
+                            ETEall.append(eigenfield_TE)
+                            ETMall.append(eigenfield_TM)
+
+                        ETEall = np.cat(ETEall, dim=0).squeeze(-1)
+                        ETMall = np.cat(ETMall, dim=0)
+                        
+                        # The medium is centered at (0,0)
+                        viewing_angle = np.arctan2(measurement_points[:,1], measurement_points[:,0]) #y,x
+
+                        ETEall_amplitude          = np.sqrt(np.absolute(ETEall[:,0])**2 + np.absolute(ETEall[:,1])**2)
+                        ETEall_longitudinal       = ETEall[:,0]*np.cos(viewing_angle) - ETEall[:,1]*np.sin(viewing_angle)
+                        ETEall_transverse         = ETEall[:,0]*np.sin(viewing_angle) + ETEall[:,1]*np.cos(viewing_angle)
+
+                        ETEall_amplitude    = ETEall_amplitude.reshape(ngridy, ngridx)
+                        ETEall_longitudinal = ETEall_longitudinal.reshape(ngridy, ngridx)
+                        ETEall_transverse   = ETEall_transverse.reshape(ngridy, ngridx)
+                        ETMall = ETMall.reshape(ngridy, ngridx)
+
+                        utils.plot_full_fields(ETEall_amplitude, ngridx, ngridy, k0_, angle_, intensity_fields, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE_eigen_'+str(i), my_dpi = 300)
+                        utils.plot_full_fields(ETEall_longitudinal, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE_long_eigen_'+str(i), my_dpi = 300)
+                        utils.plot_full_fields(ETEall_transverse, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE_trans_eigen_'+str(i), my_dpi = 300)
+                        utils.plot_full_fields(ETMall, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TM_eigen_'+str(i), my_dpi = 300)
+
 
             if compute_DOS:
                 if method == "torch":
@@ -1534,6 +1602,10 @@ if __name__ == '__main__':
         default=False", default=False)
     parser.add_argument("-ds", "--dos_sizes_args", nargs = "+", type = float, help = "System linear sizes to consider, as fractions of L\
         default=1", default = None)
+    parser.add_argument("-em", "--compute_eigenmodes", action='store_true', help="Compute the eigenmodes of the linear system used to solve coupled dipoles, and saves eigenvalues, IPR, and some eigenfields\
+        default = False", default=False)
+    parser.add_argument("-nm","--number_eigenmodes", type = int, help = "Number of eigenmodes to save on both ends of the IPR extremes\
+        default = 1", default = 1)
     parser.add_argument("--intensity_fields", action = "store_true", help="Output images of intensity fields for every beam used in the angular plot, in real space\
         default = False", default=False)
     parser.add_argument("--amplitude_fields", action = "store_true", help="Output images of amplitude fields for every beam used in the angular plot, in real space\
@@ -1610,6 +1682,8 @@ if __name__ == '__main__':
     dos_sizes_args                       = args.dos_sizes_args
     if dos_sizes_args     != None:
         dos_sizes_args                   = tuple(dos_sizes_args)
+    compute_eigenmodes              = args.compute_eigenmodes
+    number_eigenmodes               = args.number_eigenmodes
     intensity_fields                = args.intensity_fields
     amplitude_fields                = args.amplitude_fields
     phase_fields                    = args.phase_fields
@@ -1641,7 +1715,7 @@ if __name__ == '__main__':
         k0range_args = k0range_args, thetarange_args=thetarange_args, input_files_args = input_files_args,
         cold_atoms=cold_atoms, kresonant_ = kresonant_, lattice=lattice, annulus = annulus, composite = composite, kick = kick, method = method,
         compute_transmission = compute_transmission, plot_transmission=plot_transmission, single_scattering_transmission=single_scattering_transmission, scattered_fields=scattered_fields, transmission_radius=transmission_radius,
-        compute_DOS=compute_DOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS, dos_sizes_args= dos_sizes_args,
+        compute_DOS=compute_DOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS, dos_sizes_args= dos_sizes_args, compute_eigenmodes = compute_eigenmodes, number_eigenmodes = number_eigenmodes,
         intensity_fields = intensity_fields, amplitude_fields=amplitude_fields, phase_fields=phase_fields, just_compute_averages=just_compute_averages,
         dospoints=dospoints, spacing_factor=spacing_factor, idos_radius=idos_radius, write_eigenvalues=write_eigenvalues, write_ldos=write_ldos, gridsize=gridsize, window_width=window_width, batch_size = batch_size, angular_width=angular_width, plot_theta_index=plot_theta_index,
         output_directory=output_directory

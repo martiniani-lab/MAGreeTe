@@ -350,6 +350,14 @@ def plot_2d_points(points, file_name):
     ax.scatter(points[:,0], points[:,1], s = 2)
 
     plt.savefig(file_name+'_2dplot.png', dpi = 300)
+    
+def plot_IPR_damping_values(IPRs, imlambdas, file_name):
+    fig = plt.figure(figsize=(10,10),dpi=300)
+    ax = fig.gca()
+
+    ax.scatter(imlambdas, IPRs, s = 2)
+
+    plt.savefig(file_name+'_imlambdas_IPRs.png', dpi = 300)
 
 def plot_LDOS_2D(ldos_change,k0_,ngridx,ngridy,file_name,my_dpi=1, appended_string=''):
 
@@ -573,7 +581,7 @@ def plot_k_times_radius(k0range, radius, L, file_name, appended_string=''):
     plt.savefig(file_name+'_k_times_radius'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
     plt.close()
 
-def plot_averaged_DOS(k0range, L, DOS, file_name, DOS_type, appended_string='', debug=True):
+def plot_averaged_DOS(k0range, L, DOS, file_name, DOS_type, appended_string='', debug=False):
     # Averaged LDOS plot
     if debug:
         # XXX DEBUG: threshold values to -1

@@ -7,6 +7,7 @@ import hickle as hkl
 from juliacall import Main as jl
 from juliacall import Pkg as jlPkg
 
+import utils
 
 I = np.tensor(onp.identity(2)).reshape(1,1,2,2) #identity matrix
 
@@ -192,6 +193,10 @@ class Transmission2D:
                 E0TE[:,:,idx] = np.matmul(self.torch_greensTE(rrot.reshape(-1,1,2) - source_location.reshape(1,-1,2), k0), dipole_moment.type(np.complex128)).squeeze()
                 # Rotate the TE polarization at the end to match actual coordinates
                 E0TE[:,:,idx] = np.matmul(rot.type(np.complex128).T, E0TE[:,:,idx].T).T
+
+        elif self.source is None:
+            E0TM = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
+            E0TE = np.zeros((points.shape[0],2,len(thetas)),dtype=np.complex128)
 
         else:
             raise NotImplementedError
@@ -580,6 +585,41 @@ class Transmission2D:
 
         return dos_factor_TE, dos_factor_TM
     
+    def compute_eigenmodes_IPR(self, k0, alpha, radius, file_name, self_interaction = True, self_interaction_type = "Rayleigh", number_eigenmodes = 1, write_eigenvalues = True):
+    
+        Npoints = self.r.shape[0]
+        print(self.r.shape)
+        k0_ = onp.round(k0/(2.0*onp.pi),1)
+        print("Computing spectrum and scatterer LDOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
+
+        ### TM Calculation
+        # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
+        M_tensor = -alpha*k0*k0*self.G0_TM(self.r, k0, print_statement='DOS eigvals')
+        M_tensor.fill_diagonal_(1)
+        if self_interaction:
+            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
+            volume = onp.pi*radius*radius
+            dims = M_tensor.shape[0]
+            M_tensor -= alpha*k0*k0*self_interaction_integral_TM(k0, radius, self_interaction_type)/volume * np.eye(dims)
+        # Compute the spectrum of the M_tensor
+        lambdas = np.linalg.eigvals(M_tensor)
+    
+    
+        # Works, maybe consider scipy.schur instead, and output IPRs + one / some eigenvector(s) for plotting purposes
+        lambdas, eigenvectors = np.linalg.eig(M_tensor)
+        IPRs = np.sum(np.abs(eigenvectors**4), axis = 0) / (np.sum(np.abs(eigenvectors**2), axis = 0))**2
+        print(IPRs.amax())
+        print(np.where(IPRs == IPRs.amax()))
+        indexmax = np.where(IPRs == IPRs.amax())
+        most_localized_eigenvalue = lambdas[indexmax[0]]
+        most_localized_eigenvector = eigenvectors[:, indexmax[0]]
+        print(most_localized_eigenvalue)
+        print(np.abs(most_localized_eigenvector))
+        utils.plot_IPR_damping_values(np.real(most_localized_eigenvector), np.imag(most_localized_eigenvector), file_name+'_test_')
+        utils.plot_IPR_damping_values(IPRs, np.imag(lambdas), file_name)
+        
+        # print(lambdas)
+        sys.exit()
 class Transmission2D_hmatrices:
     
 
