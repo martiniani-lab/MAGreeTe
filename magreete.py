@@ -663,7 +663,7 @@ def main(ndim, # Required arguments
                 extra_string=""
                 if n_batches > 1:
                     extra_string = extra_string+"es"
-                print("Computing the full fields at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
+                print("Computing the eigenfields and plotting the "+str(number_eigenmodes)+" most localized at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
 
                 
                 if method == "torch":
@@ -698,23 +698,13 @@ def main(ndim, # Required arguments
 
                         ETEall = np.cat(ETEall, dim=0).squeeze(-1)
                         ETMall = np.cat(ETMall, dim=0)
-                        
-                        # The medium is centered at (0,0)
-                        viewing_angle = np.arctan2(measurement_points[:,1], measurement_points[:,0]) #y,x
 
                         ETEall_amplitude          = np.sqrt(np.absolute(ETEall[:,0])**2 + np.absolute(ETEall[:,1])**2)
-                        ETEall_longitudinal       = ETEall[:,0]*np.cos(viewing_angle) - ETEall[:,1]*np.sin(viewing_angle)
-                        ETEall_transverse         = ETEall[:,0]*np.sin(viewing_angle) + ETEall[:,1]*np.cos(viewing_angle)
-
                         ETEall_amplitude    = ETEall_amplitude.reshape(ngridy, ngridx)
-                        ETEall_longitudinal = ETEall_longitudinal.reshape(ngridy, ngridx)
-                        ETEall_transverse   = ETEall_transverse.reshape(ngridy, ngridx)
                         ETMall = ETMall.reshape(ngridy, ngridx)
 
-                        utils.plot_full_fields(ETEall_amplitude, ngridx, ngridy, k0_, angle_, intensity_fields, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE_eigen_'+str(i), my_dpi = 300)
-                        utils.plot_full_fields(ETEall_longitudinal, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE_long_eigen_'+str(i), my_dpi = 300)
-                        utils.plot_full_fields(ETEall_transverse, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE_trans_eigen_'+str(i), my_dpi = 300)
-                        utils.plot_full_fields(ETMall, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TM_eigen_'+str(i), my_dpi = 300)
+                        utils.plot_full_fields(ETEall_amplitude, ngridx, ngridy, k0_, 0, True, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE_eigen_'+str(i), my_dpi = 300)
+                        utils.plot_full_fields(ETMall, ngridx, ngridy, k0_, 0, True, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TM_eigen_'+str(i), my_dpi = 300)
 
 
             if compute_DOS:

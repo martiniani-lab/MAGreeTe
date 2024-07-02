@@ -351,13 +351,18 @@ def plot_2d_points(points, file_name):
 
     plt.savefig(file_name+'_2dplot.png', dpi = 300)
     
-def plot_IPR_damping_values(IPRs, imlambdas, file_name):
+def plot_IPR_damping_values(lambdas, IPRs, file_name, logscale = False):
     fig = plt.figure(figsize=(10,10),dpi=300)
     ax = fig.gca()
 
-    ax.scatter(imlambdas, IPRs, s = 2)
-
-    plt.savefig(file_name+'_imlambdas_IPRs.png', dpi = 300)
+    scatterplot = ax.scatter(np.real(lambdas), np.imag(lambdas), c=IPRs, s = 100, edgecolors='none',  cmap=cmr.bubblegum, vmin = 0, vmax = 0.5)
+    cbar = plt.colorbar(scatterplot)
+    cbar.set_label('IPR', rotation=270)
+    ax.set_xlabel(r'$Re \Lambda_n$')
+    ax.set_ylabel(r'$Im \Lambda_n$')
+    if logscale:
+        ax.set_yscale('log')
+    plt.savefig(file_name+'_lambdas_IPRs.png', dpi = 300)
 
 def plot_LDOS_2D(ldos_change,k0_,ngridx,ngridy,file_name,my_dpi=1, appended_string=''):
 

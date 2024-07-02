@@ -585,7 +585,7 @@ class Transmission2D:
 
         return dos_factor_TE, dos_factor_TM
     
-    def compute_eigenmodes_IPR(self, k0, alpha, radius, file_name, self_interaction = True, self_interaction_type = "Rayleigh", number_eigenmodes = 1, write_eigenvalues = True):
+    def compute_eigenmodes_IPR_TM(self, k0, alpha, radius, file_name, self_interaction = True, self_interaction_type = "Rayleigh", number_eigenmodes = 1, write_eigenvalues = True):
     
         Npoints = self.r.shape[0]
         print(self.r.shape)
@@ -601,25 +601,61 @@ class Transmission2D:
             volume = onp.pi*radius*radius
             dims = M_tensor.shape[0]
             M_tensor -= alpha*k0*k0*self_interaction_integral_TM(k0, radius, self_interaction_type)/volume * np.eye(dims)
+    
+        # Works, maybe consider scipy.schur instead, and output IPRs + one / some eigenvector(s) for plotting purposes
+        lambdas, eigenvectors = np.linalg.eig(M_tensor)
+        IPRs = np.sum(np.abs(eigenvectors**4), axis = 0) / (np.sum(np.abs(eigenvectors**2), axis = 0))**2
+        indexmax = np.where(IPRs == IPRs.amax())
+        most_localized_eigenvalue = lambdas[indexmax[0]]
+        most_localized_eigenvector = eigenvectors[:, indexmax[0]]
+        
+        utils.plot_IPR_damping_values(lambdas, IPRs, file_name)
+        utils.plot_IPR_damping_values(1.0 - k0**2 * alpha * lambdas, IPRs, file_name+'_deltas_')
+        utils.plot_IPR_damping_values(alpha * lambdas**2 / (1.0 - k0**2 * alpha * lambdas), IPRs, file_name+'_rhos_')
+        
+        utils.plot_IPR_damping_values(1-lambdas, IPRs, file_name+'_test_', logscale=True)
+        
+        print(most_localized_eigenvalue)
+        print(IPRs.amax())
+        
+        return lambdas, most_localized_eigenvector, IPRs
+    
+    def compute_eigenmodes_IPR_TE(self, k0, alpha, radius, file_name, self_interaction = True, self_interaction_type = "Rayleigh", number_eigenmodes = 1, write_eigenvalues = True):
+    
+        Npoints = self.r.shape[0]
+        print(self.r.shape)
+        k0_ = onp.round(k0/(2.0*onp.pi),1)
+        print("Computing spectrum and scatterer LDOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
+
+        ### TE Calculation
+        # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
+        M_tensor = -alpha*k0*k0*self.G0_TE(None, k0, print_statement='DOS eigvals')
+        M_tensor.fill_diagonal_(1)
+        if self_interaction:
+            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
+            volume = onp.pi*radius*radius
+            dims = M_tensor.shape[0]
+            M_tensor -= alpha*k0*k0*self_interaction_integral_TE(k0, radius, self_interaction_type)/volume * np.eye(dims)
         # Compute the spectrum of the M_tensor
-        lambdas = np.linalg.eigvals(M_tensor)
     
     
         # Works, maybe consider scipy.schur instead, and output IPRs + one / some eigenvector(s) for plotting purposes
         lambdas, eigenvectors = np.linalg.eig(M_tensor)
         IPRs = np.sum(np.abs(eigenvectors**4), axis = 0) / (np.sum(np.abs(eigenvectors**2), axis = 0))**2
-        print(IPRs.amax())
-        print(np.where(IPRs == IPRs.amax()))
         indexmax = np.where(IPRs == IPRs.amax())
         most_localized_eigenvalue = lambdas[indexmax[0]]
         most_localized_eigenvector = eigenvectors[:, indexmax[0]]
-        print(most_localized_eigenvalue)
-        print(np.abs(most_localized_eigenvector))
-        utils.plot_IPR_damping_values(np.real(most_localized_eigenvector), np.imag(most_localized_eigenvector), file_name+'_test_')
-        utils.plot_IPR_damping_values(IPRs, np.imag(lambdas), file_name)
         
-        # print(lambdas)
-        sys.exit()
+        utils.plot_IPR_damping_values(lambdas, IPRs, file_name+'TE')
+        utils.plot_IPR_damping_values(1.0 - k0**2 * alpha * lambdas, IPRs, file_name+'TE_deltas_')
+        utils.plot_IPR_damping_values(alpha * lambdas**2 / (1.0 - k0**2 * alpha * lambdas), IPRs, file_name+'TE_rhos_')
+        
+        utils.plot_IPR_damping_values(1-lambdas, IPRs, file_name+'TE_test_', logscale = True)
+        
+        print(most_localized_eigenvalue)
+        print(IPRs.amax())
+        
+        return lambdas, most_localized_eigenvector, IPRs
 class Transmission2D_hmatrices:
     
 
