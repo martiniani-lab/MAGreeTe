@@ -613,7 +613,7 @@ class Transmission2D:
         utils.plot_IPR_damping_values(1.0 - k0**2 * alpha * lambdas, IPRs, file_name+'_deltas_')
         utils.plot_IPR_damping_values(alpha * lambdas**2 / (1.0 - k0**2 * alpha * lambdas), IPRs, file_name+'_rhos_')
         
-        utils.plot_IPR_damping_values(1-lambdas, IPRs, file_name+'_test_', logscale=True)
+        utils.plot_IPR_damping_values(1-lambdas, IPRs, file_name+'_test_', logscale=True, appended_string=str(k0_))
         
         print(most_localized_eigenvalue)
         print(IPRs.amax())
@@ -650,7 +650,7 @@ class Transmission2D:
         utils.plot_IPR_damping_values(1.0 - k0**2 * alpha * lambdas, IPRs, file_name+'TE_deltas_')
         utils.plot_IPR_damping_values(alpha * lambdas**2 / (1.0 - k0**2 * alpha * lambdas), IPRs, file_name+'TE_rhos_')
         
-        utils.plot_IPR_damping_values(1-lambdas, IPRs, file_name+'TE_test_', logscale = True)
+        utils.plot_IPR_damping_values(1-lambdas, IPRs, file_name+'TE_test_', logscale = True, appended_string=str(k0_))
         
         print(most_localized_eigenvalue)
         print(IPRs.amax())
