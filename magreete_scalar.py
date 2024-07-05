@@ -19,19 +19,23 @@ import argparse
 
 
 def main(ndim, # Required arguments
-        refractive_n = 1.65 + 0.025j, phi = 0.1, regularize = True, N_raw = 16384, beam_waist = 0.2, L = 1, source = "beam", # Physical parameters
+        refractive_n = 1.65 + 0.025j, phi = 0.1, regularize = True, N_raw = 16384, beam_waist = 0.2, L = 1, size_subsample = 1.0, source = "beam", # Physical parameters
         lattice=None, cold_atoms=False, kresonant_ = None, annulus = 0, composite = False, kick = 0.0, input_files_args = None, method = "torch", # Special cases
-        k0range_args = None, thetarange_args = None, # Range of values to use
+        k0range_args = None, thetarange_args = None,# Range of values to use
         compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, scattered_fields=False, transmission_radius = 2.0,
-        compute_DOS=False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, intensity_fields = False, amplitude_fields = False, phase_fields = False, just_compute_averages = False,# Computations to perform
-        dospoints=1, spacing_factor = 1.0,  write_eigenvalues=False, write_ldos= False,  gridsize=(301,301), window_width=1.2, angular_width = 0.0, plot_theta_index = 0, batch_size = 101*101, output_directory="" # Parameters for outputs
+        compute_DOS=False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, dos_sizes_args = None, dospoints=1, spacing_factor = 1.0, idos_radius = 1.0, 
+        compute_eigenmodes = False, number_eigenmodes = 1, plot_eigenmodes = False, sorting_type = 'IPR',
+        intensity_fields = False, amplitude_fields = False, phase_fields = False, just_compute_averages = False,# Computations to perform
+        write_eigenvalues=False, write_ldos= False,  gridsize=(301,301), window_width=1.2, angular_width = 0.0, plot_theta_index = 0, batch_size = 101*101, adapt_scale = False, output_directory="" # Parameters for outputs
         ):
     '''
     Simple front-end for MAGreeTe with scalar waves
     '''
-
-    # XXX May want to expose outside
-    # XXX Still adding Rayleigh option
+    
+    # Keep cut_radius as the internal here
+    cut_radius = 0.5 * size_subsample
+    
+    # The full option does not conserve energy but is interesting to have for pedagogy?
     self_interaction_type = "Rayleigh" # Rayleigh or full
     
     if onp.imag(refractive_n) < 0:
@@ -91,7 +95,7 @@ def main(ndim, # Required arguments
 
             file_name = input_files_args[file_index]
             points = hkl.load(file_name)
-            points = np.tensor(points[:,0:ndim]-0.5,dtype=np.double)
+            points = np.tensor(points[:,0:ndim],dtype=np.double)
             shape_before = points.shape
             
             # Make output dir
@@ -108,7 +112,8 @@ def main(ndim, # Required arguments
             shape_after = points.shape
             if shape_before[0] != shape_after[0]:
                 print("There were {} points overlapping with others! Removing.".format(shape_before[0]-shape_after[0]))
-            points = lattices.cut_circle(points)
+            points = lattices.cut_circle(points,cut_radius)
+            #points *= 0.5/np.amax(points)
             # Add random kicks
             if kick != 0.0:
                 points = lattices.add_displacement(points, dr=kick)
@@ -327,12 +332,12 @@ def main(ndim, # Required arguments
                     # Produce transmission normalized by total intensity of the INCIDENT FIELD on the sphere
                     I0all = onp.absolute(E0all)**2
 
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, total, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0all, adapt_scale = True, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
-                    utils.plot_transmission_flat(k0range, L, thetas, total, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0all, adapt_scale = True, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, total, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0all, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
+                    utils.plot_transmission_flat(k0range, L, thetas, total, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0all, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
 
                     # Same but with total field
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, total, file_name,  n_thetas_trans = n_thetas_trans, normalization = total, adapt_scale = True, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
-                    utils.plot_transmission_flat(k0range, L, thetas, total, file_name,  n_thetas_trans = n_thetas_trans, normalization = total, adapt_scale = True, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, total, file_name,  n_thetas_trans = n_thetas_trans, normalization = total, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
+                    utils.plot_transmission_flat(k0range, L, thetas, total, file_name,  n_thetas_trans = n_thetas_trans, normalization = total, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
 
 
 
@@ -342,14 +347,14 @@ def main(ndim, # Required arguments
                         total_scat = onp.absolute(Eall_scat)**2
                         
                         # Produce plots
-                        utils.plot_transmission_angularbeam(k0range, L, thetas, total_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat')
-                        utils.plot_transmission_flat(k0range, L, thetas, total_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat')
+                        utils.plot_transmission_angularbeam(k0range, L, thetas, total_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat')
+                        utils.plot_transmission_flat(k0range, L, thetas, total_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat')
                         utils.plot_angular_averaged_transmission(k0range, L, total_scat, file_name, appended_string='_'+str(file_index)+'_scat')
                         plot_theta = onp.round(180 * thetas[plot_theta_index]/onp.pi)
                         utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, total_scat, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(plot_theta)+'_scat')
                  
                         # Also produce scattered field normalised by total scattered intensity
-                        utils.plot_transmission_angularbeam(k0range, L, thetas, total_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = total_scat, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_norm')
+                        utils.plot_transmission_angularbeam(k0range, L, thetas, total_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, normalization = total_scat, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_norm')
                         
 
                             
@@ -384,8 +389,8 @@ def main(ndim, # Required arguments
                 total_ss = onp.absolute(Eall_ss)**2
                 
                 # Produce plots
-                utils.plot_transmission_angularbeam(k0range, L, thetas, total_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_ss')
-                utils.plot_transmission_flat(k0range, L, thetas, total_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_ss')
+                utils.plot_transmission_angularbeam(k0range, L, thetas, total_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_ss')
+                utils.plot_transmission_flat(k0range, L, thetas, total_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_ss')
                 utils.plot_angular_averaged_transmission(k0range, L, total_ss, file_name, appended_string='_'+str(file_index)+'_ss')
                 theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
                 utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, total_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_TM_angle_'+str(theta_plot)+'_ss')
@@ -396,8 +401,8 @@ def main(ndim, # Required arguments
                     total_multiple = onp.absolute(Eall_multiple)**2
 
                     # Produce plots
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, total_multiple, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_multiple')
-                    utils.plot_transmission_flat(k0range, L, thetas, total_multiple, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_multiple')
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, total_multiple, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_multiple')
+                    utils.plot_transmission_flat(k0range, L, thetas, total_multiple, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_multiple')
                     utils.plot_angular_averaged_transmission(k0range, L, total_multiple, file_name, appended_string='_'+str(file_index)+'_multiple')
                     theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
                     utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, total_multiple, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_multiple')
@@ -409,8 +414,8 @@ def main(ndim, # Required arguments
                     total_scat_ss = onp.absolute(Eall_scat_ss)**2
                     
                     # Produce plots
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, total_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss')
-                    utils.plot_transmission_flat(k0range, L, thetas, total_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss')
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, total_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss')
+                    utils.plot_transmission_flat(k0range, L, thetas, total_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss')
                     utils.plot_angular_averaged_transmission(k0range, L, total_scat_ss, file_name, appended_string='_'+str(file_index)+'_scat_ss')
                     theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
                     utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, total_scat_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_scat_ss')
@@ -418,8 +423,8 @@ def main(ndim, # Required arguments
                     utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, total_scat_ss, file_name, plot_theta_index = plot_theta_index, normalization=total_scat_ss, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_scat_ss_norm')
 
                     # Also produce scattered field normalised by total scattered intensity
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, total_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = total_scat_ss, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss_norm')
-                    utils.plot_transmission_flat(k0range, L, thetas, total_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = total_scat_ss, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss_norm')
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, total_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, normalization = total_scat_ss, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss_norm')
+                    utils.plot_transmission_flat(k0range, L, thetas, total_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, normalization = total_scat_ss, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss_norm')
                     
 
 
@@ -505,7 +510,66 @@ def main(ndim, # Required arguments
 
                             utils.plot_full_fields(Eall, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_scat', my_dpi = 300)
 
+            if compute_eigenmodes:
+                
+                # Expensive computation
+                ngridx = gridsize[0]
+                ngridy = gridsize[1]
+                xyratio = ngridx/ngridy
+                x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5)
+                measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
+
+                batches = np.split(measurement_points, batch_size)
+                n_batches = len(batches)
+
+                extra_string=""
+                if n_batches > 1:
+                    extra_string = extra_string+"es"
+                print("Computing the eigenfields and plotting the "+str(number_eigenmodes)+" most localized at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
+
+                
+                if method == "torch":
+                    solver = Transmission2D_scalar(points, source = None)
+                elif method == "hmatrices":
+                    solver = Transmission2D_scalar_hmatrices(points, source = None)
+                else:
+                    print("Choose a valid method")
+                    sys.exit()
+                    
+                k0_range = []
+
+                for k0, alpha in zip(k0range,alpharange):
+                    k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                    k0_range.append(k0_)
+
+                    _, eigenmodes,_ = solver.compute_eigenmodes_IPR( k0, alpha, radius, file_name, write_eigenvalues = True, number_eigenmodes = number_eigenmodes, self_interaction = self_interaction, self_interaction_type = self_interaction_type, sorting_type = sorting_type)
+
+                    if plot_eigenmodes:
+                        
+                        for i in range(number_eigenmodes):
                             
+                            Eall = []
+                            
+                            # By default, the eigenvectors are such that their modulus is 1
+                            eigenmodes[:,i] /= np.abs(eigenmodes[:,i]).amax()
+
+                            for batch in range(0, n_batches):
+                                print("Batch "+str(batch+1))
+                                batch_points = batches[batch]
+
+                                eigenfield = solver.propagate(batch_points, eigenmodes[:,i].unsqueeze(-1), k0, alpha, [0.0], w, regularize = regularize, radius=radius)
+
+                                Eall.append(eigenfield)
+
+                            Eall = np.cat(Eall, dim=0)
+
+                            Eall = Eall.reshape(ngridy, ngridx)
+                            
+                            plot_IPR = np.sum(np.abs(Eall**4)) / (np.sum(np.abs(Eall**2)))**2
+                            
+                            print(f"Effective IPR of the whole eigenfield: {plot_IPR}")
+
+                            utils.plot_full_fields(Eall, ngridx, ngridy, k0_, 0, True, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_eigen_'+sorting_type+str(i), my_dpi = 300)
 
             if compute_SDOS:
                 if method == "torch":
@@ -764,26 +828,26 @@ def main(ndim, # Required arguments
                 E0all = onp.array(E0all)
                 I0all = onp.absolute(E0all)**2
 
-                utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0all, adapt_scale = True, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
-                utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0all, adapt_scale = True, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
+                utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0all, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
+                utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0all, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
 
                 # Same but with total field
-                utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = Etotal, adapt_scale = True, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
-                utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = Etotal, adapt_scale = True, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
+                utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = Etotal, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
+                utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = Etotal, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
 
                 if scattered_fields:
                     Eall_scat = onp.array(Eall_scat)
                     Etotal_scat = onp.absolute(Eall_scat)**2
 
                     # Produce the plots
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_scat, file_name, n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string ='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat") 
-                    utils.plot_transmission_flat(k0range, L, thetas, Etotal_scat, file_name, n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string ='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat") 
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_scat, file_name, n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string ='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat") 
+                    utils.plot_transmission_flat(k0range, L, thetas, Etotal_scat, file_name, n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string ='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat") 
                     utils.plot_angular_averaged_transmission(k0range, L, Etotal_scat, file_name, appended_string = '_'+str(file_index)+"_scat")
                     theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
                     utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, Etotal_scat, file_name, plot_theta_index = plot_theta_index,  appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_scat')
 
                     # Also produce scattered field normalised by total scattered intensity on the circle. XXX Should make it a sphere
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = Etotal_scat, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_norm')
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, normalization = Etotal_scat, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_norm')
 
                 
             # Single-scattering transmission
@@ -841,15 +905,15 @@ def main(ndim, # Required arguments
                     Etotal_scat_ss = onp.absolute(Eall_scat_ss)**2
                     
                     # Produce plots
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_scat_ss, file_name, n_thetas_trans = n_thetas_trans, adapt_scale = True, appended_string ='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat_ss") 
-                    utils.plot_transmission_flat(k0range, L, thetas, Etotal_scat_ss, file_name, n_thetas_trans = n_thetas_trans,  adapt_scale = True, appended_string ='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat_ss") 
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_scat_ss, file_name, n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string ='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat_ss") 
+                    utils.plot_transmission_flat(k0range, L, thetas, Etotal_scat_ss, file_name, n_thetas_trans = n_thetas_trans,  adapt_scale = adapt_scale, appended_string ='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat_ss") 
                     utils.plot_angular_averaged_transmission(k0range, L, Etotal_scat_ss, file_name, appended_string = '_'+str(file_index)+"_scat_ss")
                     theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
                     utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, Etotal_scat_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_scat_ss')
                 
                     # Also produce scattered field normalised by total scattered intensity on the circle. XXX Should make it a sphere
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = True, normalization = Etotal_scat_ss, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss_norm')
-                    utils.plot_transmission_flat(k0range, L, thetas, Etotal_scat_ss, file_name, n_thetas_trans = n_thetas_trans, normalization = Etotal_scat_ss,  adapt_scale = True, appended_string ='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat_ss_norm") 
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, normalization = Etotal_scat_ss, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss_norm')
+                    utils.plot_transmission_flat(k0range, L, thetas, Etotal_scat_ss, file_name, n_thetas_trans = n_thetas_trans, normalization = Etotal_scat_ss,  adapt_scale = adapt_scale, appended_string ='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat_ss_norm") 
 
 
 
@@ -939,7 +1003,66 @@ def main(ndim, # Required arguments
 
                             utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_scat', my_dpi = 300)
                         
+            if compute_eigenmodes:
+                
+                # Expensive computation
+                ngridx = gridsize[0]
+                ngridy = gridsize[1]
+                xyratio = ngridx/ngridy
+                x,y,z = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5, [0.0])
+                measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T)*L*window_width)
 
+                batches = np.split(measurement_points, batch_size)
+                n_batches = len(batches)
+
+                extra_string=""
+                if n_batches > 1:
+                    extra_string = extra_string+"es"
+                print("Computing the eigenfields and plotting the "+str(number_eigenmodes)+" most localized at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
+
+                
+                if method == "torch":
+                    solver = Transmission3D_scalar(points, source = None)
+                elif method == "hmatrices":
+                    solver = Transmission3D_scalar_hmatrices(points, source = None)
+                else:
+                    print("Choose a valid method")
+                    sys.exit()
+                    
+                k0_range = []
+
+                for k0, alpha in zip(k0range,alpharange):
+                    k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                    k0_range.append(k0_)
+
+                    _, eigenmodes,_ = solver.compute_eigenmodes_IPR( k0, alpha, radius, file_name, write_eigenvalues = True, number_eigenmodes = number_eigenmodes, self_interaction = self_interaction, self_interaction_type = self_interaction_type, sorting_type = sorting_type)
+
+                    if plot_eigenmodes:
+                        
+                        for i in range(number_eigenmodes):
+                            
+                            Eall = []
+                            
+                            # By default, the eigenvectors are such that their modulus is 1
+                            eigenmodes[:,i] /= np.abs(eigenmodes[:,i]).amax()
+
+                            for batch in range(0, n_batches):
+                                print("Batch "+str(batch+1))
+                                batch_points = batches[batch]
+
+                                eigenfield = solver.propagate(batch_points, eigenmodes[:,i].unsqueeze(-1), k0, alpha, [0.0, 0.0, 0.0], w, regularize = regularize, radius=radius)
+
+                                Eall.append(eigenfield)
+
+                            Eall = np.cat(Eall, dim=0)
+
+                            Eall = Eall.reshape(ngridy, ngridx)
+                            
+                            plot_IPR = np.sum(np.abs(Eall**4)) / (np.sum(np.abs(Eall**2)))**2
+                            
+                            print(f"Effective IPR of the whole eigenfield: {plot_IPR}")
+
+                            utils.plot_full_fields(Eall, ngridx, ngridy, k0_, 0, True, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_eigen_'+sorting_type+str(i), my_dpi = 300)
 
             if compute_SDOS:
                 if method == "torch":
@@ -1201,6 +1324,8 @@ if __name__ == '__main__':
     parser.add_argument("-bw", "--beam_waist", type = float, help="Waist of the beam used for transmission plots and full fields, in units of L\
         default = 0.2", default=0.2)
     parser.add_argument("--boxsize", type=float, help="Set physical units for the box size: the results are dimensionless so that default=1", default = 1)
+    parser.add_argument("-sss", "--size_subsample", type = float, help = "Fraction of the initial system sidelength to keep if only a subsample is necessary,\
+        default = 1.0 (largest inscribed disk)", default = 1.0)
     # Ranges of wave-vectors and beam orientations, index of copy to look at
     parser.add_argument("-k", "--k0range", nargs='+', type=float, help = "Values of k0 to span, in units of 2pi/L. Can be a single-value argument, a k_min and a k_max (with default step 1), or k_min, k_max, and step\
         default=(1,0.25 * L/scatterer_radius,0.5)*2pi/L ", default=None)
@@ -1240,6 +1365,16 @@ if __name__ == '__main__':
         default=False", default=False)
     parser.add_argument("-ldos","--compute_LDOS", action='store_true', help="Compute an LDOS map  \
         default=False", default=False)
+    parser.add_argument("-ds", "--dos_sizes_args", nargs = "+", type = float, help = "System linear sizes to consider, as fractions of L\
+        default=1", default = None)
+    parser.add_argument("-em", "--compute_eigenmodes", action='store_true', help="Compute the eigenmodes of the linear system used to solve coupled dipoles, and saves eigenvalues, IPR, and some eigenfields\
+        default = False", default=False)
+    parser.add_argument("-nem","--number_eigenmodes", type = int, help = "Number of eigenmodes to save on both ends of the IPR extremes\
+        default = 1", default = 1)
+    parser.add_argument("-pem", "--plot_eigenmodes", action='store_true', help = "Whether to plot the eigenmodes that were computed\
+        default = false", default = False)
+    parser.add_argument("-sort", "--sorting_type", type = str, help = "Sorting used to choose plotted eigenmodes\
+        Options: IPR (largest) or damping (smallest), Default = IPR", default = "IPR")
     parser.add_argument("--intensity_fields", action = "store_true", help="Output images of intensity fields for every beam used in the angular plot, in real space\
         default = False", default=False)
     parser.add_argument("--amplitude_fields", action = "store_true", help="Output images of amplitude fields for every beam used in the angular plot, in real space\
@@ -1253,6 +1388,8 @@ if __name__ == '__main__':
         default = 1000", default=1000)
     parser.add_argument("--spacing_factor", type=float, help="Number of diameters to use as excluded volume around measurement points for idos\
         default = 1.0", default = 1.0)
+    parser.add_argument("-irad", "--idos_radius", type=float, help="Fraction of system radius within which to sample idos measurement points\
+        default = 1.0", default = 1.0)
     parser.add_argument("-ev","--write_eigenvalues", action='store_false', help="Write the eigenvalues of the Green's matrix at every frequency  \
         default=True", default=False)
     parser.add_argument("--write_ldos", action="store_true", help="Save all computed LDOS outputs. Warning: this can grow pretty big.\
@@ -1261,10 +1398,14 @@ if __name__ == '__main__':
         default = (301,301)", default=(301,301))
     parser.add_argument("-w","--window_width", type=float, help="Width of the viewfield for real-space plots, in units of system diameters, \
         default = 1.2", default = 1.2)
+    parser.add_argument("-b", "--batch_size", type = int, help = "Batch size (in number of pixels/batch) used to compute full field images, \
+        default = 101x101", default = 101*101)
     parser.add_argument("-aw", "--angular_width", type = float, help="Angular width used in the definition of transmission, as a fraction of half the number of used angles: 0 is a single-point and 1 is the full half-space. Warning: this only uses angles defined in the list of computed angles!\
         Default = 0", default = 0.0)
     parser.add_argument("--plot_theta_index", type = int, help="Index of special theta to use for some plots\
         default = 0", default = 0)
+    parser.add_argument("--adapt_scale", action='store_true', help="Whether to adapt intensity scales in transmission plots to actual value, otherwise snapped to 1e-3 to 1e0\
+        default = false0", default = False)
     parser.add_argument("-o", "--output", type=str, help="Output directory\
         default = ./refractive_n_$Value/", default='')
 
@@ -1281,6 +1422,7 @@ if __name__ == '__main__':
     source                          = args.source
     beam_waist                      = args.beam_waist
     boxsize                         = args.boxsize
+    size_subsample                  = args.size_subsample
     # Ranges of wave-vectors and beam orientations, index of copy for source points
     k0range_args                    = args.k0range
     if k0range_args     != None:
@@ -1309,6 +1451,13 @@ if __name__ == '__main__':
     compute_interDOS                = args.compute_interDOS
     compute_SDOS                    = args.compute_SDOS
     compute_LDOS                    = args.compute_LDOS
+    dos_sizes_args                       = args.dos_sizes_args
+    if dos_sizes_args     != None:
+        dos_sizes_args                   = tuple(dos_sizes_args)
+    compute_eigenmodes              = args.compute_eigenmodes
+    number_eigenmodes               = args.number_eigenmodes
+    plot_eigenmodes                 = args.plot_eigenmodes
+    sorting_type                    = args.sorting_type
     intensity_fields                = args.intensity_fields
     amplitude_fields                = args.amplitude_fields
     phase_fields                    = args.phase_fields
@@ -1316,12 +1465,15 @@ if __name__ == '__main__':
     # Options for outputs
     dospoints                       = args.dospoints
     spacing_factor                  = args.spacing_factor
+    idos_radius                     = args.idos_radius
     write_eigenvalues               = args.write_eigenvalues
     write_ldos                      = args.write_ldos
     gridsize                        = tuple(args.gridsize)
     window_width                    = args.window_width
+    batch_size                      = args.batch_size
     angular_width                   = args.angular_width
     plot_theta_index                = args.plot_theta_index
+    adapt_scale                     = args.adapt_scale
     output_directory                = args.output
 
     np.set_num_threads(n_cpus)
@@ -1334,13 +1486,14 @@ if __name__ == '__main__':
         os.environ["OMP_NUM_THREADS"] = str(n_cpus)
     
     main(ndim,
-        refractive_n = refractive_n,  phi=phi, regularize=regularize, N_raw=N, beam_waist=beam_waist, L=boxsize, source = source,
+        refractive_n = refractive_n,  phi=phi, regularize=regularize, N_raw=N, source = source, beam_waist=beam_waist, L=boxsize, size_subsample=size_subsample,
         k0range_args = k0range_args, thetarange_args=thetarange_args, input_files_args = input_files_args,
         cold_atoms=cold_atoms, kresonant_ = kresonant_, lattice=lattice, annulus = annulus, composite = composite, kick = kick, method = method,
         compute_transmission = compute_transmission, plot_transmission=plot_transmission, single_scattering_transmission=single_scattering_transmission, scattered_fields=scattered_fields, transmission_radius=transmission_radius,
-        compute_DOS=compute_DOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS,
+        compute_DOS=compute_DOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS, dos_sizes_args= dos_sizes_args, 
+        compute_eigenmodes = compute_eigenmodes, number_eigenmodes = number_eigenmodes, plot_eigenmodes = plot_eigenmodes, sorting_type = sorting_type,
         intensity_fields = intensity_fields, amplitude_fields=amplitude_fields, phase_fields=phase_fields, just_compute_averages=just_compute_averages,
-        dospoints=dospoints, spacing_factor=spacing_factor, write_eigenvalues=write_eigenvalues, write_ldos=write_ldos, gridsize=gridsize, window_width=window_width, angular_width=angular_width, plot_theta_index=plot_theta_index,
+        dospoints=dospoints, spacing_factor=spacing_factor, idos_radius=idos_radius, write_eigenvalues=write_eigenvalues, write_ldos=write_ldos, gridsize=gridsize, window_width=window_width, batch_size = batch_size, angular_width=angular_width, plot_theta_index=plot_theta_index, adapt_scale = adapt_scale,
         output_directory=output_directory
         )
     sys.exit()

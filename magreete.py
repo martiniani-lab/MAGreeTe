@@ -18,23 +18,21 @@ import argparse
 
 
 def main(ndim, # Required arguments
-        refractive_n = 1.65 + 0.025j, phi = 0.1, regularize = True, N_raw = 16384, beam_waist = 0.2, L = 1, source = "beam", # Physical parameters
+        refractive_n = 1.65 + 0.025j, phi = 0.1, regularize = True, N_raw = 16384, beam_waist = 0.2, L = 1, size_subsample = 1.0, source = "beam", # Physical parameters
         lattice=None, cold_atoms=False, kresonant_ = None, annulus = 0, composite = False, kick = 0.0, input_files_args = None, method = "torch", # Special cases
         k0range_args = None, thetarange_args = None,# Range of values to use
         compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, scattered_fields=False, transmission_radius = 2.0,
-        compute_DOS=False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, dos_sizes_args = None, compute_eigenmodes = False, number_eigenmodes = 1, intensity_fields = False, amplitude_fields = False, phase_fields = False, just_compute_averages = False,# Computations to perform
-        dospoints=1, spacing_factor = 1.0, idos_radius = 1.0, write_eigenvalues=False, write_ldos= False,  gridsize=(301,301), window_width=1.2, angular_width = 0.0, plot_theta_index = 0, batch_size = 101*101, output_directory="" # Parameters for outputs
+        compute_DOS=False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, dos_sizes_args = None, dospoints=1, spacing_factor = 1.0, idos_radius = 1.0, 
+        compute_eigenmodes = False, number_eigenmodes = 1, plot_eigenmodes = False, sorting_type = 'IPR',
+        intensity_fields = False, amplitude_fields = False, phase_fields = False, just_compute_averages = False,# Computations to perform
+        write_eigenvalues=False, write_ldos= False,  gridsize=(301,301), window_width=1.2, angular_width = 0.0, plot_theta_index = 0, batch_size = 101*101, adapt_scale = False, output_directory="" # Parameters for outputs
         ):
     '''
     Simple front-end for MAGreeTe
     '''
     
-    # XXX DEBUG, EXPOSE THESE OR REMOVE THEM
-    sorting_type = 'damping'
-    plot_eigenmodes = True
-    cut_radius = 0.5
-    # Whether to snap scales in intensity maps
-    adapt_scale = False
+    # Keep cut_radius as the internal here
+    cut_radius = 0.5 * size_subsample
 
     # The full option does not conserve energy but is interesting to have for pedagogy?
     self_interaction_type = "Rayleigh" # Rayleigh or full
@@ -1626,6 +1624,8 @@ if __name__ == '__main__':
     parser.add_argument("-bw", "--beam_waist", type = float, help="Waist of the beam used for transmission plots and full fields, in units of L\
         default = 0.2", default=0.2)
     parser.add_argument("--boxsize", type=float, help="Set physical units for the box size: the results are dimensionless so that default=1", default = 1)
+    parser.add_argument("-sss", "--size_subsample", type = float, help = "Fraction of the initial system sidelength to keep if only a subsample is necessary,\
+        default = 1.0 (largest inscribed disk)", default = 1.0)
     # Ranges of wave-vectors and beam orientations, index of copy to look at
     parser.add_argument("-k", "--k0range", nargs='+', type=float, help = "Values of k0 to span, in units of 2pi/L. Can be a single-value argument, a k_min and a k_max (with default step 1), or k_min, k_max, and step\
         default=(1,0.25 * L/scatterer_radius,0.5)*2pi/L ", default=None)
@@ -1671,6 +1671,10 @@ if __name__ == '__main__':
         default = False", default=False)
     parser.add_argument("-nem","--number_eigenmodes", type = int, help = "Number of eigenmodes to save on both ends of the IPR extremes\
         default = 1", default = 1)
+    parser.add_argument("-pem", "--plot_eigenmodes", action='store_true', help = "Whether to plot the eigenmodes that were computed\
+        default = false", default = False)
+    parser.add_argument("-sort", "--sorting_type", type = str, help = "Sorting used to choose plotted eigenmodes\
+        Options: IPR (largest) or damping (smallest), Default = IPR", default = "IPR")
     parser.add_argument("--intensity_fields", action = "store_true", help="Output images of intensity fields for every beam used in the angular plot, in real space\
         default = False", default=False)
     parser.add_argument("--amplitude_fields", action = "store_true", help="Output images of amplitude fields for every beam used in the angular plot, in real space\
@@ -1700,6 +1704,8 @@ if __name__ == '__main__':
         Default = 0", default = 0.0)
     parser.add_argument("--plot_theta_index", type = int, help="Index of special theta to use for some plots\
         default = 0", default = 0)
+    parser.add_argument("--adapt_scale", action='store_true', help="Whether to adapt intensity scales in transmission plots to actual value, otherwise snapped to 1e-3 to 1e0\
+        default = false0", default = False)
     parser.add_argument("-o", "--output", type=str, help="Output directory\
         default = ./refractive_n_$Value/", default='')
 
@@ -1716,6 +1722,7 @@ if __name__ == '__main__':
     source                          = args.source
     beam_waist                      = args.beam_waist
     boxsize                         = args.boxsize
+    size_subsample                  = args.size_subsample
     # Ranges of wave-vectors and beam orientations, index of copy for source points
     k0range_args                    = args.k0range
     if k0range_args     != None:
@@ -1749,6 +1756,8 @@ if __name__ == '__main__':
         dos_sizes_args                   = tuple(dos_sizes_args)
     compute_eigenmodes              = args.compute_eigenmodes
     number_eigenmodes               = args.number_eigenmodes
+    plot_eigenmodes                 = args.plot_eigenmodes
+    sorting_type                    = args.sorting_type
     intensity_fields                = args.intensity_fields
     amplitude_fields                = args.amplitude_fields
     phase_fields                    = args.phase_fields
@@ -1764,6 +1773,7 @@ if __name__ == '__main__':
     batch_size                      = args.batch_size
     angular_width                   = args.angular_width
     plot_theta_index                = args.plot_theta_index
+    adapt_scale                     = args.adapt_scale
     output_directory                = args.output
 
     np.set_num_threads(n_cpus)
@@ -1776,13 +1786,14 @@ if __name__ == '__main__':
         os.environ["OMP_NUM_THREADS"] = str(n_cpus)
     
     main(ndim,
-        refractive_n = refractive_n,  phi=phi, regularize=regularize, N_raw=N, source = source, beam_waist=beam_waist, L=boxsize,
+        refractive_n = refractive_n,  phi=phi, regularize=regularize, N_raw=N, source = source, beam_waist=beam_waist, L=boxsize, size_subsample=size_subsample,
         k0range_args = k0range_args, thetarange_args=thetarange_args, input_files_args = input_files_args,
         cold_atoms=cold_atoms, kresonant_ = kresonant_, lattice=lattice, annulus = annulus, composite = composite, kick = kick, method = method,
         compute_transmission = compute_transmission, plot_transmission=plot_transmission, single_scattering_transmission=single_scattering_transmission, scattered_fields=scattered_fields, transmission_radius=transmission_radius,
-        compute_DOS=compute_DOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS, dos_sizes_args= dos_sizes_args, compute_eigenmodes = compute_eigenmodes, number_eigenmodes = number_eigenmodes,
+        compute_DOS=compute_DOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS, dos_sizes_args= dos_sizes_args, 
+        compute_eigenmodes = compute_eigenmodes, number_eigenmodes = number_eigenmodes, plot_eigenmodes = plot_eigenmodes, sorting_type = sorting_type,
         intensity_fields = intensity_fields, amplitude_fields=amplitude_fields, phase_fields=phase_fields, just_compute_averages=just_compute_averages,
-        dospoints=dospoints, spacing_factor=spacing_factor, idos_radius=idos_radius, write_eigenvalues=write_eigenvalues, write_ldos=write_ldos, gridsize=gridsize, window_width=window_width, batch_size = batch_size, angular_width=angular_width, plot_theta_index=plot_theta_index,
+        dospoints=dospoints, spacing_factor=spacing_factor, idos_radius=idos_radius, write_eigenvalues=write_eigenvalues, write_ldos=write_ldos, gridsize=gridsize, window_width=window_width, batch_size = batch_size, angular_width=angular_width, plot_theta_index=plot_theta_index, adapt_scale = adapt_scale,
         output_directory=output_directory
         )
     sys.exit()

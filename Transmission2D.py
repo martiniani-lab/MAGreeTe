@@ -630,11 +630,11 @@ class Transmission2D:
             onp.savetxt(file_name+'_deltas_'+str(k0_)+'_'+extra_string+'.csv', onp.stack([np.real(deltas).numpy(), np.imag(deltas).numpy(), IPRs]).T)
             
             
-        if sorting_type is 'IPR':
+        if sorting_type == 'IPR':
             IPRs, indices = np.sort(IPRs, descending=True)
             deltas = deltas[indices]
             eigenvectors = eigenvectors[:,indices]
-        elif sorting_type is 'damping':
+        elif sorting_type == 'damping':
             indices = np.argsort(np.imag(deltas), descending= False) # Want SMALL dampings first
             deltas = deltas[indices]
             IPRs = IPRs[indices]
@@ -1339,7 +1339,7 @@ class Transmission2D_scalar:
 
         ### TM Calculation
         # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
-        M_tensor = -alpha*k0*k0*self.G0_TM(self.r, k0, print_statement='DOS eigvals')
+        M_tensor = -alpha*k0*k0*self.G0(self.r, k0, print_statement='DOS eigvals')
         M_tensor.fill_diagonal_(1)
         if self_interaction:
             # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
