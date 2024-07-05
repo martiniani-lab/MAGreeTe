@@ -643,20 +643,15 @@ class Transmission2D:
             raise NotImplementedError
             
         
-        returned_eigenvalues = deltas[0:number_eigenmodes]
         returned_eigenvectors = eigenvectors[:, 0:number_eigenmodes]
+
+        # Debug plots
+        # returned_eigenvalues = deltas[0:number_eigenmodes]
+        # print(returned_eigenvalues)
+        # print(IPRs.amax())
+        # print(IPRs[0])
         
-        # Old debug plots
-        # utils.plot_IPR_damping_values(lambdas, IPRs, file_name)
-        # utils.plot_IPR_damping_values(alpha * lambdas**2 / (1.0 - k0**2 * alpha * lambdas), IPRs, file_name+'_rhos_')
-        
-        print(returned_eigenvalues)
-        print(IPRs.amax())
-        print(IPRs[0])
-        
-        
-        
-        return lambdas, returned_eigenvectors, IPRs
+        return deltas, returned_eigenvectors, IPRs
 class Transmission2D_hmatrices:
     
 
@@ -745,7 +740,11 @@ class Transmission2D_hmatrices:
                 # Rotate the TE polarization at the end to match actual coordinates
                 # rot-1 = rotT
                 E0TE[:,:,idx] = np.matmul(rot.T, E0TE[:,:,idx].T).T
-                
+        
+        elif self.source is None:
+            E0TM = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
+            E0TE = np.zeros((points.shape[0],2,len(thetas)),dtype=np.complex128)
+        
         else:
             raise NotImplementedError
                 
@@ -1072,6 +1071,9 @@ class Transmission2D_scalar:
                 source_location = source_distance * np.tensor([-1.0, 0.0])
                 E0j[:,idx] = onp.sqrt(source_intensity) * self.torch_greens(rrot.reshape(-1,1,2) - source_location.reshape(1,-1,2), k0).reshape(points.shape[0])
                 
+        elif self.source is None:
+            E0j = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
+
         else:
             raise NotImplementedError
                 
@@ -1329,6 +1331,57 @@ class Transmission2D_scalar:
 
         return dos_factor_TM
     
+    def compute_eigenmodes_IPR(self, k0, alpha, radius, file_name, self_interaction = True, self_interaction_type = "Rayleigh", number_eigenmodes = 1, write_eigenvalues = True, sorting_type = 'IPR'):
+    
+        Npoints = self.r.shape[0]
+        k0_ = onp.round(k0/(2.0*onp.pi),1)
+        print("Computing spectrum and scatterer LDOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
+
+        ### TM Calculation
+        # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
+        M_tensor = -alpha*k0*k0*self.G0_TM(self.r, k0, print_statement='DOS eigvals')
+        M_tensor.fill_diagonal_(1)
+        if self_interaction:
+            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
+            volume = onp.pi*radius*radius
+            dims = M_tensor.shape[0]
+            M_tensor -= alpha*k0*k0*self_interaction_integral_TM(k0, radius, self_interaction_type)/volume * np.eye(dims)
+    
+        # Works, maybe consider scipy.schur instead, and output IPRs + one / some eigenvector(s) for plotting purposes
+        lambdas, eigenvectors = np.linalg.eig(M_tensor)
+        IPRs = np.sum(np.abs(eigenvectors**4), axis = 0) / (np.sum(np.abs(eigenvectors**2), axis = 0))**2
+        
+        deltas = 1.0 - k0**2 * alpha * lambdas
+        utils.plot_IPR_damping_values(deltas, IPRs, file_name+'_deltas', logscale=True, appended_string=str(k0_))
+        # utils.plot_IPR_damping_values(1-lambdas, IPRs, file_name+'_test'+extra_string, logscale=True, appended_string=str(k0_))
+        
+        if write_eigenvalues:
+            onp.savetxt(file_name+'_deltas_'+str(k0_)+'.csv', onp.stack([np.real(deltas).numpy(), np.imag(deltas).numpy(), IPRs]).T)
+            
+            
+        if sorting_type is 'IPR':
+            IPRs, indices = np.sort(IPRs, descending=True)
+            deltas = deltas[indices]
+            eigenvectors = eigenvectors[:,indices]
+        elif sorting_type is 'damping':
+            indices = np.argsort(np.imag(deltas), descending= False) # Want SMALL dampings first
+            deltas = deltas[indices]
+            IPRs = IPRs[indices]
+            eigenvectors = eigenvectors[:,indices]
+        else:
+            raise NotImplementedError
+            
+        
+        returned_eigenvectors = eigenvectors[:, 0:number_eigenmodes]
+
+        # Debug plots
+        # returned_eigenvalues = deltas[0:number_eigenmodes]
+        # print(returned_eigenvalues)
+        # print(IPRs.amax())
+        # print(IPRs[0])
+        
+        return deltas, returned_eigenvectors, IPRs
+    
 class Transmission2D_scalar_hmatrices:
 
     def __init__(self, points, source = "beam"):
@@ -1398,6 +1451,9 @@ class Transmission2D_scalar_hmatrices:
                 source_location = source_distance * np.tensor([-1.0, 0.0])
                 E0j[:,idx] = onp.sqrt(source_intensity) * self.torch_greens(rrot.reshape(-1,1,2) - source_location.reshape(1,-1,2), k0).reshape(points.shape[0])
                 
+        elif self.source is None:
+            E0j = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
+
         else:
             raise NotImplementedError
         
