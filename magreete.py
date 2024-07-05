@@ -1541,6 +1541,8 @@ def make_lattice(lattice, N_raw, kick, ndim):
             if Ny%2 == 0:
                 Ny += 1
             points = lattices.honeycomb(Nx=Nx, Ny=Ny, disp=kick)
+        elif lattice == 'vogel':
+            points = lattices.vogel_spiral(N_raw)
         elif lattice.split("_")[0] == 'quasicrystal':
             if len(lattice.split("_")) == 1:
                 qc_symmetry = 5
@@ -1635,7 +1637,7 @@ if __name__ == '__main__':
     parser.add_argument("-i", "--input_files", nargs='+', type=str, help="Name of hkl files containing points. May contain several, that will be averaged over. \
         default=None", default=None)
     parser.add_argument("-l", "--lattice", type=str, help="Use a simple lattice in lieu of datapoints as entry. \
-        Options are 'square', 'triangular', 'honeycomb', 'quasicrystal', 'quasidual', 'quasivoro', 'quasideBruijn', 'poisson' in 2d, and 'cubic', 'fcc', 'bcc', 'diamond', 'poisson' in 3d. \
+        Options are 'square', 'triangular', 'honeycomb', 'vogel', 'quasicrystal', 'quasidual', 'quasivoro', 'quasideBruijn', 'poisson' in 2d, and 'cubic', 'fcc', 'bcc', 'diamond', 'poisson' in 3d. \
         default=None", default=None)
     parser.add_argument("-a", "--annulus", type=float, help="radius of circular removal of points \
         default=0", default=0)

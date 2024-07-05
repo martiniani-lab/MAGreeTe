@@ -13,6 +13,7 @@ import utils
 from Transmission2D import Transmission2D_scalar, Transmission2D_scalar_hmatrices
 from Transmission3D import Transmission3D_scalar, Transmission3D_scalar_hmatrices
 import lattices
+from magreete import make_lattice
 
 
 import argparse
@@ -1216,87 +1217,6 @@ def main(ndim, # Required arguments
 
                     if write_ldos:
                         onp.savetxt(file_name+'_ldos_'+str(k0_)+'_'+str(index)+'.csv',ldos.numpy())
-
-def make_lattice(lattice, N_raw, kick, ndim):
-
-    if ndim==2:
-        if lattice == 'square':
-            Nside = int(onp.round(onp.sqrt(N_raw)))
-            if Nside%2==0:
-                Nside += 1
-            points = lattices.square(Nside=Nside, disp=kick)
-        elif lattice == 'triangular':
-            Nx = int(onp.round(onp.sqrt(N_raw / onp.sqrt(3.0))))
-            Ny = int(onp.round(onp.sqrt(3.0) * Nx))
-            if Nx%2==0:
-                Nx += 1
-            if Ny%2 == 0:
-                Ny += 1
-            points = lattices.triangular(Nx=Nx, Ny=Ny, disp=kick)
-        elif lattice == 'honeycomb':
-            Nx = int(onp.round(onp.sqrt(N_raw / onp.sqrt(3.0))))
-            Ny = int(onp.round(onp.sqrt(3.0) * Nx))
-            if Nx%2==0:
-                Nx += 1
-            if Ny%2 == 0:
-                Ny += 1
-            points = lattices.honeycomb(Nx=Nx, Ny=Ny, disp=kick)
-        elif lattice.split("_")[0] == 'quasicrystal':
-            if len(lattice.split("_")) == 1:
-                qc_symmetry = 5
-            else:
-                qc_symmetry = int(lattice.split("_")[1])
-            points = lattices.quasicrystal(N=N_raw, mode='quasicrystal', disp=kick, ndirs = qc_symmetry)
-        elif lattice.split("_")[0] == 'quasivoro':
-            if len(lattice.split("_")) == 1:
-                qc_symmetry = 5
-            else:
-                qc_symmetry = int(lattice.split("_")[1])
-            points = lattices.quasicrystal(N=N_raw, mode='quasivoro', disp=kick, ndirs = qc_symmetry)
-        elif lattice.split("_")[0] == 'quasidual':
-            if len(lattice.split("_")) == 1:
-                qc_symmetry = 5
-            else:
-                qc_symmetry = int(lattice.split("_")[1])
-            points = lattices.quasicrystal(N=N_raw, mode='quasidual', disp=kick, ndirs = qc_symmetry)
-        elif lattice.split("_")[0] == 'quasideBruijn':
-            if len(lattice.split("_")) == 1:
-                qc_symmetry = 5
-            else:
-                qc_symmetry = int(lattice.split("_")[1])
-            points = lattices.quasicrystal(N=N_raw, mode='deBruijndual', disp=kick, ndirs = qc_symmetry)
-        elif lattice == 'poisson':
-            points = lattices.poisson(N_raw, ndim)
-        else:
-            print("Not a valid lattice!")
-            exit()
-
-    elif ndim == 3:
-        if lattice == 'cubic':
-            Nside  = int(onp.round(onp.cbrt(N_raw)))
-            points = lattices.cubic(Nside=Nside, disp=kick)
-        elif lattice == 'bcc':
-            # bcc has two atoms per unit cell
-            Nside  = int(onp.round(onp.cbrt(N_raw/2)))
-            points = lattices.bcc(Nside=Nside, disp=kick)
-        elif lattice == 'fcc':
-            # fcc has four atoms per unit cell
-            Nside  = int(onp.round(onp.cbrt(N_raw/4)))
-            points = lattices.fcc(Nside=Nside, disp=kick)
-        elif lattice == 'diamond':
-            # diamond has two atoms per unit cell
-            Nside  = int(onp.round(onp.cbrt(N_raw/2)))
-            points = lattices.diamond(Nside=Nside, disp=kick)
-        elif lattice == 'poisson':
-            points = lattices.poisson(N_raw, ndim)
-        else: 
-            print("Not a valid lattice!")
-            exit()
-    else:
-        print("Not a valid dimensionality!")
-        exit()
-
-    return points
 
 
 if __name__ == '__main__':
