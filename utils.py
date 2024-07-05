@@ -352,17 +352,29 @@ def plot_2d_points(points, file_name):
     plt.savefig(file_name+'_2dplot.png', dpi = 300)
     
 def plot_IPR_damping_values(lambdas, IPRs, file_name, appended_string = '', logscale = False):
+    
     fig = plt.figure(figsize=(10,10),dpi=300)
     ax = fig.gca()
-
     scatterplot = ax.scatter(np.real(lambdas), np.imag(lambdas), c=IPRs, s = 100, edgecolors='none',  cmap=cmr.bubblegum, vmin = 0, vmax = 0.5)
     cbar = plt.colorbar(scatterplot)
     cbar.set_label('IPR', rotation=270)
-    ax.set_xlabel(r'$Re \Lambda_n$')
-    ax.set_ylabel(r'$Im \Lambda_n$')
+    ax.set_xlabel(r'$Re \Delta_n$')
+    ax.set_ylabel(r'$Im \Delta_n$')
     if logscale:
         ax.set_yscale('log')
-    plt.savefig(file_name+'_lambdas_IPRs'+appended_string+'.png', dpi = 300)
+    plt.savefig(file_name+'_deltas_IPRs'+appended_string+'.png', dpi = 300)
+    plt.close()
+    
+    fig = plt.figure(figsize=(10,10),dpi=300)
+    ax = fig.gca()
+    scatterplot = ax.scatter(np.imag(lambdas), IPRs, c=IPRs, s = 100, edgecolors='none',  cmap=cmr.bubblegum, vmin = 0, vmax = 0.5)
+    ax.set_xlabel(r'$Im \Delta_n$')
+    ax.set_ylabel(r'$IPR$')
+    if logscale:
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+    plt.savefig(file_name+'_damping_IPRs'+appended_string+'.png', dpi = 300)
+    plt.close()
 
 def plot_LDOS_2D(ldos_change,k0_,ngridx,ngridy,file_name,my_dpi=1, appended_string=''):
 

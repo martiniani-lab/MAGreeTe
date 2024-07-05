@@ -28,6 +28,10 @@ def main(ndim, # Required arguments
     '''
     Simple front-end for MAGreeTe
     '''
+    
+    # XXX DEBUG, EXPOSE THESE OR REMOVE THEM
+    sorting_type = 'damping'
+    plot_eigenmodes = True
     cut_radius = 0.5
     # Whether to snap scales in intensity maps
     adapt_scale = False
@@ -679,32 +683,45 @@ def main(ndim, # Required arguments
                 for k0, alpha in zip(k0range,alpharange):
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                     k0_range.append(k0_)
-                    _, eigenmodes_TM,_ = solver.compute_eigenmodes_IPR_TM( k0, alpha, radius, file_name, write_eigenvalues = True, number_eigenmodes = number_eigenmodes, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-                    _, eigenmodes_TE,_ = solver.compute_eigenmodes_IPR_TE( k0, alpha, radius, file_name, write_eigenvalues = True, number_eigenmodes = number_eigenmodes, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
 
-                    for i in range(number_eigenmodes):
+                    _, eigenmodes_TM,_ = solver.compute_eigenmodes_IPR( k0, alpha, radius, file_name, write_eigenvalues = True, number_eigenmodes = number_eigenmodes, self_interaction = self_interaction, self_interaction_type = self_interaction_type, sorting_type = sorting_type, scalar = True)
+                    _, eigenmodes_TE,_ = solver.compute_eigenmodes_IPR( k0, alpha, radius, file_name, write_eigenvalues = True, number_eigenmodes = number_eigenmodes, self_interaction = self_interaction, self_interaction_type = self_interaction_type, sorting_type = sorting_type, scalar = False)
+
+                    if plot_eigenmodes:
                         
-                        ETEall = []
-                        ETMall = []
+                        for i in range(number_eigenmodes):
+                            
+                            ETEall = []
+                            ETMall = []
+                            
+                            # By default, the eigenvectors are such that their modulus is 1
+                            eigenmodes_TM[:,i] /= np.abs(eigenmodes_TM[:,i]).amax()
+                            eigenmodes_TE[:,i] /= np.abs(eigenmodes_TE[:,i]).amax()
 
-                        for batch in range(0, n_batches):
-                            print("Batch "+str(batch+1))
-                            batch_points = batches[batch]
+                            for batch in range(0, n_batches):
+                                print("Batch "+str(batch+1))
+                                batch_points = batches[batch]
 
-                            eigenfield_TE, eigenfield_TM = solver.propagate_EM(batch_points, eigenmodes_TE[:,i], eigenmodes_TM[:,i].unsqueeze(-1), k0, alpha, [0.0], w, regularize = regularize, radius=radius)
+                                eigenfield_TE, eigenfield_TM = solver.propagate_EM(batch_points, eigenmodes_TE[:,i], eigenmodes_TM[:,i].unsqueeze(-1), k0, alpha, [0.0], w, regularize = regularize, radius=radius)
 
-                            ETEall.append(eigenfield_TE)
-                            ETMall.append(eigenfield_TM)
+                                ETEall.append(eigenfield_TE)
+                                ETMall.append(eigenfield_TM)
 
-                        ETEall = np.cat(ETEall, dim=0).squeeze(-1)
-                        ETMall = np.cat(ETMall, dim=0)
+                            ETEall = np.cat(ETEall, dim=0).squeeze(-1)
+                            ETMall = np.cat(ETMall, dim=0)
 
-                        ETEall_amplitude          = np.sqrt(np.absolute(ETEall[:,0])**2 + np.absolute(ETEall[:,1])**2)
-                        ETEall_amplitude    = ETEall_amplitude.reshape(ngridy, ngridx)
-                        ETMall = ETMall.reshape(ngridy, ngridx)
+                            ETEall_amplitude    = np.sqrt(np.absolute(ETEall[:,0])**2 + np.absolute(ETEall[:,1])**2)
+                            ETEall_amplitude    = ETEall_amplitude.reshape(ngridy, ngridx)
+                            ETMall = ETMall.reshape(ngridy, ngridx)
+                            
+                            plot_IPR_TM = np.sum(np.abs(ETMall**4)) / (np.sum(np.abs(ETMall**2)))**2
+                            plot_IPR_TE = np.sum(np.abs(ETEall**4)) / (np.sum(np.abs(ETEall**2)))**2
+                            
+                            print(f"Effective TM IPR of the whole eigenfield: {plot_IPR_TM}")
+                            print(f"Effective TE IPR of the whole eigenfield: {plot_IPR_TE}")
 
-                        utils.plot_full_fields(ETEall_amplitude, ngridx, ngridy, k0_, 0, True, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE_eigen_'+str(i), my_dpi = 300)
-                        utils.plot_full_fields(ETMall, ngridx, ngridy, k0_, 0, True, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TM_eigen_'+str(i), my_dpi = 300)
+                            utils.plot_full_fields(ETEall_amplitude, ngridx, ngridy, k0_, 0, True, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE_eigen_'+sorting_type+str(i), my_dpi = 300)
+                            utils.plot_full_fields(ETMall, ngridx, ngridy, k0_, 0, True, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TM_eigen_'+sorting_type+str(i), my_dpi = 300)
 
 
             if compute_DOS:
@@ -1186,6 +1203,64 @@ def main(ndim, # Required arguments
                             utils.plot_full_fields(Eall_transverse, ngridx, ngridy, k0_, angle_, intensity_fields, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_trans_scat', my_dpi = 300)
 
 
+            if compute_eigenmodes:
+                
+                # Expensive computation
+                ngridx = gridsize[0]
+                ngridy = gridsize[1]
+                xyratio = ngridx/ngridy
+                x,y,z = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5, [0.0])
+                measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T)*L*window_width)
+
+                batches = np.split(measurement_points, batch_size)
+                n_batches = len(batches)
+
+                extra_string=""
+                if n_batches > 1:
+                    extra_string = extra_string+"es"
+                print("Computing the eigenfields and plotting the "+str(number_eigenmodes)+" most localized at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
+
+                
+                if method == "torch":
+                    solver = Transmission3D(points, source = None)
+                elif method == "hmatrices":
+                    solver = Transmission3D_hmatrices(points, source = None)
+                else:
+                    print("Choose a valid method")
+                    sys.exit()
+                    
+                k0_range = []
+
+                for k0, alpha in zip(k0range,alpharange):
+                    k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                    k0_range.append(k0_)
+
+                    _, eigenmodes,_ = solver.compute_eigenmodes_IPR( k0, alpha, radius, file_name, write_eigenvalues = True, number_eigenmodes = number_eigenmodes, self_interaction = self_interaction, self_interaction_type = self_interaction_type, sorting_type = sorting_type, scalar = False)
+
+                    if plot_eigenmodes:
+                        
+                        for i in range(number_eigenmodes):
+                            
+                            Eall = []
+                            
+                            # By default, the eigenvectors are such that their modulus is 1
+                            eigenmodes[:,i] /= np.abs(eigenmodes[:,i]).amax()
+
+                            for batch in range(0, n_batches):
+                                print("Batch "+str(batch+1))
+                                batch_points = batches[batch]
+
+                                eigenfield = solver.propagate(batch_points, eigenmodes[:,i], k0, alpha, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], w, regularize = regularize, radius=radius)
+
+                                Eall.append(eigenfield)
+                                
+                            Eall = np.cat(Eall, dim=0).squeeze(-1)
+
+                            Eall_amplitude          = np.sqrt(np.absolute(Eall[:,0])**2 + np.absolute(Eall[:,1])**2 + np.absolute(Eall[:,2])**2)
+                            Eall_amplitude    = Eall_amplitude.reshape(ngridy, ngridx)
+
+                            utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, 0, True, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_eigen_'+sorting_type+str(i), my_dpi = 300)
+
             if compute_SDOS:
                 if method == "torch":
                     solver = Transmission3D(points, source = source)
@@ -1594,7 +1669,7 @@ if __name__ == '__main__':
         default=1", default = None)
     parser.add_argument("-em", "--compute_eigenmodes", action='store_true', help="Compute the eigenmodes of the linear system used to solve coupled dipoles, and saves eigenvalues, IPR, and some eigenfields\
         default = False", default=False)
-    parser.add_argument("-nm","--number_eigenmodes", type = int, help = "Number of eigenmodes to save on both ends of the IPR extremes\
+    parser.add_argument("-nem","--number_eigenmodes", type = int, help = "Number of eigenmodes to save on both ends of the IPR extremes\
         default = 1", default = 1)
     parser.add_argument("--intensity_fields", action = "store_true", help="Output images of intensity fields for every beam used in the angular plot, in real space\
         default = False", default=False)
