@@ -79,7 +79,7 @@ def vogel_spiral(N = 1000):
     golden = (1 + 5 ** 0.5) / 2
     psi = 2.0 * np.pi / (golden**2)
 
-    n = np.arange(N)
+    n = np.arange(N, dtype=np.double)
 
     x = np.cos(n * psi) * np.sqrt(n)
     y = np.sin(n * psi) * np.sqrt(n)
