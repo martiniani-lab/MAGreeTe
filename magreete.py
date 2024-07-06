@@ -13,6 +13,7 @@ import utils
 from Transmission2D import Transmission2D, Transmission2D_hmatrices
 from Transmission3D import Transmission3D, Transmission3D_hmatrices
 import lattices
+import magreete_scalar
 
 import argparse
 
@@ -1628,6 +1629,8 @@ if __name__ == '__main__':
     parser.add_argument("--boxsize", type=float, help="Set physical units for the box size: the results are dimensionless so that default=1", default = 1)
     parser.add_argument("-sss", "--size_subsample", type = float, help = "Fraction of the initial system sidelength to keep if only a subsample is necessary,\
         default = 1.0 (largest inscribed disk)", default = 1.0)
+    parser.add_argument("--scalar", action = 'store_true', help = "Use scalar waves\
+        default = false", default = False)
     # Ranges of wave-vectors and beam orientations, index of copy to look at
     parser.add_argument("-k", "--k0range", nargs='+', type=float, help = "Values of k0 to span, in units of 2pi/L. Can be a single-value argument, a k_min and a k_max (with default step 1), or k_min, k_max, and step\
         default=(1,0.25 * L/scatterer_radius,0.5)*2pi/L ", default=None)
@@ -1725,6 +1728,7 @@ if __name__ == '__main__':
     beam_waist                      = args.beam_waist
     boxsize                         = args.boxsize
     size_subsample                  = args.size_subsample
+    scalar                          = args.scalar
     # Ranges of wave-vectors and beam orientations, index of copy for source points
     k0range_args                    = args.k0range
     if k0range_args     != None:
@@ -1787,7 +1791,13 @@ if __name__ == '__main__':
         os.environ["PYTHON_JULIACALL_THREADS"] = str(n_cpus) # https://docs.juliahub.com/PythonCall/WdXsa/0.9.7/juliacall/
         os.environ["OMP_NUM_THREADS"] = str(n_cpus)
     
-    main(ndim,
+    
+    if scalar:
+        run = magreete_scalar.main_scalar
+    else:
+        run = main
+        
+    run(ndim,
         refractive_n = refractive_n,  phi=phi, regularize=regularize, N_raw=N, source = source, beam_waist=beam_waist, L=boxsize, size_subsample=size_subsample,
         k0range_args = k0range_args, thetarange_args=thetarange_args, input_files_args = input_files_args,
         cold_atoms=cold_atoms, kresonant_ = kresonant_, lattice=lattice, annulus = annulus, composite = composite, kick = kick, method = method,
