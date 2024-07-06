@@ -1234,7 +1234,7 @@ def main(ndim, # Required arguments
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                     k0_range.append(k0_)
 
-                    _, eigenmodes,_ = solver.compute_eigenmodes_IPR( k0, alpha, radius, file_name, write_eigenvalues = True, number_eigenmodes = number_eigenmodes, self_interaction = self_interaction, self_interaction_type = self_interaction_type, sorting_type = sorting_type, scalar = False)
+                    _, eigenmodes,_ = solver.compute_eigenmodes_IPR( k0, alpha, radius, file_name, write_eigenvalues = True, number_eigenmodes = number_eigenmodes, self_interaction = self_interaction, self_interaction_type = self_interaction_type, sorting_type = sorting_type)
 
                     if plot_eigenmodes:
                         
@@ -1249,7 +1249,7 @@ def main(ndim, # Required arguments
                                 print("Batch "+str(batch+1))
                                 batch_points = batches[batch]
 
-                                eigenfield = solver.propagate(batch_points, eigenmodes[:,i], k0, alpha, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], w, regularize = regularize, radius=radius)
+                                eigenfield = solver.propagate(batch_points, eigenmodes[:,i], k0, alpha, np.tensor([1.0, 0.0, 0.0]).reshape(1,3), np.tensor([0.0, 1.0, 0.0]).reshape(1,3), w, regularize = regularize, radius=radius)
 
                                 Eall.append(eigenfield)
                                 

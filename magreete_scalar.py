@@ -1051,7 +1051,7 @@ def main_scalar(ndim, # Required arguments
                                 print("Batch "+str(batch+1))
                                 batch_points = batches[batch]
 
-                                eigenfield = solver.propagate(batch_points, eigenmodes[:,i].unsqueeze(-1), k0, alpha, [0.0, 0.0, 0.0], w, regularize = regularize, radius=radius)
+                                eigenfield = solver.propagate(batch_points, eigenmodes[:,i].unsqueeze(-1), k0, alpha, np.tensor([0.0, 0.0, 0.0]).reshape(1,3), w, regularize = regularize, radius=radius)
 
                                 Eall.append(eigenfield)
 
