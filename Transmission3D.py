@@ -837,7 +837,7 @@ class Transmission3D_scalar:
         else:
             raise NotImplementedError
         
-        return E0j.reshape(points.shape[0],u.shape[0])
+        return E0j.reshape(points.shape[0],u.shape[1])
  
     def propagate(self, points, Ek, k0, alpha, u, beam_waist, regularize = False, radius = 0.0):
         '''

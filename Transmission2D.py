@@ -660,6 +660,7 @@ class Transmission2D_hmatrices:
         self.N = self.r.shape[0]
         self.source = source
         jlPkg.activate("Transmission2D")
+        jlPkg.instantiate()
         jl.seval("using Transmission2D")
     
     
@@ -1389,6 +1390,7 @@ class Transmission2D_scalar_hmatrices:
         self.N = self.r.shape[0]
         self.source = source
         jlPkg.activate("Transmission2D")
+        jlPkg.instantiate()
         jl.seval("using Transmission2D")
     
     

@@ -3,6 +3,7 @@ import torch as np
 import scipy as sp
 import os
 import sys
+import hickle as hkl
 
 import matplotlib
 matplotlib.use('Agg')
@@ -287,6 +288,7 @@ def plot_full_fields(field, ngridx, ngridy, k0_, angle_, intensity_fields, ampli
     if intensity_fields:
 
         intensity = onp.absolute(field)**2
+        intensity = np.where(intensity == 0.0, 1e-19, intensity)
 
         fig = plt.figure(figsize = (ngridx/my_dpi, ngridy/my_dpi), dpi = my_dpi)
         ax = plt.gca()
@@ -614,6 +616,28 @@ def plot_averaged_DOS(k0range, L, DOS, file_name, DOS_type, appended_string='', 
     plt.savefig(file_name+'_'+DOS_type+'_avg'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
     plt.close()
 
+def loadpoints(file_path, ndim):
+    
+    if '.hkl' in file_path:
+        points = hkl.load(file_path)[:,0:ndim]
+    elif '.txt' in file_path:
+        
+        with open(file_path, 'r') as file:
+            first_line = file.readline()
+        # Determine the delimiter based on the first line
+        if ',' in first_line:
+            delimiter = ','
+        elif ' ' in first_line:
+            delimiter = ' '
+        else:
+            raise NotImplementedError("Delimiter not identified")
+        
+        points = onp.loadtxt(file_path, delimiter=delimiter)[:,0:ndim]
+    else:
+        print("Wrong file format")
+        sys.exit()
+        
+    return points
 
 def trymakedir(path):
     """this function deals with common race conditions"""

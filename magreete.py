@@ -24,7 +24,7 @@ def main(ndim, # Required arguments
         k0range_args = None, thetarange_args = None,# Range of values to use
         compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, scattered_fields=False, transmission_radius = 2.0,
         compute_DOS=False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, dos_sizes_args = None, dospoints=1, spacing_factor = 1.0, idos_radius = 1.0, 
-        compute_eigenmodes = False, number_eigenmodes = 1, plot_eigenmodes = False, sorting_type = 'IPR',
+        compute_eigenmodes = False, number_eigenmodes = 1, plot_eigenmodes = False, sorting_type = 'IPR', adapt_z = True,
         intensity_fields = False, amplitude_fields = False, phase_fields = False, just_compute_averages = False,# Computations to perform
         write_eigenvalues=False, write_ldos= False,  gridsize=(301,301), window_width=1.2, angular_width = 0.0, plot_theta_index = 0, batch_size = 101*101, adapt_scale = False, output_directory="" # Parameters for outputs
         ):
@@ -109,10 +109,14 @@ def main(ndim, # Required arguments
         if lattice == None:
 
             file_name = input_files_args[file_index]
-            points = hkl.load(file_name)
-            points = np.tensor(points[:,0:ndim],dtype=np.double)
+            
+            points = utils.loadpoints(file_name, ndim)
+            points = np.tensor(points,dtype=np.double)
+            
             if np.amax(points)>0.5:
-                points -= 0.5
+                points -= np.mean(points)
+                points /= points.amax()
+                points /= 2.0
             shape_before = points.shape
             
             # Make output dir
@@ -1248,6 +1252,10 @@ def main(ndim, # Required arguments
                             for batch in range(0, n_batches):
                                 print("Batch "+str(batch+1))
                                 batch_points = batches[batch]
+                                
+                                if adapt_z:
+                                    indexmax = np.argmax(np.norm(np.abs(eigenmodes[:,i]).reshape(points.shape[0], 3), axis = 1))
+                                    batch_points[:,2] = points[indexmax, 2]
 
                                 eigenfield = solver.propagate(batch_points, eigenmodes[:,i], k0, alpha, np.tensor([1.0, 0.0, 0.0]).reshape(1,3), np.tensor([0.0, 1.0, 0.0]).reshape(1,3), w, regularize = regularize, radius=radius)
 
@@ -1255,7 +1263,7 @@ def main(ndim, # Required arguments
                                 
                             Eall = np.cat(Eall, dim=0).squeeze(-1)
 
-                            Eall_amplitude          = np.sqrt(np.absolute(Eall[:,0])**2 + np.absolute(Eall[:,1])**2 + np.absolute(Eall[:,2])**2)
+                            Eall_amplitude    = np.sqrt(np.absolute(Eall[:,0])**2 + np.absolute(Eall[:,1])**2 + np.absolute(Eall[:,2])**2)
                             Eall_amplitude    = Eall_amplitude.reshape(ngridy, ngridx)
 
                             utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, 0, True, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_eigen_'+sorting_type+str(i), my_dpi = 300)
