@@ -1176,6 +1176,7 @@ class Transmission3D_scalar_hmatrices:
         self.source = source
         jlPkg.activate("Transmission3D")
         jl.seval("using Transmission3D")
+        
     
     
     def generate_source(self, points, k0, u, w, print_statement = ''):

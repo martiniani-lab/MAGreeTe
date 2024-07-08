@@ -288,7 +288,7 @@ def plot_full_fields(field, ngridx, ngridy, k0_, angle_, intensity_fields, ampli
     if intensity_fields:
 
         intensity = onp.absolute(field)**2
-        intensity = np.where(intensity == 0.0, 1e-19, intensity)
+        intensity = np.where(intensity <= 1e-10, 1e-10, intensity)
 
         fig = plt.figure(figsize = (ngridx/my_dpi, ngridy/my_dpi), dpi = my_dpi)
         ax = plt.gca()

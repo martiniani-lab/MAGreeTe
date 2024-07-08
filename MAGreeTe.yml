@@ -15,6 +15,7 @@ dependencies:
   - torchvision
   - torchaudio
   - cpuonly
+  - mkl==2024.0 # https://github.com/pytorch/pytorch/issues/123097#issuecomment-2095228569
   - pip
   - pip:
     - juliacall
