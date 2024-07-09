@@ -1254,7 +1254,7 @@ def main(ndim, # Required arguments
                                 batch_points = batches[batch]
                                 
                                 if adapt_z:
-                                    indexmax = np.argmax(np.norm(np.abs(eigenmodes[:,i]).reshape(points.shape[0], 3), axis = 1))
+                                    indexmax = np.argmax(np.linalg.norm(np.abs(eigenmodes[:,i]).reshape(points.shape[0], 3), axis = 1))
                                     batch_points[:,2] = points[indexmax, 2]
 
                                 eigenfield = solver.propagate(batch_points, eigenmodes[:,i], k0, alpha, np.tensor([1.0, 0.0, 0.0]).reshape(1,3), np.tensor([0.0, 1.0, 0.0]).reshape(1,3), w, regularize = regularize, radius=radius)
