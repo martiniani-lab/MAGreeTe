@@ -832,12 +832,12 @@ class Transmission3D_scalar:
         
         elif self.source is None:
             
-            E0j = np.zeros((points.shape[0],u.shape[1],u.shape[0]),dtype=np.complex128)
+            E0j = np.zeros((points.shape[0],u.shape[1]),dtype=np.complex128)
         
         else:
             raise NotImplementedError
         
-        return E0j.reshape(points.shape[0],u.shape[1])
+        return E0j
  
     def propagate(self, points, Ek, k0, alpha, u, beam_waist, regularize = False, radius = 0.0):
         '''
