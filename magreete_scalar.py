@@ -69,6 +69,22 @@ def main_scalar(ndim, # Required arguments
         else:
             thetas = onp.arange(thetarange_args[0],thetarange_args[1]+thetarange_args[2],thetarange_args[2]) * np.pi / 180.0
             Ntheta = len(thetas)
+
+    # Sizes to use for DOS
+    if dos_sizes_args == None:
+        Ndos_sizes = 1
+        dos_sizes  = onp.array([1.0])
+    else:
+        if len(dos_sizes_args)==1:
+            Ndos_sizes = 1
+            dos_sizes  = onp.array(dos_sizes_args)
+        elif len(dos_sizes_args)==2:
+            dos_sizes = onp.linspace(dos_sizes_args[0],dos_sizes_args[1],num=10) 
+            Ndos_sizes = len(dos_sizes)
+        else:
+            dos_sizes = onp.arange(dos_sizes_args[0],dos_sizes_args[1]+dos_sizes_args[2],dos_sizes_args[2])
+            Ndos_sizes = len(dos_sizes)
+    
     # Keep a copy of the thetas used to plot if thetas get overwritten when loading files
     thetas_plot = thetas 
     # Figure out how many angles around the central one to use for the definition of transmission
@@ -1133,53 +1149,55 @@ def main_scalar(ndim, # Required arguments
                 utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'dos',appended_string='_'+str(file_index))
 
             if compute_interDOS:
-                if method == "torch":
-                    solver = Transmission3D_scalar(points, source = source)
-                elif method == "hmatrices":
-                    solver = Transmission3D_scalar_hmatrices(points, source = source)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
-                DOSall = []
-                k0_range = []
+                for dos_size in dos_sizes[::-1]:
+                    DOSall = []
+                    k0_range = []
 
-                # Expensive computation in 3d
-                M = dospoints
-                measurement_points = utils.uniform_unit_ball_picking(M, ndim)
-                measurement_points *= L/2
-
-                # Find all overlaps and redraw while you have some
-                # Following Pierrat et al., I use 1 diameter as the spacing there
-                spacing = 2.0*radius
-                spacing *= spacing_factor
-                overlaps = np.nonzero(np.sum(np.cdist(measurement_points, points, p=2) <= spacing)).squeeze()
-                count = overlaps.shape[0]
-                while count > 0:
-                    print("Removing "+str(count)+" overlaps using an exclusion distance of "+str(spacing_factor)+" scatterer diameters...")
-                    measurement_points[overlaps] = L/2 * utils.uniform_unit_ball_picking(count, ndim).squeeze()
-                    overlaps = np.nonzero(np.sum(np.cdist(measurement_points, points, p=2) <= spacing))
-                    if len(overlaps.shape) == 0:
-                        count = 0
-                    else:
-                        count = overlaps.shape[0]
+                    # Expensive computation in 3d
+                    M = dospoints
+                    measurement_points = utils.uniform_unit_ball_picking(M, ndim)
+                    measurement_points *= dos_size * L/2 * idos_radius
+                    ball_points = lattices.cut_circle(points, rad = dos_size * 0.5)
 
 
-                utils.plot_3d_points(measurement_points, file_name+'_measurement')
-
-                for k0, alpha in zip(k0range,alpharange):
-                    dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
                     if method == "torch":
-                        DOSall.append(dos.numpy())
+                        solver = Transmission3D_scalar(ball_points, source = source)
+                    elif method == "hmatrices":
+                        solver = Transmission3D_scalar_hmatrices(ball_points, source = source)
                     else:
-                        DOSall.append(dos)
+                        print("Choose a valid method")
+                        sys.exit()
 
-                    k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                    k0_range.append(k0_)
+                    # Find all overlaps and redraw while you have some
+                    # Following Pierrat et al., I use 1 diameter as the spacing there
+                    spacing = 2.0*radius
+                    spacing *= spacing_factor
+                    overlaps = np.nonzero(np.sum(np.cdist(measurement_points, ball_points, p=2) <= spacing)).squeeze()
+                    count = overlaps.shape[0]
+                    while count > 0:
+                        print("Removing "+str(count)+" overlaps using an exclusion distance of "+str(spacing_factor)+" scatterer diameters...")
+                        measurement_points[overlaps] = dos_size * L/2 * idos_radius * utils.uniform_unit_ball_picking(count, ndim).squeeze()
+                        overlaps = np.nonzero(np.sum(np.cdist(measurement_points, ball_points, p=2) <= spacing))
+                        if len(overlaps.shape) == 0:
+                            count = 0
+                        else:
+                            count = overlaps.shape[0]
 
-                    onp.savetxt(file_name+'_temp_idos.csv',onp.stack([k0_range,DOSall]).T)
+                    utils.plot_3d_points(measurement_points, file_name+'_measurement')
 
-                onp.savetxt(file_name+'_idos.csv',onp.stack([k0_range,DOSall]).T)
-                utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'idos', appended_string = '_'+str(file_index))
+                    for k0, alpha in zip(k0range,alpharange):
+                        dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
+                        if method == "torch":
+                            DOSall.append(dos.numpy())
+                        else:
+                            DOSall.append(dos)
+
+                        k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                        k0_range.append(k0_)
+                        onp.savetxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'.csv',onp.stack([k0_range,DOSall]).T)
+
+                    onp.savetxt(file_name+'_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'.csv',onp.stack([k0_range,DOSall]).T)
+                    utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'idos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_irad'+str(idos_radius)+'')
 
             
             if compute_LDOS:

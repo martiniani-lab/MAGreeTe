@@ -1325,57 +1325,61 @@ def main(ndim, # Required arguments
                 utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'dos',appended_string='_'+str(file_index))
 
             if compute_interDOS:
-                if method == "torch":
-                    solver = Transmission3D(points, source = source)
-                elif method == "hmatrices":
-                    solver = Transmission3D_hmatrices(points, source = source)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
-                DOSall = []
-                k0_range = []
+                for dos_size in dos_sizes[::-1]:
+                    DOSall = []
+                    k0_range = []
 
-                # Expensive computation in 3d
-                M = dospoints
-                measurement_points = utils.uniform_unit_ball_picking(M, ndim)
-                measurement_points *= L/2 * idos_radius
+                    # Expensive computation in 3d
+                    M = dospoints
+                    measurement_points = utils.uniform_unit_ball_picking(M, ndim)
+                    measurement_points *= dos_size * L/2 * idos_radius
+                    ball_points = lattices.cut_circle(points, rad = dos_size * 0.5)
 
-                # Find all overlaps and redraw while you have some
-                # Following Pierrat et al., I use 1 diameter as the spacing there
-                spacing = 2.0*radius
-                spacing *= spacing_factor
-                overlaps = np.nonzero(np.sum(np.cdist(measurement_points, points, p=2) <= spacing, axis = -1)).squeeze()
-                if len(overlaps.shape) == 0:
-                    count = 0
-                else:
-                    count = overlaps.shape[0]
-                while count > 0:
-                    print("Removing "+str(count)+" overlaps using an exclusion distance of "+str(spacing_factor)+" scatterer diameters...")
-                    measurement_points[overlaps] = L/2 * idos_radius * utils.uniform_unit_ball_picking(count, ndim).squeeze()
-                    overlaps = np.nonzero(np.sum(np.cdist(measurement_points, points, p=2) <= spacing, axis = -1)).squeeze()
+
+                    if method == "torch":
+                        solver = Transmission3D(ball_points, source = source)
+                    elif method == "hmatrices":
+                        solver = Transmission3D_hmatrices(ball_points, source = source)
+                    else:
+                        print("Choose a valid method")
+                        sys.exit()
+
+
+                    # Find all overlaps and redraw while you have some
+                    # Following Pierrat et al., I use 1 diameter as the spacing there
+                    spacing = 2.0*radius
+                    spacing *= spacing_factor
+                    overlaps = np.nonzero(np.sum(np.cdist(measurement_points, ball_points, p=2) <= spacing, axis = -1)).squeeze()
                     if len(overlaps.shape) == 0:
                         count = 0
                     else:
                         count = overlaps.shape[0]
+                    while count > 0:
+                        print("Removing "+str(count)+" overlaps using an exclusion distance of "+str(spacing_factor)+" scatterer diameters...")
+                        measurement_points[overlaps] = dos_size * L/2 * idos_radius * utils.uniform_unit_ball_picking(count, ndim).squeeze()
+                        overlaps = np.nonzero(np.sum(np.cdist(measurement_points, ball_points, p=2) <= spacing, axis = -1)).squeeze()
+                        if len(overlaps.shape) == 0:
+                            count = 0
+                        else:
+                            count = overlaps.shape[0]
 
 
-                utils.plot_3d_points(measurement_points, file_name+'_measurement')
+                    utils.plot_3d_points(measurement_points, file_name+'_measurement')
 
-                for k0, alpha in zip(k0range,alpharange):
-                    dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-                    if method == "torch":
-                        DOSall.append(dos.numpy())
-                    else:
-                        DOSall.append(dos)
+                    for k0, alpha in zip(k0range,alpharange):
+                        dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
+                        if method == "torch":
+                            DOSall.append(dos.numpy())
+                        else:
+                            DOSall.append(dos)
 
-                    k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                    k0_range.append(k0_)
+                        k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                        k0_range.append(k0_)
 
-                    onp.savetxt(file_name+'_irad'+str(idos_radius)+'_temp_idos.csv',onp.stack([k0_range,DOSall]).T)
+                        onp.savetxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'.csv',onp.stack([k0_range,DOSall]).T)
 
-                onp.savetxt(file_name+'_irad'+str(idos_radius)+'_idos.csv',onp.stack([k0_range,DOSall]).T)
-                utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'idos', appended_string = '_irad'+str(idos_radius)+'_'+str(file_index))
-
+                    onp.savetxt(file_name+'_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'.csv',onp.stack([k0_range,DOSall]).T)
+                    utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'idos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_irad'+str(idos_radius)+'')
             
             if compute_LDOS:
                 if method == "torch":
