@@ -753,12 +753,12 @@ def main_scalar(ndim, # Required arguments
         ### 3d calculations
         ### ###############
         elif ndim==3:
-
+            if plot_transmission:
+                # Define the list of measurement points for transmission plots
+                N_fibo=1000
+                measurement_points = transmission_radius*L*utils.fibonacci_sphere(N_fibo)
             if compute_transmission or plot_transmission:
                 
-                # Define the list of measurement points for transmission plots
-                measurement_points = transmission_radius*L*onp.vstack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
-
                 # A fresh computation is required
                 if compute_transmission:
 
@@ -841,22 +841,21 @@ def main_scalar(ndim, # Required arguments
                 Etotal = onp.absolute(Eall)**2
 
                 # Produce the plots
-                utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name, n_thetas_trans = n_thetas_trans, appended_string ='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)) 
-                utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name, n_thetas_trans = n_thetas_trans, appended_string ='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)) 
-                utils.plot_angular_averaged_transmission(k0range, L, Etotal, file_name, appended_string = '_'+str(file_index))
-                theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
-                utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, Etotal, file_name, plot_theta_index = plot_theta_index,  appended_string='_'+str(file_index)+'_angle_'+str(theta_plot))
+                utils.plot_transmission_angularbeam_3d(k0range, L, thetas, Etotal, measurement_points, file_name, angular_width = angular_width, appended_string = '_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index), adapt_scale = adapt_scale) 
+                #utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name, n_thetas_trans = n_thetas_trans, appended_string = '_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index), adapt_scale = adapt_scale) 
+                #theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
+                #utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, Etotal, file_name, plot_theta_index = plot_theta_index,  appended_string='_'+str(file_index)+'_angle_'+str(theta_plot))
                 
                 # Produce transmission normalized by total intensity of the INCIDENT FIELD on the sphere
                 E0all = onp.array(E0all)
                 I0all = onp.absolute(E0all)**2
 
-                utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0all, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
-                utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0all, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
+                utils.plot_transmission_angularbeam_3d(k0range, L, thetas, Etotal, measurement_points, file_name, angular_width = angular_width, normalization = I0all, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
+                #utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0all, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
 
                 # Same but with total field
-                utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = Etotal, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
-                utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = Etotal, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
+                utils.plot_transmission_angularbeam_3d(k0range, L, thetas, Etotal, measurement_points, file_name, angular_width = angular_width, normalization = Etotal, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
+                #utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = Etotal, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
 
                 if scattered_fields:
                     Eall_scat = onp.array(Eall_scat)

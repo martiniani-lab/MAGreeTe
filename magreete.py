@@ -886,13 +886,12 @@ def main(ndim, # Required arguments
         ### 3d calculations
         ### ###############
         elif ndim==3:
-
-            if compute_transmission or plot_transmission:
-                
+            if plot_transmission:
                 # Define the list of measurement points for transmission plots
-                # XXX Should think about how to do things cleanly/conveniently with fibo_points, see ewald.py in hyperalg
-                measurement_points = transmission_radius*L*onp.vstack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
-
+                N_fibo=1000
+                measurement_points = transmission_radius*L*utils.fibonacci_sphere(N_fibo)
+                
+            if compute_transmission or plot_transmission:
                 # A fresh computation is required
                 if compute_transmission:
 
@@ -979,22 +978,22 @@ def main(ndim, # Required arguments
                 Etotal = onp.sum(Etotal, axis=2)
 
                 # Produce the plots
-                utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name, n_thetas_trans = n_thetas_trans, appended_string = '_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index), adapt_scale = adapt_scale) 
-                utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name, n_thetas_trans = n_thetas_trans, appended_string = '_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index), adapt_scale = adapt_scale) 
-                theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
-                utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, Etotal, file_name, plot_theta_index = plot_theta_index,  appended_string='_'+str(file_index)+'_angle_'+str(theta_plot))
+                utils.plot_transmission_angularbeam_3d(k0range, L, thetas, Etotal, measurement_points, file_name, angular_width = angular_width, appended_string = '_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index), adapt_scale = adapt_scale) 
+                #utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name, n_thetas_trans = n_thetas_trans, appended_string = '_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index), adapt_scale = adapt_scale) 
+                #theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
+                #utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, Etotal, file_name, plot_theta_index = plot_theta_index,  appended_string='_'+str(file_index)+'_angle_'+str(theta_plot))
                 
                 # Produce transmission normalized by total intensity of the INCIDENT FIELD on the sphere
                 E0all = onp.array(E0all)
                 I0all = onp.absolute(E0all)**2
                 I0all = onp.sum(I0all, axis = 2)
 
-                utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0all, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
-                utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0all, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
+                utils.plot_transmission_angularbeam_3d(k0range, L, thetas, Etotal, measurement_points, file_name, angular_width = angular_width, normalization = I0all, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
+                #utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0all, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
 
                 # Same but with total field
-                utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = Etotal, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
-                utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = Etotal, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
+                utils.plot_transmission_angularbeam_3d(k0range, L, thetas, Etotal, measurement_points, file_name, angular_width = angular_width, normalization = Etotal, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
+                #utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = Etotal, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
 
                 if scattered_fields:
                     Eall_scat = onp.array(Eall_scat)
@@ -1602,6 +1601,14 @@ def make_lattice(lattice, N_raw, kick, ndim):
             # diamond has two atoms per unit cell
             Nside  = int(onp.round(onp.cbrt(N_raw/2)))
             points = lattices.diamond(Nside=Nside, disp=kick)
+        elif lattice == 'simple_hexagonal':
+            Nx = int(onp.round(onp.cbrt(N_raw / onp.sqrt(3.0))))
+            Ny = int(onp.round(onp.sqrt(3.0) * Nx))
+            if Nx%2==0:
+                Nx += 1
+            if Ny%2 == 0:
+                Ny += 1
+            points = lattices.simple_hexagonal(Nx=Nx, Ny=Ny,Nz=Ny, disp=kick)
         elif lattice == 'poisson':
             points = lattices.poisson(N_raw, ndim)
         else: 

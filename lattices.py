@@ -237,3 +237,22 @@ def diamond(Nside=17,disp=0, normalize=True):
     if disp != 0:
         r = add_displacement(r,dr=disp)
     return r
+
+def simple_hexagonal(Nx=17,Ny=15, Nz=15, disp=0):
+    N = Nx*Ny
+    x = np.arange(-Nx,Nx+1,dtype=np.double)*onp.sqrt(3)/2
+    y = np.arange(-Ny,Ny+1,dtype=np.double)
+    z = np.arange(-Nz,Nz+1,dtype=np.double)
+    grid = np.zeros((x.shape[0],y.shape[0],z.shape[0],3))
+    grid[:,:,:,0] = x.reshape(-1,1,1)
+    grid[:,:,:,1] = y.reshape(1,-1,1)
+    grid[:,:,:,2] = y.reshape(1,1,-1)
+    grid[::2,:,:,1] += 0.5
+    r = grid.reshape(-1,3)
+    #r += onp.random.random(2)
+    r -= np.mean(r)
+    r /= np.max(r[:,0])
+    if disp != 0:
+        r = add_displacement(r,dr=disp)
+    r = r.to(np.double)
+    return r

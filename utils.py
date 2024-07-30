@@ -115,7 +115,7 @@ def fibonacci_sphere(samples=1000):
     '''
     
     points = []
-    golden = onp.pi * (np.sqrt(5.) - 1.)  # golden angle in radians
+    golden = onp.pi * (onp.sqrt(5.) - 1.)  # golden angle in radians
     i = np.arange(samples)
     z = 1 - (i / (samples - 1)) * 2  # z goes from 1 to -1
     radii = onp.sqrt(1 - z**2)
@@ -127,7 +127,7 @@ def fibonacci_sphere(samples=1000):
         
     # plot_3d_points(np.array(points), 'testfibo')
 
-    return points
+    return points.astype(onp.float64)
 
 def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,  n_thetas_trans = 0.0, adapt_scale = False, normalization = onp.array([]), appended_string=''):
     """
@@ -167,6 +167,54 @@ def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,
     
     fig, ax = plt.subplots(subplot_kw={'projection':'polar'})
     pc = ax.pcolormesh(thetas,freqs,total_,norm=clr.LogNorm(vmin=vmin,vmax=vmax), cmap=cmr.ember)#cmap=cmr.torch) #cmap='inferno')
+    #ax.set_rmin(10.0)
+    #ax.set_rticks([20,40])
+    ax.set_axis_off()
+    cbar = fig.colorbar(pc)
+    cbar.ax.tick_params(labelsize=24)
+    plt.savefig(file_name_root+'_transmission_angularbeam_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
+    plt.close()
+
+def plot_transmission_angularbeam_3d(k0range, L, thetas, intensity, measurement_points, file_name_root, angular_width = 1.0, adapt_scale = False, normalization = onp.array([]), appended_string=''):
+    """
+    Plots a radial version of the frequency-angle transmission plot given 
+    k0range: list of wave vector moduli, in rad/m
+    L: system sidelength, in m
+    thetas: list of angles used for the orientation of the laser, in radians
+    intensity: the relevant field intensity (dimensions: ks, detection angles, beam angles)
+    file_name_root: prepended to the name of the file
+    appended_string: possible postfix for the name of the file, e.g. "TM" or "TE"
+    """
+
+    freqs = onp.real(k0range*L/(2*onp.pi))
+    cos_max_angle = onp.cos(angular_width * (onp.pi/2))
+    u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
+    u_out = measurement_points/onp.linalg.norm(measurement_points,axis=-1)[:,onp.newaxis]
+    dotprod = onp.sum(u[:,onp.newaxis] * u_out, axis = -1)
+    dotprod = dotprod.transpose()
+    forward = dotprod >= cos_max_angle
+    
+
+
+    total_ = onp.sum(intensity*forward[onp.newaxis,:],axis=1)
+
+    #Normalize the field differently if needed
+    if normalization.shape[0] != 0:
+        total_norm = onp.sum(normalization,axis=1)
+        total_ /= total_norm
+    else:
+        total_ /= onp.sum(forward, axis=0)[onp.newaxis,:] + 1
+    #     total_ /= onp.max(total_)
+    
+    if adapt_scale:
+        vmin = None
+        vmax = None
+    else: 
+        vmin = 1e-3
+        vmax = 1e0
+    
+    fig, ax = plt.subplots(subplot_kw={'projection':'polar'})
+    pc = ax.pcolormesh(thetas,freqs,total_,norm=clr.LogNorm(vmin=vmin,vmax=vmax), cmap=cmr.ember)
     #ax.set_rmin(10.0)
     #ax.set_rticks([20,40])
     ax.set_axis_off()
