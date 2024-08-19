@@ -170,9 +170,9 @@ def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,
     #ax.set_rmin(10.0)
     #ax.set_rticks([20,40])
     ax.set_axis_off()
-    cbar = fig.colorbar(pc)
+    cbar = fig.colorbar(pc, location='left')
     cbar.ax.tick_params(labelsize=24)
-    plt.savefig(file_name_root+'_transmission_angularbeam_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
+    plt.savefig(file_name_root+'_transmission_angularbeam_'+appended_string+'.svg', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
     plt.close()
 
 def plot_transmission_angularbeam_3d(k0range, L, thetas, intensity, measurement_points, file_name_root, angular_width = 1.0, adapt_scale = False, normalization = onp.array([]), appended_string=''):
@@ -222,6 +222,30 @@ def plot_transmission_angularbeam_3d(k0range, L, thetas, intensity, measurement_
     cbar.ax.tick_params(labelsize=24)
     plt.savefig(file_name_root+'_transmission_angularbeam_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
     plt.close()
+
+    fig = plt.figure()
+    ax = fig.gca()
+    pc = ax.imshow(total_[:,:int(total_.shape[1]/2)], norm=clr.LogNorm(vmin=vmin,vmax=vmax), cmap=cmr.ember, extent =[0,180,freqs[0],freqs[-1]], origin='lower')
+    ax.set_xlabel(r'$\theta$')
+    ax.set_ylabel(r'k_0L/2\pi')
+    ax.set_aspect(180/(freqs[-1] - freqs[0]))
+    fig.colorbar(pc)
+    plt.savefig(file_name_root+'_transmission_beam_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
+    plt.close()
+    
+    avg_intensity = onp.mean(total_, axis=1)
+    fig = plt.figure()
+    ax = fig.gca()
+    freqs = onp.real(k0range*L/(2*onp.pi))
+    ax.plot(freqs, avg_intensity)
+    ax.set_xlabel(r'$k_0L/2\pi$')
+    ax.set_ylabel('Intensity')
+    ax.legend()
+    ax.set_yscale('log')
+    plt.savefig(file_name_root+'_transmission_beam_avg'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
+    plt.close()
+    
+    onp.savetxt(file_name_root+'_transmission_beam_avg'+appended_string+'.csv',onp.stack([freqs,avg_intensity]).T)
 
 def plot_transmission_flat(k0range, L, thetas, intensity, file_name_root,  n_thetas_trans = 0.0, adapt_scale = False, normalization = onp.array([]), appended_string=''):
     """

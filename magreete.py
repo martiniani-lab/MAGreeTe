@@ -1451,10 +1451,12 @@ def main(ndim, # Required arguments
                     ETM_onecopy = onp.complex128(ETM_onecopy)
                     thetas = onp.float64(thetas)
                     k0range = onp.float64(k0range)
+                    ITE_onecopy = onp.absolute(ETE_onecopy)**2
+                    ITE_onecopy = onp.sum(ITE_onecopy, axis=2)
 
                     ETE_all.append(ETE_onecopy)
                     ETM_all.append(ETM_onecopy)
-                    ITE_all.append(onp.absolute(ETE_onecopy)**2)
+                    ITE_all.append(ITE_onecopy)
                     ITM_all.append(onp.absolute(ETM_onecopy)**2)
 
                 # Define averaged fields, both amplitude and intensity
@@ -1464,30 +1466,65 @@ def main(ndim, # Required arguments
                 ITM_mean  = onp.mean(ITM_all, axis = 0)
                 # Define the ballistic intensity
                 ITE_ball = onp.absolute(ETE_mean)**2
+                ITE_ball = onp.sum(ITE_ball, axis = 2)
                 ITM_ball = onp.absolute(ETM_mean)**2
                 # Also define the average fluctuating intensity field
                 ITE_fluct = ITE_mean - ITE_ball
                 ITM_fluct = ITM_mean - ITM_ball
 
+                # Produce transmission normalized by total intensity of the INCIDENT FIELD on the sphere
+                if just_compute_averages:
+                    if method == "torch":
+                        solver = Transmission2D(points, source = source)
+                    elif method == "hmatrices":
+                        solver = Transmission2D_hmatrices(points, source = source)
+                    else:
+                        print("Choose a valid method")
+                        sys.exit()
+                    # Define the list of measurement points for transmission plots
+                    measurement_points = transmission_radius*L*onp.vstack([onp.cos(thetas),onp.sin(thetas)]).T
+                    E0TEall = []
+                    E0TMall = []
+                    for k0 in k0range:
+                        E0TE, E0TM = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='scattered_fields')
+                        E0TEall.append(E0TE.numpy())
+                        E0TMall.append(E0TM.numpy())
+
+                    I0TMall = onp.absolute(E0TMall)**2
+                    I0TEall = onp.absolute(E0TEall)**2
+                    I0TEall = onp.sum(I0TEall, axis = 2)
+
                 # If required: plot results
                 if plot_transmission:
                     # Produce plots for average intensity
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, ITM_mean, file_name, appended_string='_averageintensity_'+str(n_copies)+'copies_TM', adapt_scale = adapt_scale)
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, ITE_mean, file_name, appended_string='_averageintensity_'+str(n_copies)+'copies_TE', adapt_scale = adapt_scale)
-                    utils.plot_transmission_flat(k0range, L, thetas, ITM_mean, file_name, appended_string='_averageintensity_'+str(n_copies)+'copies_TM', adapt_scale = adapt_scale)
-                    utils.plot_transmission_flat(k0range, L, thetas, ITE_mean, file_name, appended_string='_averageintensity_'+str(n_copies)+'copies_TE', adapt_scale = adapt_scale)
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, ITM_mean, file_name, n_thetas_trans = n_thetas_trans, appended_string='_averageintensity_'+str(n_copies)+'copies_TM', adapt_scale = adapt_scale)
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, ITE_mean, file_name, n_thetas_trans = n_thetas_trans, appended_string='_averageintensity_'+str(n_copies)+'copies_TE', adapt_scale = adapt_scale)
+                    utils.plot_transmission_flat(k0range, L, thetas, ITM_mean, file_name, n_thetas_trans = n_thetas_trans, appended_string='_averageintensity_'+str(n_copies)+'copies_TM', adapt_scale = adapt_scale)
+                    utils.plot_transmission_flat(k0range, L, thetas, ITE_mean, file_name, n_thetas_trans = n_thetas_trans, appended_string='_averageintensity_'+str(n_copies)+'copies_TE', adapt_scale = adapt_scale)
+
+                    # Produce plots for normalized average intensity
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, ITM_mean, file_name, n_thetas_trans = n_thetas_trans, normalization=I0TMall, appended_string='_averageintensity_'+str(n_copies)+'copies_TM_incnorm', adapt_scale = adapt_scale)
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, ITE_mean, file_name, n_thetas_trans = n_thetas_trans, normalization=I0TEall, appended_string='_averageintensity_'+str(n_copies)+'copies_TE_incnorm', adapt_scale = adapt_scale)
+                    utils.plot_transmission_flat(k0range, L, thetas, ITM_mean, file_name, n_thetas_trans = n_thetas_trans, normalization=I0TMall, appended_string='_averageintensity_'+str(n_copies)+'copies_TM_incnorm', adapt_scale = adapt_scale)
+                    utils.plot_transmission_flat(k0range, L, thetas, ITE_mean, file_name, n_thetas_trans = n_thetas_trans, normalization=I0TEall, appended_string='_averageintensity_'+str(n_copies)+'copies_TE_incnorm', adapt_scale = adapt_scale)
 
                     # Produce plots for intensity of the average field = ballistic intensity
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, ITM_ball, file_name, appended_string='_ballisticintensity_'+str(n_copies)+'copies_TM', adapt_scale = adapt_scale)
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, ITE_ball, file_name, appended_string='_ballisticintensity_'+str(n_copies)+'copies_TE', adapt_scale = adapt_scale)
-                    utils.plot_transmission_flat(k0range, L, thetas, ITM_ball, file_name, appended_string='_ballisticintensity_'+str(n_copies)+'copies_TM', adapt_scale = adapt_scale)
-                    utils.plot_transmission_flat(k0range, L, thetas, ITE_ball, file_name, appended_string='_ballisticintensity_'+str(n_copies)+'copies_TE', adapt_scale = adapt_scale)
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, ITM_ball, file_name, n_thetas_trans = n_thetas_trans, appended_string='_ballisticintensity_'+str(n_copies)+'copies_TM', adapt_scale = adapt_scale)
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, ITE_ball, file_name, n_thetas_trans = n_thetas_trans, appended_string='_ballisticintensity_'+str(n_copies)+'copies_TE', adapt_scale = adapt_scale)
+                    utils.plot_transmission_flat(k0range, L, thetas, ITM_ball, file_name, n_thetas_trans = n_thetas_trans, appended_string='_ballisticintensity_'+str(n_copies)+'copies_TM', adapt_scale = adapt_scale)
+                    utils.plot_transmission_flat(k0range, L, thetas, ITE_ball, file_name, n_thetas_trans = n_thetas_trans, appended_string='_ballisticintensity_'+str(n_copies)+'copies_TE', adapt_scale = adapt_scale)
+
+                    # Produce plots for NORMALIZED intensity of the average field = ballistic intensity
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, ITM_ball, file_name, n_thetas_trans = n_thetas_trans, normalization=I0TMall, appended_string='_ballisticintensity_'+str(n_copies)+'copies_TM_incnorm', adapt_scale = adapt_scale)
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, ITE_ball, file_name, n_thetas_trans = n_thetas_trans, normalization=I0TEall, appended_string='_ballisticintensity_'+str(n_copies)+'copies_TE_incnorm', adapt_scale = adapt_scale)
+                    utils.plot_transmission_flat(k0range, L, thetas, ITM_ball, file_name, n_thetas_trans = n_thetas_trans, normalization=I0TMall, appended_string='_ballisticintensity_'+str(n_copies)+'copies_TM_incnorm', adapt_scale = adapt_scale)
+                    utils.plot_transmission_flat(k0range, L, thetas, ITE_ball, file_name, n_thetas_trans = n_thetas_trans, normalization=I0TEall, appended_string='_ballisticintensity_'+str(n_copies)+'copies_TE_incnorm', adapt_scale = adapt_scale)
 
                     # Produce plots for intensity of the fluctuating field
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, ITM_fluct, file_name, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies_TM', adapt_scale = adapt_scale)
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, ITE_fluct, file_name, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies_TE', adapt_scale = adapt_scale)
-                    utils.plot_transmission_flat(k0range, L, thetas, ITM_fluct, file_name, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies_TM', adapt_scale = adapt_scale)
-                    utils.plot_transmission_flat(k0range, L, thetas, ITE_fluct, file_name, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies_TE', adapt_scale = adapt_scale)
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, ITM_fluct, file_name, n_thetas_trans = n_thetas_trans, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies_TM', adapt_scale = adapt_scale)
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, ITE_fluct, file_name, n_thetas_trans = n_thetas_trans, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies_TE', adapt_scale = adapt_scale)
+                    utils.plot_transmission_flat(k0range, L, thetas, ITM_fluct, file_name, n_thetas_trans = n_thetas_trans, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies_TM', adapt_scale = adapt_scale)
+                    utils.plot_transmission_flat(k0range, L, thetas, ITE_fluct, file_name, n_thetas_trans = n_thetas_trans, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies_TE', adapt_scale = adapt_scale)
 
         elif ndim == 3:
             
