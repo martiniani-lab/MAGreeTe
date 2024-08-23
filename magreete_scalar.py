@@ -21,10 +21,10 @@ import argparse
 
 def main_scalar(ndim, # Required arguments
         refractive_n = 1.65 + 0.025j, phi = 0.1, regularize = True, N_raw = 16384, beam_waist = 0.2, L = 1, size_subsample = 1.0, source = "beam", # Physical parameters
-        lattice=None, cold_atoms=False, kresonant_ = None, annulus = 0, composite = False, kick = 0.0, input_files_args = None, method = "torch", # Special cases
+        lattice=None, cold_atoms=False, kresonant_ = None, annulus = 0, composite = False, kick = 0.0, shift = 0.0, input_files_args = None, method = "torch", # Special cases
         k0range_args = None, thetarange_args = None,# Range of values to use
         compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, scattered_fields=False, transmission_radius = 2.0,
-        compute_DOS=False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, dos_sizes_args = None, dospoints=1, spacing_factor = 1.0, idos_radius = 1.0, 
+        compute_DOS=False, compute_cavityDOS = False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, dos_sizes_args = None, dospoints=1, spacing_factor = 1.0, idos_radius = 1.0, 
         compute_eigenmodes = False, number_eigenmodes = 1, plot_eigenmodes = False, sorting_type = 'IPR', adapt_z = True,
         intensity_fields = False, amplitude_fields = False, phase_fields = False, just_compute_averages = False,# Computations to perform
         write_eigenvalues=False, write_ldos= False,  gridsize=(301,301), window_width=1.2, angular_width = 0.0, plot_theta_index = 0, batch_size = 101*101, adapt_scale = False, output_directory="" # Parameters for outputs
@@ -678,7 +678,7 @@ def main_scalar(ndim, # Required arguments
                     # Following Pierrat et al., I use 1 diameter as the spacing there
                     spacing = 2.0*radius
                     spacing *= spacing_factor
-                    # XXX TODO: use a random cavity or something similar instead!
+
                     overlaps = np.nonzero(np.sum(np.cdist(measurement_points.to(np.double), points.to(np.double), p=2) <= spacing, axis = -1)).squeeze()
                     count = overlaps.shape[0]
                     while count > 0:
@@ -708,6 +708,53 @@ def main_scalar(ndim, # Required arguments
                     onp.savetxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'.csv',onp.stack([k0_range,DOSall]).T)
 
                     utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'idos', appended_string='_'+str(file_index))
+                    
+                    
+            if compute_cavityDOS:
+                for dos_size in dos_sizes[::-1]:
+                    DOSall = onp.array([])
+                    k0_range = onp.array([])
+
+                    if os.path.exists(file_name+'_temp_cdos_size'+str(dos_size)+'.csv'):
+                        existing = onp.loadtxt(file_name+'_temp_cdos_size'+str(dos_size)+'.csv')
+                        DOSall = existing[:,1]
+                        k0_range = existing[:,0]
+                    # Expensive computation in 3d
+                    measurement_points = np.zeros(ndim).reshape(1, ndim)
+                    disk_points = lattices.cut_circle(points, rad = dos_size * 0.5)
+                    
+                    # Find all overlaps and remove from system
+                    # Following Pierrat et al., I use 1 diameter as the spacing there
+                    spacing = 2.0*radius
+                    spacing *= spacing_factor
+                    disk_points = lattices.exclude_circle(disk_points, spacing)
+
+
+                    if method == "torch":
+                        solver = Transmission2D_scalar(disk_points, source = source)
+                    elif method == "hmatrices":
+                        solver = Transmission2D_scalar_hmatrices(disk_points, source = source)
+                    else:
+                        print("Choose a valid method")
+                        sys.exit()
+
+                    utils.plot_2d_points(disk_points, file_name+'_kept')
+                    for k0, alpha in zip(k0range,alpharange):
+                        k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                        if k0_ not in k0_range:
+                            k0_range = onp.append(k0_range,k0_)
+                            dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
+                            if method == "torch":
+                                DOSall = onp.append(DOSall,dos.numpy())
+                            else:
+                                DOSall = onp.append(DOSall,dos)
+                            idx = onp.argsort(k0_range)
+                            k0_range = k0_range[idx]
+                            DOSall = DOSall[idx]
+                            onp.savetxt(file_name+'_temp_cdos_size'+str(dos_size)+'.csv',onp.stack([k0_range,DOSall]).T)
+
+                    onp.savetxt(file_name+'_cdos_size'+str(dos_size)+'.csv',onp.stack([k0_range,DOSall]).T)
+                    utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'cdos', appended_string='_'+str(file_index)+'_size'+str(dos_size))
 
             if compute_LDOS:
                 if method == "torch":
@@ -878,7 +925,7 @@ def main_scalar(ndim, # Required arguments
                     theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
                     utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, Etotal_scat, file_name, plot_theta_index = plot_theta_index,  appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_scat')
 
-                    # Also produce scattered field normalised by total scattered intensity on the circle. XXX Should make it a sphere
+                    # Also produce scattered field normalised by total scattered intensity on the circle.
                     utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, normalization = Etotal_scat, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_norm')
 
                 
@@ -943,7 +990,7 @@ def main_scalar(ndim, # Required arguments
                     theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
                     utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, Etotal_scat_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_scat_ss')
                 
-                    # Also produce scattered field normalised by total scattered intensity on the circle. XXX Should make it a sphere
+                    # Also produce scattered field normalised by total scattered intensity on the circle.
                     utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, normalization = Etotal_scat_ss, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss_norm')
                     utils.plot_transmission_flat(k0range, L, thetas, Etotal_scat_ss, file_name, n_thetas_trans = n_thetas_trans, normalization = Etotal_scat_ss,  adapt_scale = adapt_scale, appended_string ='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat_ss_norm") 
 
@@ -1216,6 +1263,51 @@ def main_scalar(ndim, # Required arguments
                     onp.savetxt(file_name+'_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'.csv',onp.stack([k0_range,DOSall]).T)
                     utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'idos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_irad'+str(idos_radius)+'')
 
+                    
+            if compute_cavityDOS:
+                for dos_size in dos_sizes[::-1]:
+                    DOSall = onp.array([])
+                    k0_range = onp.array([])
+
+                    if os.path.exists(file_name+'_temp_cdos_size'+str(dos_size)+'.csv'):
+                        existing = onp.loadtxt(file_name+'_temp_cdos_size'+str(dos_size)+'.csv')
+                        DOSall = existing[:,1]
+                        k0_range = existing[:,0]
+                    # Expensive computation in 3d
+                    measurement_points = np.zeros(ndim).reshape(1, ndim)
+                    ball_points = lattices.cut_circle(points, rad = dos_size * 0.5)
+                    
+                    # Find all overlaps and remove from system
+                    # Following Pierrat et al., I use 1 diameter as the spacing there
+                    spacing = 2.0*radius
+                    spacing *= spacing_factor
+                    ball_points = lattices.exclude_circle(ball_points, spacing)
+
+
+                    if method == "torch":
+                        solver = Transmission3D_scalar(ball_points, source = source)
+                    elif method == "hmatrices":
+                        solver = Transmission3D_scalar_hmatrices(ball_points, source = source)
+                    else:
+                        print("Choose a valid method")
+                        sys.exit()
+
+                    for k0, alpha in zip(k0range,alpharange):
+                        k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                        if k0_ not in k0_range:
+                            k0_range = onp.append(k0_range,k0_)
+                            dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
+                            if method == "torch":
+                                DOSall = onp.append(DOSall,dos.numpy())
+                            else:
+                                DOSall = onp.append(DOSall,dos)
+                            idx = onp.argsort(k0_range)
+                            k0_range = k0_range[idx]
+                            DOSall = DOSall[idx]
+                            onp.savetxt(file_name+'_temp_cdos_size'+str(dos_size)+'.csv',onp.stack([k0_range,DOSall]).T)
+
+                    onp.savetxt(file_name+'_cdos_size'+str(dos_size)+'.csv',onp.stack([k0_range,DOSall]).T)
+                    utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'cdos', appended_string='_'+str(file_index)+'_size'+str(dos_size))
             
             if compute_LDOS:
                 if method == "torch":
