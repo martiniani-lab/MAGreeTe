@@ -147,6 +147,8 @@ def main(ndim, # Required arguments
             output_directory += output_directory_suffix
             utils.trymakedir(output_directory)
             points = make_lattice(lattice, N_raw, kick, ndim)
+            if lattice == 'poisson':
+                file_name += str(ndim)+'d'
             points = lattices.cut_circle(points)
 
         # Cut configuration if needed
@@ -769,9 +771,19 @@ def main(ndim, # Required arguments
             if compute_interDOS: # XXX also add cavity DOS?
 
                 for dos_size in dos_sizes[::-1]:
-                    DOSall_TE = []
-                    DOSall_TM = []
-                    k0_range = []
+
+                    DOSall_TE = onp.array([])
+                    DOSall_TM = onp.array([])
+                    k0_range = onp.array([])
+
+                    if os.path.exists(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TM.csv'):
+                        existing_TM = onp.loadtxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TM.csv')
+                        DOSall_TM = existing_TM[:,1]
+                        k0_range = existing_TM[:,0]
+                    if os.path.exists(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TE.csv'):
+                        existing_TE = onp.loadtxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TE.csv')
+                        DOSall_TE = existing_TE[:,1]
+                        k0_range = existing_TE[:,0]
                         
                     M = dospoints
                     measurement_points = utils.uniform_unit_disk_picking(M)
@@ -805,21 +817,26 @@ def main(ndim, # Required arguments
 
                     utils.plot_2d_points(measurement_points, file_name+'_measurement_size'+str(dos_size))
 
+
                     for k0, alpha in zip(k0range,alpharange):
-                        dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-                        if method == "torch":
-                            DOSall_TE.append(dos_TE.numpy())
-                            DOSall_TM.append(dos_TM.numpy())
-                        else:
-                            DOSall_TE.append(dos_TE)
-                            DOSall_TM.append(dos_TM)
-
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                        k0_range.append(k0_)
-
-                        onp.savetxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
-                        onp.savetxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
-
+                        if k0_ not in k0_range:
+                            k0_range = onp.append(k0_range,k0_)
+                            dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
+                            if method == "torch":
+                                DOSall_TE = onp.append(DOSall_TE,dos_TE.numpy())
+                                DOSall_TM = onp.append(DOSall_TM,dos_TM.numpy())
+                            else:
+                                DOSall_TE = onp.append(DOSall_TE,dos_TE)
+                                DOSall_TM = onp.append(DOSall_TM,dos_TM)
+                            idx = onp.argsort(k0_range)
+                            k0_range = k0_range[idx]
+                            DOSall_TE = DOSall_TE[idx]
+                            DOSall_TM = DOSall_TM[idx]
+                            onp.savetxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
+                            onp.savetxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+                    
+                    
                     onp.savetxt(file_name+'_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
                     onp.savetxt(file_name+'_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
 
@@ -1325,9 +1342,13 @@ def main(ndim, # Required arguments
 
             if compute_interDOS:
                 for dos_size in dos_sizes[::-1]:
-                    DOSall = []
-                    k0_range = []
+                    DOSall = onp.array([])
+                    k0_range = onp.array([])
 
+                    if os.path.exists(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'.csv'):
+                        existing = onp.loadtxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'.csv')
+                        DOSall = existing[:,1]
+                        k0_range = existing[:,0]
                     # Expensive computation in 3d
                     M = dospoints
                     measurement_points = utils.uniform_unit_ball_picking(M, ndim)
@@ -1366,16 +1387,18 @@ def main(ndim, # Required arguments
                     utils.plot_3d_points(measurement_points, file_name+'_measurement')
 
                     for k0, alpha in zip(k0range,alpharange):
-                        dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-                        if method == "torch":
-                            DOSall.append(dos.numpy())
-                        else:
-                            DOSall.append(dos)
-
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                        k0_range.append(k0_)
-
-                        onp.savetxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'.csv',onp.stack([k0_range,DOSall]).T)
+                        if k0_ not in k0_range:
+                            k0_range = onp.append(k0_range,k0_)
+                            dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
+                            if method == "torch":
+                                DOSall = onp.append(DOSall,dos.numpy())
+                            else:
+                                DOSall = onp.append(DOSall,dos)
+                            idx = onp.argsort(k0_range)
+                            k0_range = k0_range[idx]
+                            DOSall = DOSall[idx]
+                            onp.savetxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'.csv',onp.stack([k0_range,DOSall]).T)
 
                     onp.savetxt(file_name+'_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'.csv',onp.stack([k0_range,DOSall]).T)
                     utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'idos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_irad'+str(idos_radius)+'')

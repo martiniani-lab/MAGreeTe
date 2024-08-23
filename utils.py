@@ -172,7 +172,7 @@ def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,
     ax.set_axis_off()
     cbar = fig.colorbar(pc, location='left')
     cbar.ax.tick_params(labelsize=24)
-    plt.savefig(file_name_root+'_transmission_angularbeam_'+appended_string+'.svg', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
+    plt.savefig(file_name_root+'_transmission_angularbeam_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
     plt.close()
 
 def plot_transmission_angularbeam_3d(k0range, L, thetas, intensity, measurement_points, file_name_root, angular_width = 1.0, adapt_scale = False, normalization = onp.array([]), appended_string=''):
