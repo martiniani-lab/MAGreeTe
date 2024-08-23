@@ -1770,7 +1770,7 @@ if __name__ == '__main__':
     # Parameters of outputs
     parser.add_argument("--dospoints",type=int, help="Number of points to use for the mean DOS computation \
         default = 1000", default=1000)
-    parser.add_argument("--spacing_factor", type=float, help="Number of diameters to use as excluded volume around measurement points for idos\
+    parser.add_argument("-sf","--spacing_factor", type=float, help="Number of diameters to use as excluded volume around measurement points for idos\
         default = 1.0", default = 1.0)
     parser.add_argument("-irad", "--idos_radius", type=float, help="Fraction of system radius within which to sample idos measurement points\
         default = 1.0", default = 1.0)
