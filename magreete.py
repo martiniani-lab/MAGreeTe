@@ -121,8 +121,8 @@ def main(ndim, # Required arguments
             
             # Make output dir
             N_raw = shape_before[0]
-            output_directory += "N"+str(N_raw)+"/"
-            output_directory += output_directory_suffix
+            output_directory = os.path.abspath(output_directory)
+            output_directory = os.path.join(output_directory, "N"+str(N_raw), output_directory_suffix)
             utils.trymakedir(output_directory)
             
             # Override filename so that output files are well-behaved
@@ -145,8 +145,8 @@ def main(ndim, # Required arguments
         else:
 
             file_name = lattice
-            output_directory += "N"+str(N_raw)+"/"
-            output_directory += output_directory_suffix
+            output_directory = os.path.abspath(output_directory)
+            output_directory = os.path.join(output_directory, "N"+str(N_raw), output_directory_suffix)
             utils.trymakedir(output_directory)
             points = make_lattice(lattice, N_raw, kick, ndim)
             if lattice == 'poisson':
