@@ -34,6 +34,8 @@ def main(ndim, # Required arguments
     
     # Keep cut_radius as the internal here
     cut_radius = 0.5 * size_subsample
+    beam_waist *= size_subsample
+    transmission_radius *= size_subsample
 
     # The full option does not conserve energy but is interesting to have for pedagogy?
     self_interaction_type = "Rayleigh" # Rayleigh or full
