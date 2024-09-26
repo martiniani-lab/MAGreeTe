@@ -10,8 +10,8 @@ import hickle as hkl
 import sys
 import os
 import utils
-from Transmission2D import Transmission2D_scalar, Transmission2D_scalar_hmatrices
-from Transmission3D import Transmission3D_scalar, Transmission3D_scalar_hmatrices
+from Transmission2D import Transmission2D_scalar
+from Transmission3D import Transmission3D_scalar
 import lattices
 from magreete import make_lattice
 
@@ -21,7 +21,7 @@ import argparse
 
 def main_scalar(ndim, # Required arguments
         refractive_n = 1.65 + 0.025j, phi = 0.1, regularize = True, N_raw = 16384, beam_waist = 0.2, L = 1, size_subsample = 1.0, source = "beam", # Physical parameters
-        lattice=None, cold_atoms=False, kresonant_ = None, annulus = 0, composite = False, kick = 0.0, shift = 0.0, input_files_args = None, method = "torch", # Special cases
+        lattice=None, cold_atoms=False, kresonant_ = None, annulus = 0, composite = False, kick = 0.0, shift = 0.0, input_files_args = None, # Special cases
         k0range_args = None, thetarange_args = None,# Range of values to use
         compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, scattered_fields=False, transmission_radius = 2.0,
         compute_DOS=False, compute_cavityDOS = False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, dos_sizes_args = None, dospoints=1, spacing_factor = 1.0, idos_radius = 1.0, 
@@ -284,13 +284,9 @@ def main_scalar(ndim, # Required arguments
                 
                 # A fresh computation is required
                 if compute_transmission: 
-                    if method == "torch":
-                        solver = Transmission2D_scalar(points, source = source)
-                    elif method == "hmatrices":
-                        solver = Transmission2D_scalar_hmatrices(points, source = source)
-                    else:
-                        print("Choose a valid method")
-                        sys.exit()
+
+                    solver = Transmission2D_scalar(points, source = source)
+
                     Eall = []
                     E0all = []
                     Eall_scat = []
@@ -331,13 +327,8 @@ def main_scalar(ndim, # Required arguments
                         alpha, k0 = params
                         k0 = onp.float64(k0)
                         alpha = onp.complex128(alpha)
-                        if method == "torch":
-                            solver = Transmission2D_scalar(points, source = source)
-                        elif method == "hmatrices":
-                            solver = Transmission2D_scalar_hmatrices(points, source = source)
-                        else:
-                            print("Choose a valid method")
-                            sys.exit()
+
+                        solver = Transmission2D_scalar(points, source = source)
 
                         Ek = solver.propagate(measurement_points, Ej, k0, alpha, thetas, w, regularize = regularize, radius = radius)
                         E0 = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement = 'scattered_fields')
@@ -397,13 +388,8 @@ def main_scalar(ndim, # Required arguments
             if single_scattering_transmission:
                 # Define the list of measurement points for transmission plots
                 measurement_points = transmission_radius*L*onp.vstack([onp.cos(thetas),onp.sin(thetas)]).T
-                if method == "torch":
-                    solver = Transmission2D_scalar(points, source = source)
-                elif method == "hmatrices":
-                    solver = Transmission2D_scalar_hmatrices(points, source = source)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
+
+                solver = Transmission2D_scalar(points, source = source)
                     
                 Eall_ss = []
                 Eall_scat_ss = []
@@ -483,13 +469,8 @@ def main_scalar(ndim, # Required arguments
                 print("Computing the full fields at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
 
                 thetas_plot_indices = onp.searchsorted(thetas, thetas_plot)
-                if method == "torch":
-                    solver = Transmission2D_scalar(points, source = source)
-                elif method == "hmatrices":
-                    solver = Transmission2D_scalar_hmatrices(points, source = source)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
+
+                solver = Transmission2D_scalar(points, source = source)
 
                 for k0, alpha in zip(k0range,alpharange):
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
@@ -562,14 +543,7 @@ def main_scalar(ndim, # Required arguments
                     extra_string = extra_string+"es"
                 print("Computing the eigenfields and plotting the "+str(number_eigenmodes)+" most localized at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
 
-                
-                if method == "torch":
-                    solver = Transmission2D_scalar(points, source = None)
-                elif method == "hmatrices":
-                    solver = Transmission2D_scalar_hmatrices(points, source = None)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
+                solver = Transmission2D_scalar(points, source = None)
                     
                 k0_range = []
 
@@ -607,13 +581,9 @@ def main_scalar(ndim, # Required arguments
                             utils.plot_full_fields(Eall, ngridx, ngridy, k0_, 0, True, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_eigen_'+sorting_type+str(i), my_dpi = 300)
 
             if compute_SDOS:
-                if method == "torch":
-                    solver = Transmission2D_scalar(points, source = source)
-                elif method == "hmatrices":
-                    solver = Transmission2D_scalar_hmatrices(points, source = source)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
+
+                solver = Transmission2D_scalar(points, source = source)
+
                 DOSall = []
                 k0_range = []
 
@@ -630,13 +600,9 @@ def main_scalar(ndim, # Required arguments
                 utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'sdos', appended_string = '_'+str(file_index))
 
             if compute_DOS:
-                if method == "torch":
-                    solver = Transmission2D_scalar(points, source = source)
-                elif method == "hmatrices":
-                    solver = Transmission2D_scalar_hmatrices(points, source = source)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
+
+                solver = Transmission2D_scalar(points, source = source)
+                    
                 DOSall = []
                 k0_range = []
 
@@ -648,10 +614,8 @@ def main_scalar(ndim, # Required arguments
 
                 for k0, alpha in zip(k0range,alpharange):
                     dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-                    if method == "torch":
-                        DOSall.append(dos.numpy())
-                    else:
-                        DOSall.append(dos)
+
+                    DOSall.append(dos.numpy())
 
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                     k0_range.append(k0_)
@@ -677,13 +641,9 @@ def main_scalar(ndim, # Required arguments
                     measurement_points = utils.uniform_unit_disk_picking(M)
                     measurement_points *= L/2
                     disk_points = lattices.cut_circle(points, rad = dos_size * 0.5)
-                    if method == "torch":
-                        solver = Transmission2D_scalar(disk_points, source = source)
-                    elif method == "hmatrices":
-                        solver = Transmission2D_scalar_hmatrices(disk_points, source = source)
-                    else:
-                        print("Choose a valid method")
-                        sys.exit()
+
+                    solver = Transmission2D_scalar(disk_points, source = source)
+
                     # Find all overlaps and redraw while you have some
                     # Following Pierrat et al., I use 1 diameter as the spacing there
                     spacing = 2.0*radius
@@ -706,10 +666,9 @@ def main_scalar(ndim, # Required arguments
                         if k0_ not in k0_range:
                             k0_range = onp.append(k0_range,k0_)
                             dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-                            if method == "torch":
-                                DOSall = onp.append(DOSall,dos.numpy())
-                            else:
-                                DOSall = onp.append(DOSall,dos)
+
+                            DOSall = onp.append(DOSall,dos.numpy())
+
                             idx = onp.argsort(k0_range)
                             k0_range = k0_range[idx]
                             DOSall = DOSall[idx]
@@ -740,13 +699,8 @@ def main_scalar(ndim, # Required arguments
                     disk_points = lattices.exclude_circle(disk_points, spacing)
 
 
-                    if method == "torch":
-                        solver = Transmission2D_scalar(disk_points, source = source)
-                    elif method == "hmatrices":
-                        solver = Transmission2D_scalar_hmatrices(disk_points, source = source)
-                    else:
-                        print("Choose a valid method")
-                        sys.exit()
+
+                    solver = Transmission2D_scalar(disk_points, source = source)
 
                     utils.plot_2d_points(disk_points, file_name+'_kept')
                     for k0, alpha in zip(k0range,alpharange):
@@ -754,10 +708,9 @@ def main_scalar(ndim, # Required arguments
                         if k0_ not in k0_range:
                             k0_range = onp.append(k0_range,k0_)
                             dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-                            if method == "torch":
-                                DOSall = onp.append(DOSall,dos.numpy())
-                            else:
-                                DOSall = onp.append(DOSall,dos)
+
+                            DOSall = onp.append(DOSall,dos.numpy())
+
                             idx = onp.argsort(k0_range)
                             k0_range = k0_range[idx]
                             DOSall = DOSall[idx]
@@ -767,13 +720,9 @@ def main_scalar(ndim, # Required arguments
                     utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'cdos', appended_string='_'+str(file_index)+'_size'+str(dos_size))
 
             if compute_LDOS:
-                if method == "torch":
-                    solver = Transmission2D_scalar(points, source = source)
-                elif method == "hmatrices":
-                    solver = Transmission2D_scalar_hmatrices(points, source = source)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
+
+                solver = Transmission2D_scalar(points, source = source)
+
                 # Expensive computation
                 ngridx = gridsize[0]
                 ngridy = gridsize[1]
@@ -829,13 +778,9 @@ def main_scalar(ndim, # Required arguments
                 # A fresh computation is required
                 if compute_transmission:
 
-                    if method == "torch":
-                        solver = Transmission3D_scalar(points, source = source)
-                    elif method == "hmatrices":
-                        solver = Transmission3D_scalar_hmatrices(points, source = source)
-                    else:
-                        print("Choose a valid method")
-                        sys.exit()
+
+                    solver = Transmission3D_scalar(points, source = source)
+
                     u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
                     u = np.tensor(u)
                     Eall  = []
@@ -880,13 +825,9 @@ def main_scalar(ndim, # Required arguments
                         alpha, k0 = params
                         k0 = onp.float64(k0)
                         alpha = onp.complex128(alpha)
-                        if method == "torch":
-                            solver = Transmission3D_scalar(points, source = source)
-                        elif method == "hmatrices":
-                            solver = Transmission3D_scalar_hmatrices(points, source = source)
-                        else:
-                            print("Choose a valid method")
-                            sys.exit()
+
+                        solver = Transmission3D_scalar(points, source = source)
+
 
                         Ek = solver.propagate(measurement_points, Ej, k0, alpha, u, w, regularize = regularize, radius = radius)
                         
@@ -943,13 +884,9 @@ def main_scalar(ndim, # Required arguments
             if single_scattering_transmission:
                 # Define the list of measurement points for transmission plots
                 measurement_points = transmission_radius*L*onp.vstack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
-                if method == "torch":
-                    solver = Transmission3D_scalar(points, source = source)
-                elif method == "hmatrices":
-                    solver = Transmission3D_scalar_hmatrices(points, source = source)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
+
+                solver = Transmission3D_scalar(points, source = source)
+
                 u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
                 u = np.tensor(u)
                 Eall_ss = []
@@ -1026,13 +963,9 @@ def main_scalar(ndim, # Required arguments
                 print("Computing the full fields at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
 
                 thetas_plot_indices = onp.searchsorted(thetas, thetas_plot)
-                if method == "torch":
-                    solver = Transmission3D_scalar(points, source = source)
-                elif method == "hmatrices":
-                    solver = Transmission3D_scalar_hmatrices(points, source = source)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
+
+                solver = Transmission3D_scalar(points, source = source)
+
 
                 for k0, alpha in zip(k0range,alpharange):
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
@@ -1116,14 +1049,7 @@ def main_scalar(ndim, # Required arguments
                     extra_string = extra_string+"es"
                 print("Computing the eigenfields and plotting the "+str(number_eigenmodes)+" most localized at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
 
-                
-                if method == "torch":
-                    solver = Transmission3D_scalar(points, source = None)
-                elif method == "hmatrices":
-                    solver = Transmission3D_scalar_hmatrices(points, source = None)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
+                solver = Transmission3D_scalar(points, source = None)
                     
                 k0_range = []
 
@@ -1166,13 +1092,9 @@ def main_scalar(ndim, # Required arguments
                             utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, 0, True, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_eigen_'+sorting_type+str(i), my_dpi = 300)
 
             if compute_SDOS:
-                if method == "torch":
-                    solver = Transmission3D_scalar(points, source = source)
-                elif method == "hmatrices":
-                    solver = Transmission3D_scalar_hmatrices(points, source = source)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
+
+                solver = Transmission3D_scalar(points, source = source)
+
                 DOSall = []
                 k0_range = []
 
@@ -1189,13 +1111,9 @@ def main_scalar(ndim, # Required arguments
                 utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'sdos', appended_string='_'+str(file_index))
 
             if compute_DOS:
-                if method == "torch":
-                    solver = Transmission3D_scalar(points, source = source)
-                elif method == "hmatrices":
-                    solver = Transmission3D_scalar_hmatrices(points, source = source)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
+
+                solver = Transmission3D_scalar(points, source = source)
+
                 DOSall = []
                 k0_range = []
 
@@ -1208,10 +1126,8 @@ def main_scalar(ndim, # Required arguments
 
                 for k0, alpha in zip(k0range,alpharange):
                     dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-                    if method == "torch":
-                        DOSall.append(dos.numpy())
-                    else:
-                        DOSall.append(dos)
+
+                    DOSall.append(dos.numpy())
 
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                     k0_range.append(k0_)
@@ -1237,14 +1153,7 @@ def main_scalar(ndim, # Required arguments
                     measurement_points *= dos_size * L/2 * idos_radius
                     ball_points = lattices.cut_circle(points, rad = dos_size * 0.5)
 
-
-                    if method == "torch":
-                        solver = Transmission3D_scalar(ball_points, source = source)
-                    elif method == "hmatrices":
-                        solver = Transmission3D_scalar_hmatrices(ball_points, source = source)
-                    else:
-                        print("Choose a valid method")
-                        sys.exit()
+                    solver = Transmission3D_scalar(ball_points, source = source)
 
                     # Find all overlaps and redraw while you have some
                     # Following Pierrat et al., I use 1 diameter as the spacing there
@@ -1268,10 +1177,9 @@ def main_scalar(ndim, # Required arguments
                         if k0_ not in k0_range:
                             k0_range = onp.append(k0_range,k0_)
                             dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-                            if method == "torch":
-                                DOSall = onp.append(DOSall,dos.numpy())
-                            else:
-                                DOSall = onp.append(DOSall,dos)
+
+                            DOSall = onp.append(DOSall,dos.numpy())
+
                             idx = onp.argsort(k0_range)
                             k0_range = k0_range[idx]
                             DOSall = DOSall[idx]
@@ -1300,24 +1208,16 @@ def main_scalar(ndim, # Required arguments
                     spacing *= spacing_factor
                     ball_points = lattices.exclude_circle(ball_points, spacing)
 
-
-                    if method == "torch":
-                        solver = Transmission3D_scalar(ball_points, source = source)
-                    elif method == "hmatrices":
-                        solver = Transmission3D_scalar_hmatrices(ball_points, source = source)
-                    else:
-                        print("Choose a valid method")
-                        sys.exit()
+                    solver = Transmission3D_scalar(ball_points, source = source)
 
                     for k0, alpha in zip(k0range,alpharange):
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                         if k0_ not in k0_range:
                             k0_range = onp.append(k0_range,k0_)
                             dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-                            if method == "torch":
-                                DOSall = onp.append(DOSall,dos.numpy())
-                            else:
-                                DOSall = onp.append(DOSall,dos)
+
+                            DOSall = onp.append(DOSall,dos.numpy())
+
                             idx = onp.argsort(k0_range)
                             k0_range = k0_range[idx]
                             DOSall = DOSall[idx]
@@ -1327,13 +1227,9 @@ def main_scalar(ndim, # Required arguments
                     utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'cdos', appended_string='_'+str(file_index)+'_size'+str(dos_size))
             
             if compute_LDOS:
-                if method == "torch":
-                    solver = Transmission3D_scalar(points, source = source)
-                elif method == "hmatrices":
-                    solver = Transmission3D_scalar_hmatrices(points, source = source)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
+
+                solver = Transmission3D_scalar(points, source = source)
+
                 # Expensive computation
                 # For now, taking the central plane z = 0
                 ngridx = gridsize[0]
