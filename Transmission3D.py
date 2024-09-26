@@ -36,7 +36,7 @@ def self_interaction_integral_scalar(k0, radius, self_interaction_type = "Raylei
     
     return self_int
 
-class Transmission3D:
+class Transmission3D_vector:
     
 
     def __init__(self, points, source='beam'):
@@ -144,7 +144,7 @@ class Transmission3D:
         
         return E0j
  
-    def propagate(self, points, Ek, k0, alpha, u, p, beam_waist, regularize = False, radius=0.0):
+    def propagate(self, points, Ek, k0, alpha, E0j, regularize = False, radius=0.0):
         '''
         Calculates the EM field at a set of measurement points
 
@@ -159,16 +159,6 @@ class Transmission3D:
         radius           - (1)           considered scatterer radius, only used for regularization 
         '''
         points = np.tensor(points)
-        
-        # ensure u and p are all unit vectors
-        u /= np.linalg.norm(u,axis=-1).reshape(-1,1)
-        p /= np.linalg.norm(p,axis=-1).reshape(-1,1)
-        
-        # check polarization is orthogonal to propagation
-        assert np.sum(np.absolute(np.sum(u*p,axis=-1))) == 0
-
-        # generate source field for measurement points
-        E0j = self.generate_source(points, k0, u, p, beam_waist, print_statement='propagate') #(M,3,Ndirs)
         
         # calculate Ek field at all measurement points
         Ek_ = np.matmul(alpha*k0*k0*self.G0(points, k0, print_statement='propagate', regularize=regularize, radius=radius), Ek).reshape(points.shape[0],3,-1) + E0j 
@@ -189,7 +179,7 @@ class Transmission3D:
                 
         return Ek_
    
-    def solve(self, k0, alpha, u, p, radius, beam_waist, self_interaction = True, self_interaction_type = "Rayleigh"):
+    def solve(self, k0, alpha, radius, E0j, self_interaction = True, self_interaction_type = "Rayleigh"):
         '''
         Solves the EM field at each scatterer
 
@@ -202,9 +192,6 @@ class Transmission3D:
         self_interaction    - (bool)        include or not self-interactions, defaults to True 
         self_interaction_type - (string)      what order of approximation of S to use, "Rayleigh" or "full"
         '''
-
-        # Generate source field for scatterer positions
-        E0j = self.generate_source(self.r, k0, u, p, beam_waist, print_statement='solve') #(N,3,Ndirs)
         
         ### Calculate Ek field at each scatterer position
         # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
@@ -219,7 +206,7 @@ class Transmission3D:
         Ek = np.linalg.solve(M_tensor, E0j.reshape(3*self.N,-1)) 
         return Ek
     
-    def propagate_ss(self, points, k0, alpha, u, p, beam_waist, regularize = False, radius = 0.0):
+    def propagate_ss(self, points, k0, alpha, E0_meas, E0_scat, regularize = False, radius = 0.0):
         '''
         Calculates the EM field at a set of measurement points, using a single-scattering approximation
 
@@ -233,10 +220,7 @@ class Transmission3D:
         radius           - (1)           considered scatterer radius, only used for regularization 
         '''
 
-        points = np.tensor(points)
-        E0_meas = self.generate_source(points, k0, u, p, beam_waist, print_statement='propagate_ss')
-        E0_scat = self.generate_source(self.r, k0, u, p, beam_waist, print_statement='propagate_ss')
-        E0_scat = E0_scat.reshape(3*self.r.shape[0],-1)        
+        points = np.tensor(points)   
         Ek_ = np.matmul(alpha*k0*k0* self.G0(points, k0, print_statement='propagate_ss', regularize=regularize, radius=radius), E0_scat).reshape(points.shape[0],3,-1) + E0_meas
         
         # Take care of cases in which measurement points are exactly scatterer positions
@@ -586,7 +570,7 @@ class Transmission3D_scalar:
         
         return E0j
  
-    def propagate(self, points, Ek, k0, alpha, u, beam_waist, regularize = False, radius = 0.0):
+    def propagate(self, points, Ek, k0, alpha, E0j, regularize = False, radius = 0.0):
         '''
         Calculates the EM field at a set of measurement points
 
@@ -600,12 +584,6 @@ class Transmission3D_scalar:
         radius           - (1)           considered scatterer radius, only used for regularization 
         '''
         points = np.tensor(points)
-        
-        # ensure u are all unit vectors
-        u /= np.linalg.norm(u,axis=-1).reshape(-1,1)
-
-        # generate source field for measurement points
-        E0j = self.generate_source(points, k0, u, beam_waist, print_statement='propagate') #(M,Ndirs)
         
         # calculate Ek field at all measurement points
         Ek_ = np.matmul(alpha*k0*k0*self.G0(points, k0, print_statement='propagate', regularize=regularize, radius=radius), Ek).reshape(points.shape[0],u.shape[0]) + E0j 
@@ -626,7 +604,7 @@ class Transmission3D_scalar:
                 
         return Ek_
    
-    def solve(self, k0, alpha, u, radius, beam_waist, self_interaction = True, self_interaction_type = "Rayleigh"):
+    def solve(self, k0, alpha, radius, E0j, self_interaction = True, self_interaction_type = "Rayleigh"):
         '''
         Solves the EM field at each scatterer
 
@@ -639,9 +617,6 @@ class Transmission3D_scalar:
         self_interaction_type - (string)      what order of approximation of S to use, "Rayleigh" or "full"
 
         '''
-
-        # Generate source field for scatterer positions
-        E0j = self.generate_source(self.r, k0, u, beam_waist, print_statement='solve') #(N,3,Ndirs)
         
         ### Calculate Ek field at each scatterer position
         # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
@@ -656,7 +631,7 @@ class Transmission3D_scalar:
         Ek = np.linalg.solve(M_tensor, E0j.reshape(self.N,-1)) 
         return Ek
     
-    def propagate_ss(self, points, k0, alpha, u, beam_waist, regularize = False, radius = 0.0):
+    def propagate_ss(self, points, k0, alpha, E0_meas, E0_scat, regularize = False, radius = 0.0):
         '''
         Calculates the EM field at a set of measurement points, using a single-scattering approximation
 
@@ -670,9 +645,6 @@ class Transmission3D_scalar:
         '''
 
         points = np.tensor(points)
-        E0_meas = self.generate_source(points, k0, u, beam_waist, print_statement='propagate_ss')
-        E0_scat = self.generate_source(self.r, k0, u, beam_waist, print_statement='propagate_ss')
-        E0_scat = E0_scat.reshape(self.r.shape[0],-1)        
         Ek_ = np.matmul(alpha*k0*k0* self.G0(points, k0, print_statement='propagate_ss', regularize=regularize, radius=radius), E0_scat).reshape(points.shape[0],-1) + E0_meas
         
         # Take care of cases in which measurement points are exactly scatterer positions
