@@ -10,8 +10,8 @@ import hickle as hkl
 import sys
 import os
 import utils
-from Transmission2D import Transmission2D, Transmission2D_hmatrices
-from Transmission3D import Transmission3D, Transmission3D_hmatrices
+from Transmission2D import Transmission2D
+from Transmission3D import Transmission3D
 import lattices
 import magreete_scalar
 
@@ -20,7 +20,7 @@ import argparse
 
 def main(ndim, # Required arguments
         refractive_n = 1.65 + 0.025j, phi = 0.1, regularize = True, N_raw = 16384, beam_waist = 0.2, L = 1, size_subsample = 1.0, source = "beam", # Physical parameters
-        lattice=None, cold_atoms=False, kresonant_ = None, annulus = 0, composite = False, kick = 0.0, shift = 0.0, input_files_args = None, method = "torch", # Special cases
+        lattice=None, cold_atoms=False, kresonant_ = None, annulus = 0, composite = False, kick = 0.0, shift = 0.0, input_files_args = None, # Special cases
         k0range_args = None, thetarange_args = None,# Range of values to use
         compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, scattered_fields=False, transmission_radius = 2.0,
         compute_DOS=False, compute_cavityDOS = False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, dos_sizes_args = None, dospoints=1, spacing_factor = 1.0, idos_radius = 1.0, 
@@ -291,13 +291,9 @@ def main(ndim, # Required arguments
                 
                 # A fresh computation is required
                 if compute_transmission: 
-                    if method == "torch":
-                        solver = Transmission2D(points, source = source)
-                    elif method == "hmatrices":
-                        solver = Transmission2D_hmatrices(points, source = source)
-                    else:
-                        print("Choose a valid method")
-                        sys.exit()
+
+                    solver = Transmission2D(points, source = source)
+
                     ETEall = []
                     ETMall = []
                     E0TEall = []
@@ -348,13 +344,8 @@ def main(ndim, # Required arguments
                         alpha, k0 = params
                         k0 = onp.float64(k0)
                         alpha = onp.complex128(alpha)
-                        if method == "torch":
-                            solver = Transmission2D(points, source = source)
-                        elif method == "hmatrices":
-                            solver = Transmission2D_hmatrices(points, source = source)
-                        else:
-                            print("Choose a valid method")
-                            sys.exit()
+
+                        solver = Transmission2D(points, source = source)
 
                         EkTE, EkTM = solver.propagate_EM(measurement_points, EjTE, EjTM, k0, alpha, thetas, w, regularize = regularize, radius = radius)
                         
@@ -439,13 +430,9 @@ def main(ndim, # Required arguments
             if single_scattering_transmission:
                 # Define the list of measurement points for transmission plots
                 measurement_points = transmission_radius*L*onp.vstack([onp.cos(thetas),onp.sin(thetas)]).T
-                if method == "torch":
-                    solver = Transmission2D(points, source = source)
-                elif method == "hmatrices":
-                    solver = Transmission2D_hmatrices(points, source = source)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
+
+                solver = Transmission2D(points, source = source)
+
                 ETEall_ss = []
                 ETMall_ss = []
                 ETEall_scat_ss = []
@@ -546,13 +533,9 @@ def main(ndim, # Required arguments
                     extra_string = extra_string+"es"
                 print("Computing the full fields at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
 
-                if method == "torch":
-                    solver = Transmission2D(points, source = source)
-                elif method == "hmatrices":
-                    solver = Transmission2D_hmatrices(points, source = source)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
+
+                solver = Transmission2D(points, source = source)
+
 
                 for k0, alpha in zip(k0range,alpharange):
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
@@ -641,13 +624,9 @@ def main(ndim, # Required arguments
 
 
             if compute_SDOS:
-                if method == "torch":
-                    solver = Transmission2D(points, source = source)
-                elif method == "hmatrices":
-                    solver = Transmission2D_hmatrices(points, source = source)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
+
+                solver = Transmission2D(points, source = source)
+
                 DOSall_TE = []
                 DOSall_TM = []
                 k0_range = []
@@ -686,13 +665,9 @@ def main(ndim, # Required arguments
                 print("Computing the eigenfields and plotting the "+str(number_eigenmodes)+" most localized at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
 
                 
-                if method == "torch":
-                    solver = Transmission2D(points, source = None)
-                elif method == "hmatrices":
-                    solver = Transmission2D_hmatrices(points, source = None)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
+
+                solver = Transmission2D(points, source = None)
+
                     
                 k0_range = []
 
@@ -741,13 +716,9 @@ def main(ndim, # Required arguments
 
 
             if compute_DOS:
-                if method == "torch":
-                    solver = Transmission2D(points, source = source)
-                elif method == "hmatrices":
-                    solver = Transmission2D_hmatrices(points, source = source)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
+
+                solver = Transmission2D(points, source = source)
+
                 DOSall_TE = []
                 DOSall_TM = []
                 k0_range = []
@@ -760,12 +731,10 @@ def main(ndim, # Required arguments
 
                 for k0, alpha in zip(k0range,alpharange):
                     dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-                    if method == "torch":
-                        DOSall_TE.append(dos_TE.numpy())
-                        DOSall_TM.append(dos_TM.numpy())
-                    else:
-                        DOSall_TE.append(dos_TE)
-                        DOSall_TM.append(dos_TM)
+
+                    DOSall_TE.append(dos_TE.numpy())
+                    DOSall_TM.append(dos_TM.numpy())
+
 
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                     k0_range.append(k0_)
@@ -800,13 +769,8 @@ def main(ndim, # Required arguments
                     measurement_points = utils.uniform_unit_disk_picking(M)
                     measurement_points *= dos_size * L/2 * idos_radius
                     disk_points = lattices.cut_circle(points, rad = dos_size * 0.5)
-                    if method == "torch":
-                        solver = Transmission2D(disk_points, source = source)
-                    elif method == "hmatrices":
-                        solver = Transmission2D_hmatrices(disk_points, source = source)
-                    else:
-                        print("Choose a valid method")
-                        sys.exit()
+
+                    solver = Transmission2D(disk_points, source = source)
 
                     # Find all overlaps and redraw while you have some
                     # Following Pierrat et al., I use 1 diameter as the spacing there
@@ -834,12 +798,10 @@ def main(ndim, # Required arguments
                         if k0_ not in k0_range:
                             k0_range = onp.append(k0_range,k0_)
                             dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-                            if method == "torch":
-                                DOSall_TE = onp.append(DOSall_TE,dos_TE.numpy())
-                                DOSall_TM = onp.append(DOSall_TM,dos_TM.numpy())
-                            else:
-                                DOSall_TE = onp.append(DOSall_TE,dos_TE)
-                                DOSall_TM = onp.append(DOSall_TM,dos_TM)
+
+                            DOSall_TE = onp.append(DOSall_TE,dos_TE.numpy())
+                            DOSall_TM = onp.append(DOSall_TM,dos_TM.numpy())
+
                             idx = onp.argsort(k0_range)
                             k0_range = k0_range[idx]
                             DOSall_TE = DOSall_TE[idx]
@@ -880,13 +842,9 @@ def main(ndim, # Required arguments
                     spacing *= spacing_factor
                     disk_points = lattices.exclude_circle(disk_points, spacing)
                     
-                    if method == "torch":
-                        solver = Transmission2D(disk_points, source = source)
-                    elif method == "hmatrices":
-                        solver = Transmission2D_hmatrices(disk_points, source = source)
-                    else:
-                        print("Choose a valid method")
-                        sys.exit()
+
+                    solver = Transmission2D(disk_points, source = source)
+
 
                     utils.plot_2d_points(disk_points, file_name+'_kept_points_size'+str(dos_size))
 
@@ -895,12 +853,10 @@ def main(ndim, # Required arguments
                         if k0_ not in k0_range:
                             k0_range = onp.append(k0_range,k0_)
                             dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-                            if method == "torch":
-                                DOSall_TE = onp.append(DOSall_TE,dos_TE.numpy())
-                                DOSall_TM = onp.append(DOSall_TM,dos_TM.numpy())
-                            else:
-                                DOSall_TE = onp.append(DOSall_TE,dos_TE)
-                                DOSall_TM = onp.append(DOSall_TM,dos_TM)
+
+                            DOSall_TE = onp.append(DOSall_TE,dos_TE.numpy())
+                            DOSall_TM = onp.append(DOSall_TM,dos_TM.numpy())
+
                             idx = onp.argsort(k0_range)
                             k0_range = k0_range[idx]
                             DOSall_TE = DOSall_TE[idx]
@@ -916,13 +872,9 @@ def main(ndim, # Required arguments
                     utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'cdos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_TM')
 
             if compute_LDOS:
-                if method == "torch":
-                    solver = Transmission2D(points, source = source)
-                elif method == "hmatrices":
-                    solver = Transmission2D_hmatrices(points, source = source)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
+
+                solver = Transmission2D(points, source = source)
+
                 # Expensive computation
                 ngridx = gridsize[0]
                 ngridy = gridsize[1]
@@ -984,13 +936,9 @@ def main(ndim, # Required arguments
                 # A fresh computation is required
                 if compute_transmission:
 
-                    if method == "torch":
-                        solver = Transmission3D(points, source = source)
-                    elif method == "hmatrices":
-                        solver = Transmission3D_hmatrices(points, source = source)
-                    else:
-                        print("Choose a valid method")
-                        sys.exit()
+
+                    solver = Transmission3D(points, source = source)
+
                     u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
                     u = np.tensor(u)
                     p = np.zeros(u.shape)
@@ -1038,13 +986,9 @@ def main(ndim, # Required arguments
                         alpha, k0 = params
                         k0 = onp.float64(k0)
                         alpha = onp.complex128(alpha)
-                        if method == "torch":
-                            solver = Transmission3D(points, source = source)
-                        elif method == "hmatrices":
-                            solver = Transmission3D_hmatrices(points, source = source)
-                        else:
-                            print("Choose a valid method")
-                            sys.exit()
+
+                        solver = Transmission3D(points, source = source)
+
 
                         Ek = solver.propagate(measurement_points, Ej, k0, alpha, u, p, w, regularize = regularize, radius = radius)
                         
@@ -1103,13 +1047,9 @@ def main(ndim, # Required arguments
             if single_scattering_transmission:
                 # Define the list of measurement points for transmission plots
                 measurement_points = transmission_radius*L*onp.vstack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
-                if method == "torch":
-                    solver = Transmission3D(points, source = source)
-                elif method == "hmatrices":
-                    solver = Transmission3D_hmatrices(points, source = source)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
+
+                solver = Transmission3D(points, source = source)
+
                 u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
                 u = np.tensor(u)
                 p = np.zeros(u.shape)
@@ -1187,13 +1127,8 @@ def main(ndim, # Required arguments
                     extra_string = extra_string+"es"
                 print("Computing the full fields at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
 
-                if method == "torch":
-                    solver = Transmission3D(points, source = source)
-                elif method == "hmatrices":
-                    solver = Transmission3D_hmatrices(points, source = source)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
+
+                solver = Transmission3D(points, source = source)
 
                 for k0, alpha in zip(k0range,alpharange):
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
@@ -1311,15 +1246,8 @@ def main(ndim, # Required arguments
                     extra_string = extra_string+"es"
                 print("Computing the eigenfields and plotting the "+str(number_eigenmodes)+" most localized at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
 
-                
-                if method == "torch":
-                    solver = Transmission3D(points, source = None)
-                elif method == "hmatrices":
-                    solver = Transmission3D_hmatrices(points, source = None)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
-                    
+                solver = Transmission3D(points, source = None)
+
                 k0_range = []
 
                 for k0, alpha in zip(k0range,alpharange):
@@ -1357,13 +1285,9 @@ def main(ndim, # Required arguments
                             utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, 0, True, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_eigen_'+sorting_type+str(i), my_dpi = 300)
 
             if compute_SDOS:
-                if method == "torch":
-                    solver = Transmission3D(points, source = source)
-                elif method == "hmatrices":
-                    solver = Transmission3D_hmatrices(points, source = source)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
+
+                solver = Transmission3D(points, source = source)
+
                 DOSall = []
                 k0_range = []
 
@@ -1380,13 +1304,9 @@ def main(ndim, # Required arguments
                 utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'sdos', appended_string='_'+str(file_index))
 
             if compute_DOS:
-                if method == "torch":
-                    solver = Transmission3D(points, source = source)
-                elif method == "hmatrices":
-                    solver = Transmission3D_hmatrices(points, source = source)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
+
+                solver = Transmission3D(points, source = source)
+
                 DOSall = []
                 k0_range = []
 
@@ -1399,10 +1319,9 @@ def main(ndim, # Required arguments
 
                 for k0, alpha in zip(k0range,alpharange):
                     dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-                    if method == "torch":
-                        DOSall.append(dos.numpy())
-                    else:
-                        DOSall.append(dos)
+
+                    DOSall.append(dos.numpy())
+
 
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                     k0_range.append(k0_)
@@ -1427,15 +1346,7 @@ def main(ndim, # Required arguments
                     measurement_points *= dos_size * L/2 * idos_radius
                     ball_points = lattices.cut_circle(points, rad = dos_size * 0.5)
 
-
-                    if method == "torch":
-                        solver = Transmission3D(ball_points, source = source)
-                    elif method == "hmatrices":
-                        solver = Transmission3D_hmatrices(ball_points, source = source)
-                    else:
-                        print("Choose a valid method")
-                        sys.exit()
-
+                    solver = Transmission3D(ball_points, source = source)
 
                     # Find all overlaps and redraw while you have some
                     # Following Pierrat et al., I use 1 diameter as the spacing there
@@ -1463,10 +1374,9 @@ def main(ndim, # Required arguments
                         if k0_ not in k0_range:
                             k0_range = onp.append(k0_range,k0_)
                             dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-                            if method == "torch":
-                                DOSall = onp.append(DOSall,dos.numpy())
-                            else:
-                                DOSall = onp.append(DOSall,dos)
+
+                            DOSall = onp.append(DOSall,dos.numpy())
+                                
                             idx = onp.argsort(k0_range)
                             k0_range = k0_range[idx]
                             DOSall = DOSall[idx]
@@ -1495,24 +1405,16 @@ def main(ndim, # Required arguments
                     spacing *= spacing_factor
                     ball_points = lattices.exclude_circle(ball_points, spacing)
 
-
-                    if method == "torch":
-                        solver = Transmission3D(ball_points, source = source)
-                    elif method == "hmatrices":
-                        solver = Transmission3D_hmatrices(ball_points, source = source)
-                    else:
-                        print("Choose a valid method")
-                        sys.exit()
+                    solver = Transmission3D(ball_points, source = source)
 
                     for k0, alpha in zip(k0range,alpharange):
                         k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                         if k0_ not in k0_range:
                             k0_range = onp.append(k0_range,k0_)
                             dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-                            if method == "torch":
-                                DOSall = onp.append(DOSall,dos.numpy())
-                            else:
-                                DOSall = onp.append(DOSall,dos)
+
+                            DOSall = onp.append(DOSall,dos.numpy())
+
                             idx = onp.argsort(k0_range)
                             k0_range = k0_range[idx]
                             DOSall = DOSall[idx]
@@ -1522,13 +1424,9 @@ def main(ndim, # Required arguments
                     utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'cdos', appended_string='_'+str(file_index)+'_size'+str(dos_size))
             
             if compute_LDOS:
-                if method == "torch":
-                    solver = Transmission3D(points, source = source)
-                elif method == "hmatrices":
-                    solver = Transmission3D_hmatrices(points, source = source)
-                else:
-                    print("Choose a valid method")
-                    sys.exit()
+
+                solver = Transmission3D(points, source = source)
+
                 # Expensive computation
                 # For now, taking the central plane z = 0
                 ngridx = gridsize[0]
@@ -1615,13 +1513,9 @@ def main(ndim, # Required arguments
 
                 # Produce transmission normalized by total intensity of the INCIDENT FIELD on the sphere
                 if just_compute_averages:
-                    if method == "torch":
-                        solver = Transmission2D(points, source = source)
-                    elif method == "hmatrices":
-                        solver = Transmission2D_hmatrices(points, source = source)
-                    else:
-                        print("Choose a valid method")
-                        sys.exit()
+
+                    solver = Transmission2D(points, source = source)
+
                     # Define the list of measurement points for transmission plots
                     measurement_points = transmission_radius*L*onp.vstack([onp.cos(thetas),onp.sin(thetas)]).T
                     E0TEall = []
@@ -1847,9 +1741,6 @@ if __name__ == '__main__':
         default = 0", default = 0.0)
     parser.add_argument("--shift", type = float, help ="Shifts the positions of the whole system by one random vector of the specified modulus\
         default = 0", default = 0.0)
-    parser.add_argument("--method", "-m", type=str, help="Method used to solve the linear system.\
-        Options = torch, hmatrices \
-        default = torch", default = "torch")
     # Computation type arguments
     parser.add_argument("--compute_transmission", action='store_true', help="Compute transmission for laser beams\
         default = False", default=False)
@@ -1948,7 +1839,6 @@ if __name__ == '__main__':
     composite                       = args.composite
     kick                            = args.kick
     shift                           = args.shift
-    method                          = args.method
     # Outputs
     compute_transmission            = args.compute_transmission
     plot_transmission               = args.plot_transmission
@@ -1988,12 +1878,6 @@ if __name__ == '__main__':
     np.set_num_threads(n_cpus)
     np.device("cpu")
     
-    if method == "hmatrices":
-        # XXX Not sure if these do anything, will need to test it properly
-        os.environ["JULIA_NUM_THREADS"] = str(n_cpus)
-        os.environ["PYTHON_JULIACALL_THREADS"] = str(n_cpus) # https://docs.juliahub.com/PythonCall/WdXsa/0.9.7/juliacall/
-        os.environ["OMP_NUM_THREADS"] = str(n_cpus)
-    
     
     if scalar:
         run = magreete_scalar.main_scalar
@@ -2003,7 +1887,7 @@ if __name__ == '__main__':
     run(ndim,
         refractive_n = refractive_n,  phi=phi, regularize=regularize, N_raw=N, source = source, beam_waist=beam_waist, L=boxsize, size_subsample=size_subsample,
         k0range_args = k0range_args, thetarange_args=thetarange_args, input_files_args = input_files_args,
-        cold_atoms=cold_atoms, kresonant_ = kresonant_, lattice=lattice, annulus = annulus, composite = composite, kick = kick, shift = shift, method = method,
+        cold_atoms=cold_atoms, kresonant_ = kresonant_, lattice=lattice, annulus = annulus, composite = composite, kick = kick, shift = shift,
         compute_transmission = compute_transmission, plot_transmission=plot_transmission, single_scattering_transmission=single_scattering_transmission, scattered_fields=scattered_fields, transmission_radius=transmission_radius,
         compute_DOS=compute_DOS, compute_cavityDOS = compute_cavityDOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS, dos_sizes_args= dos_sizes_args, 
         compute_eigenmodes = compute_eigenmodes, number_eigenmodes = number_eigenmodes, plot_eigenmodes = plot_eigenmodes, sorting_type = sorting_type,
