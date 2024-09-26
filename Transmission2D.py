@@ -7,6 +7,7 @@ import hickle as hkl
 from juliacall import Main as jl
 from juliacall import Pkg as jlPkg
 
+import utils
 
 I = np.tensor(onp.identity(2)).reshape(1,1,2,2) #identity matrix
 
@@ -192,6 +193,10 @@ class Transmission2D:
                 E0TE[:,:,idx] = np.matmul(self.torch_greensTE(rrot.reshape(-1,1,2) - source_location.reshape(1,-1,2), k0), dipole_moment.type(np.complex128)).squeeze()
                 # Rotate the TE polarization at the end to match actual coordinates
                 E0TE[:,:,idx] = np.matmul(rot.type(np.complex128).T, E0TE[:,:,idx].T).T
+
+        elif self.source is None:
+            E0TM = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
+            E0TE = np.zeros((points.shape[0],2,len(thetas)),dtype=np.complex128)
 
         else:
             raise NotImplementedError
@@ -549,13 +554,13 @@ class Transmission2D:
             dims = M_tensor.shape[0]
             M_tensor -= alpha*k0*k0*self_interaction_integral_TM(k0, radius, self_interaction_type)/volume * np.eye(dims)
         # Compute the spectrum of the M_tensor
-        lambdas = np.linalg.eigvals(M_tensor)
+        deltas = np.linalg.eigvals(M_tensor)
 
         if write_eigenvalues:
-            onp.savetxt(file_name+'_lambdas_'+str(k0_)+'_TM.csv', onp.stack([np.real(lambdas).numpy(), np.imag(lambdas).numpy()]).T)
+            onp.savetxt(file_name+'_deltas_'+str(k0_)+'_TM.csv', onp.stack([np.real(deltas).numpy(), np.imag(deltas).numpy()]).T)
 
         # Compute the trace part here
-        dos_factor_TM = ((1 - lambdas)**2 / lambdas).sum()/Npoints
+        dos_factor_TM = ((1 - deltas)**2 / deltas).sum()/Npoints
         dos_factor_TM *= 4.0 / ( k0**2 * alpha) # For prefactor in systems invariant along z, see https://www.sciencedirect.com/science/article/pii/S1569441007000387
         dos_factor_TM = np.imag(dos_factor_TM)
 
@@ -568,18 +573,85 @@ class Transmission2D:
             dims = M_tensor.shape[0]
             M_tensor -= alpha*k0*k0*self_interaction_integral_TE(k0, radius, self_interaction_type)/volume * np.eye(dims)
         # Compute the spectrum of the M_tensor
-        lambdas = np.linalg.eigvals(M_tensor)
+        deltas = np.linalg.eigvals(M_tensor)
 
         if write_eigenvalues:
-            onp.savetxt(file_name+'_lambdas_'+str(k0_)+'_TE.csv', onp.stack([np.real(lambdas).numpy(), np.imag(lambdas).numpy()]).T)
+            onp.savetxt(file_name+'_deltas_'+str(k0_)+'_TE.csv', onp.stack([np.real(deltas).numpy(), np.imag(deltas).numpy()]).T)
 
         # Compute the trace part here
-        dos_factor_TE = ((1 - lambdas)**2 / lambdas).sum()/Npoints
+        dos_factor_TE = ((1 - deltas)**2 / deltas).sum()/Npoints
         dos_factor_TE *= 4.0 / ( k0**2 * alpha) # For prefactor in systems invariant along z, see https://www.sciencedirect.com/science/article/pii/S1569441007000387
         dos_factor_TE = np.imag(dos_factor_TE)
 
         return dos_factor_TE, dos_factor_TM
     
+    def compute_eigenmodes_IPR(self, k0, alpha, radius, file_name, self_interaction = True, self_interaction_type = "Rayleigh", number_eigenmodes = 1, write_eigenvalues = True, sorting_type = 'IPR', scalar = True):
+    
+        Npoints = self.r.shape[0]
+        k0_ = onp.round(k0/(2.0*onp.pi),1)
+        print("Computing spectrum and scatterer LDOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
+
+        if scalar:
+            ### TM Calculation
+            # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
+            M_tensor = -alpha*k0*k0*self.G0_TM(self.r, k0, print_statement='DOS eigvals')
+            M_tensor.fill_diagonal_(1)
+            if self_interaction:
+                # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
+                volume = onp.pi*radius*radius
+                dims = M_tensor.shape[0]
+                M_tensor -= alpha*k0*k0*self_interaction_integral_TM(k0, radius, self_interaction_type)/volume * np.eye(dims)
+        else:
+            ### TE Calculation
+            # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
+            M_tensor = -alpha*k0*k0*self.G0_TE(None, k0, print_statement='DOS eigvals')
+            M_tensor.fill_diagonal_(1)
+            if self_interaction:
+                # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
+                volume = onp.pi*radius*radius
+                dims = M_tensor.shape[0]
+                M_tensor -= alpha*k0*k0*self_interaction_integral_TE(k0, radius, self_interaction_type)/volume * np.eye(dims)
+            # Compute the spectrum of the M_tensor
+    
+        # Works, maybe consider scipy.schur instead, and output IPRs + one / some eigenvector(s) for plotting purposes
+        deltas, eigenvectors = np.linalg.eig(M_tensor)
+        IPRs = np.sum(np.abs(eigenvectors**4), axis = 0) / (np.sum(np.abs(eigenvectors**2), axis = 0))**2
+        
+        if scalar:
+            extra_string = 'TM'
+        else:
+            extra_string = 'TE'
+        
+        deltas = 1.0 - k0**2 * alpha * deltas
+        utils.plot_IPR_damping_values(deltas, IPRs, file_name+'_deltas'+extra_string, logscale=True, appended_string=str(k0_))
+        # utils.plot_IPR_damping_values(1-deltas, IPRs, file_name+'_test'+extra_string, logscale=True, appended_string=str(k0_))
+        
+        if write_eigenvalues:
+            onp.savetxt(file_name+'_deltas_'+str(k0_)+'_'+extra_string+'.csv', onp.stack([np.real(deltas).numpy(), np.imag(deltas).numpy(), IPRs]).T)
+            
+            
+        if sorting_type == 'IPR':
+            IPRs, indices = np.sort(IPRs, descending=True)
+            deltas = deltas[indices]
+            eigenvectors = eigenvectors[:,indices]
+        elif sorting_type == 'damping':
+            indices = np.argsort(np.imag(deltas), descending= False) # Want SMALL dampings first
+            deltas = deltas[indices]
+            IPRs = IPRs[indices]
+            eigenvectors = eigenvectors[:,indices]
+        else:
+            raise NotImplementedError
+            
+        
+        returned_eigenvectors = eigenvectors[:, 0:number_eigenmodes]
+
+        # Debug plots
+        # returned_eigenvalues = deltas[0:number_eigenmodes]
+        # print(returned_eigenvalues)
+        # print(IPRs.amax())
+        # print(IPRs[0])
+        
+        return deltas, returned_eigenvectors, IPRs
 class Transmission2D_hmatrices:
     
 
@@ -588,6 +660,7 @@ class Transmission2D_hmatrices:
         self.N = self.r.shape[0]
         self.source = source
         jlPkg.activate("Transmission2D")
+        jlPkg.instantiate()
         jl.seval("using Transmission2D")
     
     
@@ -668,7 +741,11 @@ class Transmission2D_hmatrices:
                 # Rotate the TE polarization at the end to match actual coordinates
                 # rot-1 = rotT
                 E0TE[:,:,idx] = np.matmul(rot.T, E0TE[:,:,idx].T).T
-                
+        
+        elif self.source is None:
+            E0TM = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
+            E0TE = np.zeros((points.shape[0],2,len(thetas)),dtype=np.complex128)
+        
         else:
             raise NotImplementedError
                 
@@ -864,23 +941,23 @@ class Transmission2D_hmatrices:
         Npoints = self.r.shape[0]
         print("Computing spectrum and scatterer LDOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
 
-        lambdas_TM = jl.Transmission2D.spectrum_TM(self.r.numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type)
+        deltas_TM = jl.Transmission2D.spectrum_TM(self.r.numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type)
         
         if write_eigenvalues:
-            onp.savetxt(file_name+'_lambdas_'+str(k0_)+'_TM.csv', onp.stack([np.real(lambdas_TM).numpy(), np.imag(lambdas_TM).numpy()]).T)
+            onp.savetxt(file_name+'_deltas_'+str(k0_)+'_TM.csv', onp.stack([np.real(deltas_TM).numpy(), np.imag(deltas_TM).numpy()]).T)
             
         # Compute the trace part here
-        dos_factor_TM = ((1 - lambdas_TM)**2 / lambdas_TM).sum()/Npoints
+        dos_factor_TM = ((1 - deltas_TM)**2 / deltas_TM).sum()/Npoints
         dos_factor_TM *= 4.0 / ( k0**2 * alpha) # For prefactor in systems invariant along z, see https://www.sciencedirect.com/science/article/pii/S1569441007000387
         dos_factor_TM = np.imag(dos_factor_TM)
 
-        lambdas_TE = jl.Transmission2D.spectrum_TE(self.r.numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type)
+        deltas_TE = jl.Transmission2D.spectrum_TE(self.r.numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type)
         
         if write_eigenvalues:
-            onp.savetxt(file_name+'_lambdas_'+str(k0_)+'_TE.csv', onp.stack([np.real(lambdas_TE).numpy(), np.imag(lambdas_TE).numpy()]).T)
+            onp.savetxt(file_name+'_deltas_'+str(k0_)+'_TE.csv', onp.stack([np.real(deltas_TE).numpy(), np.imag(deltas_TE).numpy()]).T)
 
         # Compute the trace part here
-        dos_factor_TE = ((1 - lambdas_TE)**2 / lambdas_TE).sum()/Npoints
+        dos_factor_TE = ((1 - deltas_TE)**2 / deltas_TE).sum()/Npoints
         dos_factor_TE *= 4.0 / ( k0**2 * alpha) # For prefactor in systems invariant along z, see https://www.sciencedirect.com/science/article/pii/S1569441007000387
         dos_factor_TE = np.imag(dos_factor_TE)
 
@@ -995,6 +1072,9 @@ class Transmission2D_scalar:
                 source_location = source_distance * np.tensor([-1.0, 0.0])
                 E0j[:,idx] = onp.sqrt(source_intensity) * self.torch_greens(rrot.reshape(-1,1,2) - source_location.reshape(1,-1,2), k0).reshape(points.shape[0])
                 
+        elif self.source is None:
+            E0j = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
+
         else:
             raise NotImplementedError
                 
@@ -1240,17 +1320,68 @@ class Transmission2D_scalar:
             dims = M_tensor.shape[0]
             M_tensor -= alpha*k0*k0*self_interaction_integral_TM(k0, radius, self_interaction_type)/volume * np.eye(dims)
         # Compute the spectrum of the M_tensor
-        lambdas = np.linalg.eigvals(M_tensor)
+        deltas = np.linalg.eigvals(M_tensor)
 
         if write_eigenvalues:
-            onp.savetxt(file_name+'_lambdas_'+str(k0_)+'_TM.csv', onp.stack([np.real(lambdas).numpy(), np.imag(lambdas).numpy()]).T)
+            onp.savetxt(file_name+'_deltas_'+str(k0_)+'_TM.csv', onp.stack([np.real(deltas).numpy(), np.imag(deltas).numpy()]).T)
 
         # Compute the trace part here
-        dos_factor_TM = ((1 - lambdas)**2 / lambdas).sum()/Npoints
+        dos_factor_TM = ((1 - deltas)**2 / deltas).sum()/Npoints
         dos_factor_TM *= 4.0 / ( k0**2 * alpha) # For prefactor in systems invariant along z, see https://www.sciencedirect.com/science/article/pii/S1569441007000387
         dos_factor_TM = np.imag(dos_factor_TM)
 
         return dos_factor_TM
+    
+    def compute_eigenmodes_IPR(self, k0, alpha, radius, file_name, self_interaction = True, self_interaction_type = "Rayleigh", number_eigenmodes = 1, write_eigenvalues = True, sorting_type = 'IPR'):
+    
+        Npoints = self.r.shape[0]
+        k0_ = onp.round(k0/(2.0*onp.pi),1)
+        print("Computing spectrum and scatterer LDOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
+
+        ### TM Calculation
+        # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
+        M_tensor = -alpha*k0*k0*self.G0(self.r, k0, print_statement='DOS eigvals')
+        M_tensor.fill_diagonal_(1)
+        if self_interaction:
+            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
+            volume = onp.pi*radius*radius
+            dims = M_tensor.shape[0]
+            M_tensor -= alpha*k0*k0*self_interaction_integral_TM(k0, radius, self_interaction_type)/volume * np.eye(dims)
+    
+        # Works, maybe consider scipy.schur instead, and output IPRs + one / some eigenvector(s) for plotting purposes
+        deltas, eigenvectors = np.linalg.eig(M_tensor)
+        IPRs = np.sum(np.abs(eigenvectors**4), axis = 0) / (np.sum(np.abs(eigenvectors**2), axis = 0))**2
+        
+        deltas = 1.0 - k0**2 * alpha * deltas
+        utils.plot_IPR_damping_values(deltas, IPRs, file_name+'_deltas', logscale=True, appended_string=str(k0_))
+        # utils.plot_IPR_damping_values(1-deltas, IPRs, file_name+'_test'+extra_string, logscale=True, appended_string=str(k0_))
+        
+        if write_eigenvalues:
+            onp.savetxt(file_name+'_deltas_'+str(k0_)+'.csv', onp.stack([np.real(deltas).numpy(), np.imag(deltas).numpy(), IPRs]).T)
+            
+            
+        if sorting_type is 'IPR':
+            IPRs, indices = np.sort(IPRs, descending=True)
+            deltas = deltas[indices]
+            eigenvectors = eigenvectors[:,indices]
+        elif sorting_type is 'damping':
+            indices = np.argsort(np.imag(deltas), descending= False) # Want SMALL dampings first
+            deltas = deltas[indices]
+            IPRs = IPRs[indices]
+            eigenvectors = eigenvectors[:,indices]
+        else:
+            raise NotImplementedError
+            
+        
+        returned_eigenvectors = eigenvectors[:, 0:number_eigenmodes]
+
+        # Debug plots
+        # returned_eigenvalues = deltas[0:number_eigenmodes]
+        # print(returned_eigenvalues)
+        # print(IPRs.amax())
+        # print(IPRs[0])
+        
+        return deltas, returned_eigenvectors, IPRs
     
 class Transmission2D_scalar_hmatrices:
 
@@ -1259,6 +1390,7 @@ class Transmission2D_scalar_hmatrices:
         self.N = self.r.shape[0]
         self.source = source
         jlPkg.activate("Transmission2D")
+        jlPkg.instantiate()
         jl.seval("using Transmission2D")
     
     
@@ -1321,6 +1453,9 @@ class Transmission2D_scalar_hmatrices:
                 source_location = source_distance * np.tensor([-1.0, 0.0])
                 E0j[:,idx] = onp.sqrt(source_intensity) * self.torch_greens(rrot.reshape(-1,1,2) - source_location.reshape(1,-1,2), k0).reshape(points.shape[0])
                 
+        elif self.source is None:
+            E0j = np.zeros((points.shape[0],len(thetas)),dtype=np.complex128)
+
         else:
             raise NotImplementedError
         
@@ -1483,13 +1618,13 @@ class Transmission2D_scalar_hmatrices:
         Npoints = self.r.shape[0]
         print("Computing spectrum and scatterer LDOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
 
-        lambdas_TM = jl.Transmission2D.spectrum_TM(self.r.numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type)
+        deltas_TM = jl.Transmission2D.spectrum_TM(self.r.numpy(), k0, alpha, radius, self_interaction, self_interaction_type = self_interaction_type)
         
         if write_eigenvalues:
-            onp.savetxt(file_name+'_lambdas_'+str(k0_)+'_TM.csv', onp.stack([np.real(lambdas_TM).numpy(), np.imag(lambdas_TM).numpy()]).T)
+            onp.savetxt(file_name+'_deltas_'+str(k0_)+'_TM.csv', onp.stack([np.real(deltas_TM).numpy(), np.imag(deltas_TM).numpy()]).T)
             
         # Compute the trace part here
-        dos_factor_TM = ((1 - lambdas_TM)**2 / lambdas_TM).sum()/Npoints
+        dos_factor_TM = ((1 - deltas_TM)**2 / deltas_TM).sum()/Npoints
         dos_factor_TM *= 4.0 / ( k0**2 * alpha) # For prefactor in systems invariant along z, see https://www.sciencedirect.com/science/article/pii/S1569441007000387
         dos_factor_TM = np.imag(dos_factor_TM)
 

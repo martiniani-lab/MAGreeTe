@@ -74,6 +74,21 @@ def honeycomb(Nx=71,Ny=41,disp=0):
         r = add_displacement(r,dr=disp)
     return r
 
+def vogel_spiral(N = 1000):
+
+    golden = (1 + 5 ** 0.5) / 2
+    psi = 2.0 * np.pi / (golden**2)
+
+    n = np.arange(N, dtype=np.double)
+
+    x = np.cos(n * psi) * np.sqrt(n)
+    y = np.sin(n * psi) * np.sqrt(n)
+
+    r = np.vstack([x,y]).T
+    r /= r.amax()
+    r /= 2.0
+    
+    return r
 
 def quasicrystal(N = 4096, nspan=46, ndirs=5, mode="",disp=0, offset = None):
     # http://www.gregegan.net/APPLETS/12/deBruijnNotes.html
@@ -221,4 +236,23 @@ def diamond(Nside=17,disp=0, normalize=True):
         r -= 0.5
     if disp != 0:
         r = add_displacement(r,dr=disp)
+    return r
+
+def simple_hexagonal(Nx=17,Ny=15, Nz=15, disp=0):
+    N = Nx*Ny
+    x = np.arange(-Nx,Nx+1,dtype=np.double)*onp.sqrt(3)/2
+    y = np.arange(-Ny,Ny+1,dtype=np.double)
+    z = np.arange(-Nz,Nz+1,dtype=np.double)
+    grid = np.zeros((x.shape[0],y.shape[0],z.shape[0],3))
+    grid[:,:,:,0] = x.reshape(-1,1,1)
+    grid[:,:,:,1] = y.reshape(1,-1,1)
+    grid[:,:,:,2] = y.reshape(1,1,-1)
+    grid[::2,:,:,1] += 0.5
+    r = grid.reshape(-1,3)
+    #r += onp.random.random(2)
+    r -= np.mean(r)
+    r /= np.max(r[:,0])
+    if disp != 0:
+        r = add_displacement(r,dr=disp)
+    r = r.to(np.double)
     return r

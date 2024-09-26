@@ -3,6 +3,7 @@ import torch as np
 import scipy as sp
 import os
 import sys
+import hickle as hkl
 
 import matplotlib
 matplotlib.use('Agg')
@@ -114,7 +115,7 @@ def fibonacci_sphere(samples=1000):
     '''
     
     points = []
-    golden = onp.pi * (np.sqrt(5.) - 1.)  # golden angle in radians
+    golden = onp.pi * (onp.sqrt(5.) - 1.)  # golden angle in radians
     i = np.arange(samples)
     z = 1 - (i / (samples - 1)) * 2  # z goes from 1 to -1
     radii = onp.sqrt(1 - z**2)
@@ -126,7 +127,7 @@ def fibonacci_sphere(samples=1000):
         
     # plot_3d_points(np.array(points), 'testfibo')
 
-    return points
+    return points.astype(onp.float64)
 
 def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,  n_thetas_trans = 0.0, adapt_scale = False, normalization = onp.array([]), appended_string=''):
     """
@@ -169,10 +170,82 @@ def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,
     #ax.set_rmin(10.0)
     #ax.set_rticks([20,40])
     ax.set_axis_off()
+    cbar = fig.colorbar(pc, location='left')
+    cbar.ax.tick_params(labelsize=24)
+    plt.savefig(file_name_root+'_transmission_angularbeam_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
+    plt.close()
+
+def plot_transmission_angularbeam_3d(k0range, L, thetas, intensity, measurement_points, file_name_root, angular_width = 1.0, adapt_scale = False, normalization = onp.array([]), appended_string=''):
+    """
+    Plots a radial version of the frequency-angle transmission plot given 
+    k0range: list of wave vector moduli, in rad/m
+    L: system sidelength, in m
+    thetas: list of angles used for the orientation of the laser, in radians
+    intensity: the relevant field intensity (dimensions: ks, detection angles, beam angles)
+    file_name_root: prepended to the name of the file
+    appended_string: possible postfix for the name of the file, e.g. "TM" or "TE"
+    """
+
+    freqs = onp.real(k0range*L/(2*onp.pi))
+    cos_max_angle = onp.cos(angular_width * (onp.pi/2))
+    u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
+    u_out = measurement_points/onp.linalg.norm(measurement_points,axis=-1)[:,onp.newaxis]
+    dotprod = onp.sum(u[:,onp.newaxis] * u_out, axis = -1)
+    dotprod = dotprod.transpose()
+    forward = dotprod >= cos_max_angle
+    
+
+
+    total_ = onp.sum(intensity*forward[onp.newaxis,:],axis=1)
+
+    #Normalize the field differently if needed
+    if normalization.shape[0] != 0:
+        total_norm = onp.sum(normalization,axis=1)
+        total_ /= total_norm
+    else:
+        total_ /= onp.sum(forward, axis=0)[onp.newaxis,:] + 1
+    #     total_ /= onp.max(total_)
+    
+    if adapt_scale:
+        vmin = None
+        vmax = None
+    else: 
+        vmin = 1e-3
+        vmax = 1e0
+    
+    fig, ax = plt.subplots(subplot_kw={'projection':'polar'})
+    pc = ax.pcolormesh(thetas,freqs,total_,norm=clr.LogNorm(vmin=vmin,vmax=vmax), cmap=cmr.ember)
+    #ax.set_rmin(10.0)
+    #ax.set_rticks([20,40])
+    ax.set_axis_off()
     cbar = fig.colorbar(pc)
     cbar.ax.tick_params(labelsize=24)
     plt.savefig(file_name_root+'_transmission_angularbeam_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
     plt.close()
+
+    fig = plt.figure()
+    ax = fig.gca()
+    pc = ax.imshow(total_[:,:int(total_.shape[1]/2)], norm=clr.LogNorm(vmin=vmin,vmax=vmax), cmap=cmr.ember, extent =[0,180,freqs[0],freqs[-1]], origin='lower')
+    ax.set_xlabel(r'$\theta$')
+    ax.set_ylabel(r'k_0L/2\pi')
+    ax.set_aspect(180/(freqs[-1] - freqs[0]))
+    fig.colorbar(pc)
+    plt.savefig(file_name_root+'_transmission_beam_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
+    plt.close()
+    
+    avg_intensity = onp.mean(total_, axis=1)
+    fig = plt.figure()
+    ax = fig.gca()
+    freqs = onp.real(k0range*L/(2*onp.pi))
+    ax.plot(freqs, avg_intensity)
+    ax.set_xlabel(r'$k_0L/2\pi$')
+    ax.set_ylabel('Intensity')
+    ax.legend()
+    ax.set_yscale('log')
+    plt.savefig(file_name_root+'_transmission_beam_avg'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
+    plt.close()
+    
+    onp.savetxt(file_name_root+'_transmission_beam_avg'+appended_string+'.csv',onp.stack([freqs,avg_intensity]).T)
 
 def plot_transmission_flat(k0range, L, thetas, intensity, file_name_root,  n_thetas_trans = 0.0, adapt_scale = False, normalization = onp.array([]), appended_string=''):
     """
@@ -287,6 +360,7 @@ def plot_full_fields(field, ngridx, ngridy, k0_, angle_, intensity_fields, ampli
     if intensity_fields:
 
         intensity = onp.absolute(field)**2
+        intensity = np.where(intensity <= 1e-10, 1e-10, intensity)
 
         fig = plt.figure(figsize = (ngridx/my_dpi, ngridy/my_dpi), dpi = my_dpi)
         ax = plt.gca()
@@ -350,6 +424,31 @@ def plot_2d_points(points, file_name):
     ax.scatter(points[:,0], points[:,1], s = 2)
 
     plt.savefig(file_name+'_2dplot.png', dpi = 300)
+    
+def plot_IPR_damping_values(lambdas, IPRs, file_name, appended_string = '', logscale = False):
+    
+    fig = plt.figure(figsize=(10,10),dpi=300)
+    ax = fig.gca()
+    scatterplot = ax.scatter(np.real(lambdas), np.imag(lambdas), c=IPRs, s = 100, edgecolors='none',  cmap=cmr.bubblegum, vmin = 0, vmax = 0.5)
+    cbar = plt.colorbar(scatterplot)
+    cbar.set_label('IPR', rotation=270)
+    ax.set_xlabel(r'$Re \Delta_n$')
+    ax.set_ylabel(r'$Im \Delta_n$')
+    if logscale:
+        ax.set_yscale('log')
+    plt.savefig(file_name+'_deltas_IPRs'+appended_string+'.png', dpi = 300)
+    plt.close()
+    
+    fig = plt.figure(figsize=(10,10),dpi=300)
+    ax = fig.gca()
+    scatterplot = ax.scatter(np.imag(lambdas), IPRs, c=IPRs, s = 100, edgecolors='none',  cmap=cmr.bubblegum, vmin = 0, vmax = 0.5)
+    ax.set_xlabel(r'$Im \Delta_n$')
+    ax.set_ylabel(r'$IPR$')
+    if logscale:
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+    plt.savefig(file_name+'_damping_IPRs'+appended_string+'.png', dpi = 300)
+    plt.close()
 
 def plot_LDOS_2D(ldos_change,k0_,ngridx,ngridy,file_name,my_dpi=1, appended_string=''):
 
@@ -573,7 +672,7 @@ def plot_k_times_radius(k0range, radius, L, file_name, appended_string=''):
     plt.savefig(file_name+'_k_times_radius'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
     plt.close()
 
-def plot_averaged_DOS(k0range, L, DOS, file_name, DOS_type, appended_string='', debug=True):
+def plot_averaged_DOS(k0range, L, DOS, file_name, DOS_type, appended_string='', debug=False):
     # Averaged LDOS plot
     if debug:
         # XXX DEBUG: threshold values to -1
@@ -589,6 +688,28 @@ def plot_averaged_DOS(k0range, L, DOS, file_name, DOS_type, appended_string='', 
     plt.savefig(file_name+'_'+DOS_type+'_avg'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
     plt.close()
 
+def loadpoints(file_path, ndim):
+    
+    if '.hkl' in file_path:
+        points = hkl.load(file_path)[:,0:ndim]
+    elif '.txt' in file_path:
+        
+        with open(file_path, 'r') as file:
+            first_line = file.readline()
+        # Determine the delimiter based on the first line
+        if ',' in first_line:
+            delimiter = ','
+        elif ' ' in first_line:
+            delimiter = ' '
+        else:
+            raise NotImplementedError("Delimiter not identified")
+        
+        points = onp.loadtxt(file_path, delimiter=delimiter)[:,0:ndim]
+    else:
+        print("Wrong file format")
+        sys.exit()
+        
+    return points
 
 def trymakedir(path):
     """this function deals with common race conditions"""
