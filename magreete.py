@@ -52,7 +52,7 @@ def main(ndim, # Required arguments
         output_directory_suffix +="_kicked_"+str(kick)
     if regularize:
         output_directory_suffix += "_reg"
-
+        
     # Angles to use for transmission and fields
     if thetarange_args == None:
         Ntheta = 360
@@ -151,7 +151,7 @@ def main(ndim, # Required arguments
             points = make_lattice(lattice, N_raw, kick, ndim)
             if lattice == 'poisson':
                 file_name += str(ndim)+'d'
-            points = lattices.cut_circle(points)
+            points = lattices.cut_circle(points, cut_radius)
             
             if shift != 0.0:
                 points += shift * lattices.uniform_unit_ball_picking(1,ndim)
@@ -180,7 +180,11 @@ def main(ndim, # Required arguments
             source_suffix = source
         else:
             source_suffix = ""
-        output_directory = output_directory+"/"+file_name+source_suffix
+            
+        output_directory = os.path.join(output_directory,file_name+source_suffix)
+        if size_subsample < 1.0:
+            sss_subdir = "size_subsampling_"+str(size_subsample)
+            output_directory = os.path.join(output_directory, sss_subdir)
         utils.trymakedir(output_directory)
         file_name = output_directory+"/"+file_name
 

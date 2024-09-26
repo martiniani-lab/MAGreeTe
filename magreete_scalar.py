@@ -151,7 +151,7 @@ def main_scalar(ndim, # Required arguments
             points = make_lattice(lattice, N_raw, kick, ndim)
             if lattice == 'poisson':
                 file_name += str(ndim)+'d'
-            points = lattices.cut_circle(points)
+            points = lattices.cut_circle(points, cut_radius)
 
         # Cut configuration if needed
         if annulus > 0:
@@ -173,7 +173,15 @@ def main_scalar(ndim, # Required arguments
         print("\n\nLoaded a ("+str(file_name)+") system of N = "+str(N_raw)+" points in d = "+str(ndim))
         print("N = "+str(N)+" points remain after cutting to a disk and rescaling to L = "+str(L)+"\n\n")
 
-        output_directory = output_directory+"/"+file_name
+        if source != "beam":
+            source_suffix = source
+        else:
+            source_suffix = ""
+            
+        output_directory = os.path.join(output_directory,file_name+source_suffix)
+        if size_subsample < 1.0:
+            sss_subdir = "size_subsampling_"+str(size_subsample)
+            output_directory = os.path.join(output_directory, sss_subdir)
         utils.trymakedir(output_directory)
         file_name = output_directory+"/"+file_name
 
@@ -1039,6 +1047,12 @@ def main_scalar(ndim, # Required arguments
                         alpha, k0 = params
                         k0 = onp.float64(k0)
                         alpha = onp.complex128(alpha)
+                        
+                        u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(thetas.shape)]).T
+                        u = np.tensor(u)
+                        if len(u.shape) == 1:
+                            u = u.reshape(1,-1)
+                        
                     # File is not there: compute
                     else:
                         u = onp.stack([onp.cos(thetas_plot),onp.sin(thetas_plot),onp.zeros(len(thetas_plot))]).T
@@ -1049,8 +1063,9 @@ def main_scalar(ndim, # Required arguments
                         params = [alpha, k0]
                         hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')   
 
-                    for index, angle in zip(thetas_plot_indices,thetas_plot):
+                    for angle in thetas_plot:
                         angle_ = onp.round(angle*180/onp.pi)
+                        index = onp.where(thetas == angle)[0][0]
                         print("angle = "+str(angle_)+"degrees")
 
                         Eall = []
@@ -1062,25 +1077,25 @@ def main_scalar(ndim, # Required arguments
                             print("Batch "+str(batch+1))
                             batch_points = batches[batch]
 
-                            E = solver.propagate(batch_points, Ej[:,index], k0, alpha, u[index], w, regularize = regularize, radius = radius)
+                            E = solver.propagate(batch_points, Ej[:,index], k0, alpha, u[index].reshape(1,3), w, regularize = regularize, radius = radius)
 
                             Eall.append(E)
                             
                             if scattered_fields:
-                                E0 = solver.generate_source(batch_points, k0, u[index], w, print_statement = 'scattered_fields')
+                                E0 = solver.generate_source(batch_points, k0, u[index].reshape(1,3), w, print_statement = 'scattered_fields')
                                 Eall_scat.append(E - E0)
 
 
                         Eall = np.cat(Eall, dim=0)
-                        Eall_amplitude         = np.abs(Eall)**2
+                        Eall = Eall.reshape(ngridy, ngridx)
 
-                        utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index), my_dpi = 300)
+                        utils.plot_full_fields(Eall, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index), my_dpi = 300)
                         
                         if scattered_fields:
                             Eall = np.cat(Eall_scat, dim=0)
-                            Eall_amplitude         = np.abs(Eall)**2
+                            Eall = Eall.reshape(ngridy, ngridx)
 
-                            utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_scat', my_dpi = 300)
+                            utils.plot_full_fields(Eall, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_scat', my_dpi = 300)
                         
             if compute_eigenmodes:
                 
