@@ -188,7 +188,7 @@ def main(ndim, # Required arguments
                 points = np.vstack([points,comp])
                 
                 # Save point patterns after generation if random, cut, kicks
-                hkl.dump(onp.array(points), saved_points_file)
+                hkl.dump(points.numpy(), saved_points_file)
 
         # Now, cut points according to sss
         points = lattices.cut_circle(points,cut_radius)
@@ -575,7 +575,7 @@ def main(ndim, # Required arguments
                 file = file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl'
                 # File is there: load data
                 if os.path.isfile(file):
-                    Ej, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
+                    Ej, params, _, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
                     Ej = np.tensor(Ej, dtype=np.complex128)
                     Ej = np.tensor(Ej, dtype=np.complex128)
                     points = np.tensor(points, dtype=np.complex128)
@@ -614,7 +614,7 @@ def main(ndim, # Required arguments
                             p[:,2] = 1
                             E0_scat = solver.generate_source(np.tensor(points), k0, u, p, beam_waist, print_statement='Source at scatterers')
                     
-                    Ej = solver.solve(k0, alpha, thetas, E0_scat, self_interaction=self_interaction, self_interaction_type=self_interaction_type)
+                    Ej = solver.solve(k0, alpha, radius, E0_scat, self_interaction=self_interaction, self_interaction_type=self_interaction_type)
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                     params = [alpha, k0]
                     hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
@@ -636,8 +636,8 @@ def main(ndim, # Required arguments
                             # In 2d: no ambiguity to make thetas into k vectors and polarizations even if vector wave
                             E0_meas = solver.generate_source(batch_points, k0, [angle], beam_waist, print_statement='Source at scatterers')
                         else:
+                            u_angle = np.tensor([onp.cos(angle),onp.sin(angle),0])
                             if scalar:
-                                u_angle = np.tensor([onp.cos(angle),onp.sin(angle),0])
                                 # In 3d scalar, no need to specify polarization vector
                                 E0_meas = solver.generate_source(batch_points, k0, u_angle.reshape(1,3), beam_waist, print_statement='Source at scatterers')
                             else:
@@ -645,12 +645,18 @@ def main(ndim, # Required arguments
                                 # In 3d vector, need to specify polarization vector
                                 E0_meas = solver.generate_source(batch_points, k0, u_angle.reshape(1,3), p_angle.reshape(1,3), beam_waist, print_statement='Source at scatterers')
 
-                        Ek = solver.propagate(batch_points, Ej[:,index], k0, alpha, E0_meas, regularize = regularize, radius = radius)
 
-                        Eall.append(Ek)
+                        if scalar:
+                            E0_meas = E0_meas.reshape(batch_points.shape[0], 1)
+                        else:
+                            E0_meas = E0_meas.reshape(batch_points.shape[0], ndim, 1)
+
+                        E_meas = solver.propagate(batch_points, Ej[:,index].unsqueeze(-1), k0, alpha, E0_meas, regularize = regularize, radius = radius)
+
+                        Eall.append(E_meas)
                         
                         if scattered_fields:
-                            Eall_scat.append(Ek - E0_meas)
+                            Eall_scat.append(E_meas - E0_meas)
 
                     Eall = np.cat(Eall, dim=0)
                     if not scalar:

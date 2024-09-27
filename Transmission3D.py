@@ -172,10 +172,10 @@ class Transmission3D_vector:
                     idx = np.argmin(np.linalg.norm(self.r-points[j], axis = -1))
                 else:
                     idx = possible_idx
-                Ek_[j] = Ek.reshape(points.shape[0],3,-1)[idx]
+                Ek_[j] = Ek.reshape(self.r.shape[0],3,-1)[idx]
             else:
                 idx = np.nonzero(np.prod(self.r-points[j]==0,axis=-1))
-                Ek_[j] = Ek.reshape(points.shape[0],3,-1)[idx]
+                Ek_[j] = Ek.reshape(self.r.shape[0],3,-1)[idx]
                 
         return Ek_
    
@@ -597,10 +597,10 @@ class Transmission3D_scalar:
                     idx = np.argmin(np.linalg.norm(self.r-points[j], axis = -1))
                 else:
                     idx = possible_idx
-                Ek_[j] = Ek.reshape(points.shape[0],-1)[idx]
+                Ek_[j] = Ek.reshape(self.r.shape[0],-1)[idx]
             else:
                 idx = np.nonzero(np.prod(self.r-points[j]==0,axis=-1))
-                Ek_[j] = Ek.reshape(points.shape[0],-1)[idx]
+                Ek_[j] = Ek.reshape(self.r.shape[0],-1)[idx]
                 
         return Ek_
    
