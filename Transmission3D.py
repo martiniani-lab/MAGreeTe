@@ -586,7 +586,7 @@ class Transmission3D_scalar:
         points = np.tensor(points)
         
         # calculate Ek field at all measurement points
-        Ek_ = np.matmul(alpha*k0*k0*self.G0(points, k0, print_statement='propagate', regularize=regularize, radius=radius), Ek).reshape(points.shape[0],u.shape[0]) + E0j 
+        Ek_ = np.matmul(alpha*k0*k0*self.G0(points, k0, print_statement='propagate', regularize=regularize, radius=radius), Ek).reshape(points.shape[0],E0j.shape[1]) + E0j 
 
         # Take care of cases in which measurement points are exactly scatterer positions
         for j in np.argwhere(np.isnan(Ek_[:,0])):

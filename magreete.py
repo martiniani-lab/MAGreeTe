@@ -337,9 +337,14 @@ def main(ndim, # Required arguments
                         E0_scat = solver.generate_source(np.tensor(points), k0, thetas, beam_waist, print_statement='Source at scatterers')
                         E0_meas = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='Source at measurement points')
                     else:
-                        # In 3d, need to specify polarization vector
-                        E0_scat = solver.generate_source(np.tensor(points), k0, u, p, beam_waist, print_statement='Source at scatterers')
-                        E0_meas = solver.generate_source(np.tensor(measurement_points), k0, u, p, beam_waist, print_statement='Source at measurement points')
+                        if scalar:
+                            # In 3d scalar, no need to specify polarization vector
+                            E0_scat = solver.generate_source(np.tensor(points), k0, u, beam_waist, print_statement='Source at scatterers')
+                            E0_meas = solver.generate_source(np.tensor(measurement_points), k0, u, beam_waist, print_statement='Source at measurement points')
+                        else:
+                            # In 3d vector, need to specify polarization vector
+                            E0_scat = solver.generate_source(np.tensor(points), k0, u, p, beam_waist, print_statement='Source at scatterers')
+                            E0_meas = solver.generate_source(np.tensor(measurement_points), k0, u, p, beam_waist, print_statement='Source at measurement points')
                     
                     Ej = solver.solve(k0, alpha, radius, E0_scat, self_interaction=self_interaction, self_interaction_type=self_interaction_type)
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
@@ -423,22 +428,22 @@ def main(ndim, # Required arguments
                     total = onp.sum(total, axis=2)
 
                 # Produce plots
-                utils.plot_transmission_angularbeam(k0range, L, thetas, total, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index), adapt_scale = adapt_scale)
-                utils.plot_transmission_flat(k0range, L, thetas, total, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index), adapt_scale = adapt_scale)
-                plot_theta = onp.round(180 * thetas[plot_theta_index]/onp.pi)
-                utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, total, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(plot_theta))
+                if ndim == 2:
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, total, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index), adapt_scale = adapt_scale)
+                else:
+                    utils.plot_transmission_angularbeam_3d(k0range, L, thetas, total, measurement_points, file_name, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index), adapt_scale = adapt_scale)
                 
                 # Produce transmission normalized by total intensity of the INCIDENT FIELD on the sphere
                 I0all = onp.absolute(E0all)**2
                 if not scalar:
                     I0all = onp.sum(I0all, axis = 2)
 
-                utils.plot_transmission_angularbeam(k0range, L, thetas, total, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0all, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
-                utils.plot_transmission_flat(k0range, L, thetas, total, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0all, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
-
-                # Same but with total field
-                utils.plot_transmission_angularbeam(k0range, L, thetas, total, file_name,  n_thetas_trans = n_thetas_trans, normalization = total, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
-                utils.plot_transmission_flat(k0range, L, thetas, total, file_name,  n_thetas_trans = n_thetas_trans, normalization = total, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
+                if ndim ==2:
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, total, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0all, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, total, file_name,  n_thetas_trans = n_thetas_trans, normalization = total, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
+                else:
+                    utils.plot_transmission_angularbeam_3d(k0range, L, thetas, total, measurement_points, file_name, normalization = I0all, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
+                    utils.plot_transmission_angularbeam_3d(k0range, L, thetas, total, measurement_points, file_name, normalization = total, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
 
 
 
@@ -449,15 +454,14 @@ def main(ndim, # Required arguments
                     if not scalar:
                         total_scat = onp.sum(total_scat, axis=2)
                     
+                    
                     # Produce plots
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, total_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat')
-                    utils.plot_transmission_flat(k0range, L, thetas, total_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat')
-                    plot_theta = onp.round(180 * thetas[plot_theta_index]/onp.pi)
-                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, total_scat, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(plot_theta)+'_scat')
-                
-                    # Also produce scattered field normalised by total scattered intensity
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, total_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, normalization = total_scat, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_norm')
-
+                    if ndim == 2:
+                        utils.plot_transmission_angularbeam(k0range, L, thetas, total_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat')
+                        utils.plot_transmission_angularbeam(k0range, L, thetas, total_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, normalization = total_scat, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_norm')
+                    else:
+                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, total_scat, measurement_points, file_name, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat', adapt_scale = adapt_scale)
+                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, total_scat, measurement_points, file_name, normalization = total, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_norm')
                             
             # Single-scattering transmission
             if single_scattering_transmission:
@@ -468,16 +472,22 @@ def main(ndim, # Required arguments
                 for k0, alpha in zip(k0range,alpharange):
                     
                     # Compute source value AT scatterers and measurement points
+                    # XXX Merge into one function to call
                     if ndim == 2:
                         # In 2d: no ambiguity to make thetas into k vectors and polarizations even if vector wave
                         E0_scat = solver.generate_source(np.tensor(points), k0, thetas, beam_waist, print_statement='Source at scatterers')
                         E0_meas = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='Source at measurement points')
                     else:
-                        # In 3d, need to specify polarization vector
-                        E0_scat = solver.generate_source(np.tensor(points), k0, u, p, beam_waist, print_statement='Source at scatterers')
-                        E0_meas = solver.generate_source(np.tensor(measurement_points), k0, u, p, beam_waist, print_statement='Source at measurement points')
+                        if scalar:
+                            # In 3d scalar, no need to specify polarization vector
+                            E0_scat = solver.generate_source(np.tensor(points), k0, u, beam_waist, print_statement='Source at scatterers')
+                            E0_meas = solver.generate_source(np.tensor(measurement_points), k0, u, beam_waist, print_statement='Source at measurement points')
+                        else:
+                            # In 3d vector, need to specify polarization vector
+                            E0_scat = solver.generate_source(np.tensor(points), k0, u, p, beam_waist, print_statement='Source at scatterers')
+                            E0_meas = solver.generate_source(np.tensor(measurement_points), k0, u, p, beam_waist, print_statement='Source at measurement points')
                     
-                    Ek_ss = solver.propagate_EM_ss(measurement_points, k0, alpha, E0_meas, E0_scat, regularize = regularize, radius = radius)
+                    Ek_ss = solver.propagate_ss(measurement_points, k0, alpha, E0_meas, E0_scat, regularize = regularize, radius = radius)
                     
                     if scattered_fields:
                         Ek_scat_ss = Ek_ss - E0_meas
@@ -491,12 +501,13 @@ def main(ndim, # Required arguments
                 if not scalar:
                     total_ss = onp.sum(total_ss, axis=2)
 
-                
                 # Produce plots
-                utils.plot_transmission_angularbeam(k0range, L, thetas, total_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_ss')
-                utils.plot_transmission_flat(k0range, L, thetas, total_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_ss')
-                theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
-                utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, total_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_ss')
+                if ndim == 2:
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, total_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_ss')
+                    theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
+                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, total_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_ss')
+                else:
+                    utils.plot_transmission_angularbeam_3d(k0range, L, thetas, total_ss, measurement_points, file_name, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_ss', adapt_scale = adapt_scale)
                 
                 if plot_transmission:
                     # Also compute the intensity associated to the multiple-scattering contribution of the field, if the full field was computed
@@ -506,11 +517,11 @@ def main(ndim, # Required arguments
                         total_multiple = onp.sum(total_multiple, axis=2)
 
                     # Produce plots
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, total_multiple, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_multiple')
-                    utils.plot_transmission_flat(k0range, L, thetas, total_multiple, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_multiple')
-                    theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
-                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, total_multiple, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_multiple')
-
+                    if ndim == 2:
+                        utils.plot_transmission_angularbeam(k0range, L, thetas, total_multiple, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_multiple')
+                        utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, total_multiple, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_multiple')
+                    else:
+                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, total_multiple, measurement_points, file_name, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_multiple', adapt_scale = adapt_scale)
 
                 if scattered_fields:
                     # Compute scattered intensities at measurement points
@@ -519,18 +530,16 @@ def main(ndim, # Required arguments
                     if not scalar:
                         total_scat_ss = onp.sum(total_scat_ss, axis=2)
                     
-                    # Produce plots
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, total_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss')
-                    utils.plot_transmission_flat(k0range, L, thetas, total_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss')
-                    theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
-                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, total_scat_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_scat_ss')
+                                    # Produce plots
+                    if ndim == 2:
+                        utils.plot_transmission_angularbeam(k0range, L, thetas, total_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss')
+                        utils.plot_transmission_angularbeam(k0range, L, thetas, total_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, normalization=total_scat_ss, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss_norm')
+                        utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, total_scat_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_scat_ss')
+                        utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, total_scat_ss, file_name, plot_theta_index = plot_theta_index, normalization = total_scat_ss, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_scat_ss_norm')
+                    else:
+                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, total_scat_ss, measurement_points, file_name, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss', adapt_scale = adapt_scale)
+                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, total_scat_ss, measurement_points, file_name, normalization=total_scat_ss, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss_norm', adapt_scale = adapt_scale)
 
-                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, total_scat_ss, file_name, plot_theta_index = plot_theta_index, normalization=TMtotal_scat_ss, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_scat_ss_norm')
-
-                    # Also produce scattered field normalised by total scattered intensity
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, total_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, normalization = total_scat_ss, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss_norm')
-                    utils.plot_transmission_flat(k0range, L, thetas, total_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, normalization = total_scat_ss, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss_norm')
-                    
 
         sys.exit()
         ### ###############
@@ -541,12 +550,20 @@ def main(ndim, # Required arguments
         # Pretty expensive!
         some_fields = intensity_fields+amplitude_fields+phase_fields
         if some_fields:
-            # Expensive computation
+            
             ngridx = gridsize[0]
             ngridy = gridsize[1]
             xyratio = ngridx/ngridy
-            x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5)
-            measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
+            
+            if ndim == 2:
+                    
+                x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5)
+                measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
+                
+            else:
+
+                x,y,z = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5, [0.0])
+                measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T)*L*window_width)
 
             batches = np.split(measurement_points, batch_size)
             n_batches = len(batches)
@@ -555,9 +572,6 @@ def main(ndim, # Required arguments
             if n_batches > 1:
                 extra_string = extra_string+"es"
             print("Computing the full fields at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
-
-
-            solver = Transmission2D_TETM(points, source = source)
 
 
             for k0, alpha in zip(k0range,alpharange):
@@ -945,550 +959,6 @@ def main(ndim, # Required arguments
                     if write_ldos:
                         onp.savetxt(file_name+'_ldos_'+str(k0_)+'_TE_'+str(index)+'.csv',ldos_TE.numpy())
                         onp.savetxt(file_name+'_ldos_'+str(k0_)+'_TM_'+str(index)+'.csv',ldos_TM.numpy())  
-                    
-        ### ###############
-        ### 3d calculations
-        ### ###############
-        elif ndim==3:
-            if plot_transmission:
-                # Define the list of measurement points for transmission plots
-                N_fibo=1000
-                measurement_points = transmission_radius*L*utils.fibonacci_sphere(N_fibo)
-                
-            if compute_transmission or plot_transmission:
-                # A fresh computation is required
-                if compute_transmission:
-
-
-                    solver = Transmission3D_vector(points, source = source)
-
-                    u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
-                    u = np.tensor(u)
-                    p = np.zeros(u.shape)
-                    p[:,2] = 1
-                    Eall  = []
-                    E0all = []
-                    Eall_scat = []
-                    
-                    for k0, alpha in zip(k0range,alpharange):
-                        Ej = solver.solve(k0, alpha, u, p, radius, w, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-                        k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                        params = [alpha, k0]
-                        hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
-
-                        Ek = solver.propagate(measurement_points, Ej, k0, alpha, u, p, w, regularize = regularize, radius = radius)
-
-                        E0meas = solver.generate_source(np.tensor(measurement_points), k0, u, p, beam_waist, print_statement = 'propagate') #(M,3,Ndirs)
-
-                        if scattered_fields:
-                            Ekscat = Ek - E0meas
-                            Eall_scat.append(Ekscat.numpy())
-                        
-                        E0all.append(E0meas.numpy())
-
-                        Eall.append(Ek.numpy())
-
-                # A computation has already been performed
-                elif plot_transmission:
-
-                    Eall  = []
-                    E0all = []
-                    Eall_scat = []
-                    u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
-                    u = np.tensor(u)
-                    print(points.shape)
-                    p = np.zeros(u.shape)
-                    p[:,2] = 1
-                    for k0, alpha in zip(k0range,alpharange):
-                        
-                        k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                        Ej, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
-                        Ej = np.tensor(Ej, dtype=np.complex128)
-                        points = np.tensor(points, dtype=np.float64)
-                        thetas = onp.float64(thetas)
-                        alpha, k0 = params
-                        k0 = onp.float64(k0)
-                        alpha = onp.complex128(alpha)
-
-                        solver = Transmission3D_vector(points, source = source)
-
-
-                        Ek = solver.propagate(measurement_points, Ej, k0, alpha, u, p, w, regularize = regularize, radius = radius)
-                        
-                        E0meas = solver.generate_source(np.tensor(measurement_points), k0, u, p, beam_waist, print_statement = 'propagate') #(M,3,Ndirs)
-
-                        if scattered_fields:
-                            Ekscat = Ek - E0meas
-                            Eall_scat.append(Ekscat.numpy())
-                        
-                        E0all.append(E0meas.numpy())
-                        Eall.append(Ek.numpy())
-
-                hkl.dump([onp.array(Eall), onp.array(k0range), onp.array(thetas)],file_name+'_transmission_'+str(file_index)+'.hkl')
-        
-            # If required: plot results
-            if plot_transmission:
-                # Compute intensities at measurement points
-                Eall = onp.array(Eall)
-                Etotal = onp.absolute(Eall)**2
-                Etotal = onp.sum(Etotal, axis=2)
-
-                # Produce the plots
-                utils.plot_transmission_angularbeam_3d(k0range, L, thetas, Etotal, measurement_points, file_name, angular_width = angular_width, appended_string = '_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index), adapt_scale = adapt_scale) 
-                #utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name, n_thetas_trans = n_thetas_trans, appended_string = '_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index), adapt_scale = adapt_scale) 
-                #theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
-                #utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, Etotal, file_name, plot_theta_index = plot_theta_index,  appended_string='_'+str(file_index)+'_angle_'+str(theta_plot))
-                
-                # Produce transmission normalized by total intensity of the INCIDENT FIELD on the sphere
-                E0all = onp.array(E0all)
-                I0all = onp.absolute(E0all)**2
-                I0all = onp.sum(I0all, axis = 2)
-
-                utils.plot_transmission_angularbeam_3d(k0range, L, thetas, Etotal, measurement_points, file_name, angular_width = angular_width, normalization = I0all, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
-                #utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0all, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
-
-                # Same but with total field
-                utils.plot_transmission_angularbeam_3d(k0range, L, thetas, Etotal, measurement_points, file_name, angular_width = angular_width, normalization = Etotal, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
-                #utils.plot_transmission_flat(k0range, L, thetas, Etotal, file_name,  n_thetas_trans = n_thetas_trans, normalization = Etotal, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
-
-                if scattered_fields:
-                    Eall_scat = onp.array(Eall_scat)
-                    Etotal_scat = onp.absolute(Eall_scat)**2
-                    Etotal_scat = onp.sum(Etotal_scat, axis=2)
-
-                    # Produce the plots
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_scat, file_name, n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string = '_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat") 
-                    utils.plot_transmission_flat(k0range, L, thetas, Etotal_scat, file_name, n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string = '_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat") 
-                    theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
-                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, Etotal_scat, file_name, plot_theta_index = plot_theta_index,  appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_scat')
-
-                    # Also produce scattered field normalised by total scattered intensity on the circle.
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, normalization = Etotal_scat, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_norm')
-                    utils.plot_transmission_flat(k0range, L, thetas, Etotal_scat, file_name, n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, normalization = Etotal_scat, appended_string = '_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat_norm") 
-                
-            # Single-scattering transmission
-            if single_scattering_transmission:
-                # Define the list of measurement points for transmission plots
-                measurement_points = transmission_radius*L*onp.vstack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
-
-                solver = Transmission3D_vector(points, source = source)
-
-                u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
-                u = np.tensor(u)
-                p = np.zeros(u.shape)
-                p[:,2] = 1
-                Eall_ss = []
-                Eall_scat_ss = []
-                
-                for k0, alpha in zip(k0range,alpharange):
-                    Ek_ss = solver.propagate_ss(measurement_points, k0, alpha, u, p, w, regularize = regularize, radius = radius)
-                    
-                    if scattered_fields:
-                        E0meas = solver.generate_source(np.tensor(measurement_points), k0, u, p, beam_waist, print_statement = 'propagate') #(M,3,Ndirs)
-                        Ekscat_ss = Ek_ss - E0meas
-                        Eall_scat_ss.append(Ekscat_ss.numpy())
-                    
-                    Eall_ss.append(Ek_ss.numpy())
-
-                # Compute intensities at measurement points
-                Eall_ss = onp.array(Eall_ss)
-                Etotal_ss = onp.absolute(Eall_ss)**2
-                Etotal_ss = onp.sum(Etotal_ss, axis=2)
-                
-                # Produce plots
-                utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_ss, file_name, n_thetas_trans = n_thetas_trans, appended_string = '_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+"_ss", adapt_scale = adapt_scale) 
-                utils.plot_transmission_flat(k0range, L, thetas, Etotal_ss, file_name, n_thetas_trans = n_thetas_trans, appended_string = '_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+"_ss", adapt_scale = adapt_scale) 
-                theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
-                utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, Etotal_ss, file_name,  plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_ss')
-                
-                if plot_transmission:
-                    # Also compute the intensity associated to the multiple-scattering contribution of the field, if the full field was computed
-                    Eall_multiple = Eall - Eall_ss
-                    Etotal_multiple = onp.absolute(Eall_multiple)**2
-                    Etotal_multiple = onp.sum(Etotal_multiple, axis=2)
-
-                     # Produce plots
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_multiple, file_name, n_thetas_trans = n_thetas_trans, appended_string = '_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+"_multiple") 
-                    utils.plot_transmission_flat(k0range, L, thetas, Etotal_multiple, file_name, n_thetas_trans = n_thetas_trans, appended_string = '_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+"_multiple") 
-                    theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
-                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, Etotal_multiple, file_name,  plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_multiple')
-
-
-                if scattered_fields:
-                    Eall_scat_ss = onp.array(Eall_scat_ss)
-                    Etotal_scat_ss = onp.absolute(Eall_scat_ss)**2
-                    Etotal_scat_ss = onp.sum(Etotal_scat_ss, axis=2)
-                    
-                    # Produce plots
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_scat_ss, file_name, n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string = '_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat_ss") 
-                    utils.plot_transmission_flat(k0range, L, thetas, Etotal_scat_ss, file_name, n_thetas_trans = n_thetas_trans,  adapt_scale = adapt_scale, appended_string = '_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat_ss") 
-                    theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
-                    utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, Etotal_scat_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_scat_ss')
-                
-                    # Also produce scattered field normalised by total scattered intensity on the circle.
-                    utils.plot_transmission_angularbeam(k0range, L, thetas, Etotal_scat_ss, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, normalization = Etotal_scat_ss, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss_norm')
-                    utils.plot_transmission_flat(k0range, L, thetas, Etotal_scat_ss, file_name, n_thetas_trans = n_thetas_trans, normalization = Etotal_scat_ss,  adapt_scale = adapt_scale, appended_string = '_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+"_scat_ss_norm") 
-
-
-
-            # Compute full fields
-            # Pretty expensive!
-            some_fields = intensity_fields+amplitude_fields+phase_fields
-            if some_fields:
-                # Expensive computation
-                ngridx = gridsize[0]
-                ngridy = gridsize[1]
-                xyratio = ngridx/ngridy
-                x,y,z = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5, [0.0])
-                measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T)*L*window_width)
-
-                batches = np.split(measurement_points, batch_size)
-                n_batches = len(batches)
-
-                extra_string=""
-                if n_batches > 1:
-                    extra_string = extra_string+"es"
-                print("Computing the full fields at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
-
-
-                solver = Transmission3D_vector(points, source = source)
-
-                for k0, alpha in zip(k0range,alpharange):
-                    k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                    print("k0L/2pi = "+str(k0_))
-
-                    # Check if file already exists or if computation is needed
-                    file = file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl'
-                    # File is there: load data
-                    if os.path.isfile(file):
-                        Ej, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
-                        Ej = np.tensor(Ej, dtype=np.complex128)
-                        points = np.tensor(points, dtype=np.complex128)
-                        thetas = onp.float64(thetas)
-                        alpha, k0 = params
-                        k0 = onp.float64(k0)
-                        alpha = onp.complex128(alpha)
-                        
-                        u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(thetas.shape)]).T
-                        u = np.tensor(u)
-                        if len(u.shape) == 1:
-                            u = u.reshape(1,-1)
-                        p = np.zeros(u.shape)
-                        p[:,2] = 1
-                        
-                    # File is not there: compute
-                    else:
-                        u = onp.stack([onp.cos(thetas_plot),onp.sin(thetas_plot),onp.zeros(len(thetas_plot))]).T
-                        u = np.tensor(u)
-                        p = np.zeros(u.shape)
-                        p[:,2] = 1
-                        Eall = []
-                        Ej = solver.solve(k0, alpha, u, p, radius, w, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-                        k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                        params = [alpha, k0]
-                        hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')   
-
-                    for angle in thetas_plot:
-                        angle_ = onp.round(angle*180/onp.pi)
-                        index = onp.where(thetas == angle)[0][0]
-                        print("angle = "+str(angle_)+"degrees")
-
-                        Eall = []
-                        
-                        if scattered_fields:
-                            Eall_scat = []
-
-                        for batch in range(0, n_batches):
-                            print("Batch "+str(batch+1))
-                            batch_points = batches[batch]
-
-                            E = solver.propagate(batch_points, Ej[:,index], k0, alpha, u[index].reshape(1,3), p[index].reshape(1,3), w, regularize = regularize, radius = radius)
-
-                            Eall.append(E)
-                            
-                            if scattered_fields:
-                                E0 = solver.generate_source(batch_points, k0, u[index].reshape(1,3), p[index].reshape(1,3), w, print_statement='scattered_fields')
-                                Eall_scat.append(E-E0)
-
-
-                        Eall = np.cat(Eall, dim=0)
-
-                        # The medium is centered at (0,0)
-                        viewing_unit_vector = measurement_points / np.linalg.norm(measurement_points, axis = -1).unsqueeze(-1)
-                        viewing_unit_vector = viewing_unit_vector.unsqueeze(-1)
-
-                        Eall_amplitude         = np.sqrt(np.sum(np.absolute(Eall)**2, axis =1))
-                        Eall_longitudinal      = np.sum(Eall*viewing_unit_vector, axis=1)
-                        Eall_transverse        = Eall - Eall_longitudinal.reshape(-1,1,1) * viewing_unit_vector
-                        Eall_transverse        = np.sqrt(np.sum(np.absolute(Eall_transverse)**2, axis =1))
-
-                        Eall_amplitude    = Eall_amplitude.reshape(ngridy, ngridx)
-                        Eall_longitudinal = Eall_longitudinal.reshape(ngridy, ngridx)
-                        Eall_transverse   = Eall_transverse.reshape(ngridy, ngridx)
-
-                        utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, angle_, intensity_fields, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index), my_dpi = 300)
-                        utils.plot_full_fields(Eall_longitudinal, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_long', my_dpi = 300)
-                        utils.plot_full_fields(Eall_transverse, ngridx, ngridy, k0_, angle_, intensity_fields, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_trans', my_dpi = 300)
-
-                        
-                        if scattered_fields:
-                            Eall = np.cat(Eall_scat, dim=0)
-
-                            # The medium is centered at (0,0)
-                            viewing_unit_vector = measurement_points / np.linalg.norm(measurement_points, axis = -1).unsqueeze(-1)
-                            viewing_unit_vector = viewing_unit_vector.unsqueeze(-1)
-
-                            Eall_amplitude         = np.sqrt(np.sum(np.absolute(Eall)**2, axis =1))
-                            Eall_longitudinal      = np.sum(Eall*viewing_unit_vector, axis=1)
-                            Eall_transverse        = Eall - Eall_longitudinal.reshape(-1,1,1) * viewing_unit_vector
-                            Eall_transverse        = np.sqrt(np.sum(np.absolute(Eall_transverse)**2, axis =1))
-
-                            Eall_amplitude    = Eall_amplitude.reshape(ngridy, ngridx)
-                            Eall_longitudinal = Eall_longitudinal.reshape(ngridy, ngridx)
-                            Eall_transverse   = Eall_transverse.reshape(ngridy, ngridx)
-
-                            utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, angle_, intensity_fields, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+"_scat", my_dpi = 300)
-                            utils.plot_full_fields(Eall_longitudinal, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_long_scat', my_dpi = 300)
-                            utils.plot_full_fields(Eall_transverse, ngridx, ngridy, k0_, angle_, intensity_fields, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_trans_scat', my_dpi = 300)
-
-
-            if compute_eigenmodes:
-                
-                # Expensive computation
-                ngridx = gridsize[0]
-                ngridy = gridsize[1]
-                xyratio = ngridx/ngridy
-                x,y,z = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5, [0.0])
-                measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T)*L*window_width)
-
-                batches = np.split(measurement_points, batch_size)
-                n_batches = len(batches)
-
-                extra_string=""
-                if n_batches > 1:
-                    extra_string = extra_string+"es"
-                print("Computing the eigenfields and plotting the "+str(number_eigenmodes)+" most localized at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
-
-                solver = Transmission3D_vector(points, source = None)
-
-                k0_range = []
-
-                for k0, alpha in zip(k0range,alpharange):
-                    k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                    k0_range.append(k0_)
-
-                    _, eigenmodes,_ = solver.compute_eigenmodes_IPR( k0, alpha, radius, file_name, write_eigenvalues = True, number_eigenmodes = number_eigenmodes, self_interaction = self_interaction, self_interaction_type = self_interaction_type, sorting_type = sorting_type)
-
-                    if plot_eigenmodes:
-                        
-                        for i in range(number_eigenmodes):
-                            
-                            Eall = []
-                            
-                            # By default, the eigenvectors are such that their modulus is 1
-                            eigenmodes[:,i] /= np.abs(eigenmodes[:,i]).amax()
-
-                            for batch in range(0, n_batches):
-                                print("Batch "+str(batch+1))
-                                batch_points = batches[batch]
-                                
-                                if adapt_z:
-                                    indexmax = np.argmax(np.linalg.norm(np.abs(eigenmodes[:,i]).reshape(points.shape[0], 3), axis = 1))
-                                    batch_points[:,2] = points[indexmax, 2]
-
-                                eigenfield = solver.propagate(batch_points, eigenmodes[:,i], k0, alpha, np.tensor([1.0, 0.0, 0.0]).reshape(1,3), np.tensor([0.0, 1.0, 0.0]).reshape(1,3), w, regularize = regularize, radius=radius)
-
-                                Eall.append(eigenfield)
-                                
-                            Eall = np.cat(Eall, dim=0).squeeze(-1)
-
-                            Eall_amplitude    = np.sqrt(np.absolute(Eall[:,0])**2 + np.absolute(Eall[:,1])**2 + np.absolute(Eall[:,2])**2)
-                            Eall_amplitude    = Eall_amplitude.reshape(ngridy, ngridx)
-
-                            utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, 0, True, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_eigen_'+sorting_type+str(i), my_dpi = 300)
-
-            if compute_SDOS:
-
-                solver = Transmission3D_vector(points, source = source)
-
-                DOSall = []
-                k0_range = []
-
-                for k0, alpha in zip(k0range,alpharange):
-                    dos = solver.compute_eigenvalues_and_scatterer_LDOS( k0, alpha, radius, file_name, write_eigenvalues = write_eigenvalues, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-                    DOSall.append(dos.numpy())
-
-                    k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                    k0_range.append(k0_)
-
-                    onp.savetxt(file_name+'_temp_sdos.csv',onp.stack(([k0_range,DOSall])).T)
-
-                onp.savetxt(file_name+'_sdos.csv', onp.stack([k0_range,DOSall]).T)
-                utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'sdos', appended_string='_'+str(file_index))
-
-            if compute_DOS:
-
-                solver = Transmission3D_vector(points, source = source)
-
-                DOSall = []
-                k0_range = []
-
-                # Expensive computation in 3d
-                M = dospoints
-                measurement_points = utils.uniform_unit_ball_picking(M, ndim)
-                measurement_points *= L/2
-
-                utils.plot_3d_points(measurement_points, file_name+'_measurement')
-
-                for k0, alpha in zip(k0range,alpharange):
-                    dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-
-                    DOSall.append(dos.numpy())
-
-
-                    k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                    k0_range.append(k0_)
-
-                    onp.savetxt(file_name+'_temp_dos.csv',onp.stack([k0_range,DOSall]).T)
-
-                onp.savetxt(file_name+'_dos.csv',onp.stack([k0_range,DOSall]).T)
-                utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'dos',appended_string='_'+str(file_index))
-
-            if compute_interDOS:
-                for dos_size in dos_sizes[::-1]:
-                    DOSall = onp.array([])
-                    k0_range = onp.array([])
-
-                    if os.path.exists(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'.csv'):
-                        existing = onp.loadtxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'.csv')
-                        DOSall = existing[:,1]
-                        k0_range = existing[:,0]
-                    # Expensive computation in 3d
-                    M = dospoints
-                    measurement_points = utils.uniform_unit_ball_picking(M, ndim)
-                    measurement_points *= dos_size * L/2 * idos_radius
-                    ball_points = lattices.cut_circle(points, rad = dos_size * 0.5)
-
-                    solver = Transmission3D_vector(ball_points, source = source)
-
-                    # Find all overlaps and redraw while you have some
-                    # Following Pierrat et al., I use 1 diameter as the spacing there
-                    spacing = 2.0*radius
-                    spacing *= spacing_factor
-                    overlaps = np.nonzero(np.sum(np.cdist(measurement_points, ball_points, p=2) <= spacing, axis = -1)).squeeze()
-                    if len(overlaps.shape) == 0:
-                        count = 0
-                    else:
-                        count = overlaps.shape[0]
-                    while count > 0:
-                        print("Removing "+str(count)+" overlaps using an exclusion distance of "+str(spacing_factor)+" scatterer diameters...")
-                        measurement_points[overlaps] = dos_size * L/2 * idos_radius * utils.uniform_unit_ball_picking(count, ndim).squeeze()
-                        overlaps = np.nonzero(np.sum(np.cdist(measurement_points, ball_points, p=2) <= spacing, axis = -1)).squeeze()
-                        if len(overlaps.shape) == 0:
-                            count = 0
-                        else:
-                            count = overlaps.shape[0]
-
-
-                    utils.plot_3d_points(measurement_points, file_name+'_measurement')
-
-                    for k0, alpha in zip(k0range,alpharange):
-                        k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                        if k0_ not in k0_range:
-                            k0_range = onp.append(k0_range,k0_)
-                            dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-
-                            DOSall = onp.append(DOSall,dos.numpy())
-                                
-                            idx = onp.argsort(k0_range)
-                            k0_range = k0_range[idx]
-                            DOSall = DOSall[idx]
-                            onp.savetxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'.csv',onp.stack([k0_range,DOSall]).T)
-
-                    onp.savetxt(file_name+'_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'.csv',onp.stack([k0_range,DOSall]).T)
-                    utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'idos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_irad'+str(idos_radius)+'')
-            
-                    
-            if compute_cavityDOS:
-                for dos_size in dos_sizes[::-1]:
-                    DOSall = onp.array([])
-                    k0_range = onp.array([])
-
-                    if os.path.exists(file_name+'_temp_cdos_size'+str(dos_size)+'.csv'):
-                        existing = onp.loadtxt(file_name+'_temp_cdos_size'+str(dos_size)+'.csv')
-                        DOSall = existing[:,1]
-                        k0_range = existing[:,0]
-                    # Expensive computation in 3d
-                    measurement_points = np.zeros(ndim).reshape(1, ndim)
-                    ball_points = lattices.cut_circle(points, rad = dos_size * 0.5)
-                    
-                    # Find all overlaps and remove from system
-                    # Following Pierrat et al., I use 1 diameter as the spacing there
-                    spacing = 2.0*radius
-                    spacing *= spacing_factor
-                    ball_points = lattices.exclude_circle(ball_points, spacing)
-
-                    solver = Transmission3D_vector(ball_points, source = source)
-
-                    for k0, alpha in zip(k0range,alpharange):
-                        k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                        if k0_ not in k0_range:
-                            k0_range = onp.append(k0_range,k0_)
-                            dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-
-                            DOSall = onp.append(DOSall,dos.numpy())
-
-                            idx = onp.argsort(k0_range)
-                            k0_range = k0_range[idx]
-                            DOSall = DOSall[idx]
-                            onp.savetxt(file_name+'_temp_cdos_size'+str(dos_size)+'.csv',onp.stack([k0_range,DOSall]).T)
-
-                    onp.savetxt(file_name+'_cdos_size'+str(dos_size)+'.csv',onp.stack([k0_range,DOSall]).T)
-                    utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'cdos', appended_string='_'+str(file_index)+'_size'+str(dos_size))
-            
-            if compute_LDOS:
-
-                solver = Transmission3D_vector(points, source = source)
-
-                # Expensive computation
-                # For now, taking the central plane z = 0
-                ngridx = gridsize[0]
-                ngridy = gridsize[1]
-                xyratio = ngridx/ngridy
-                x,y,z = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5, [0.0])
-                measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T)*L*window_width)
-
-                batches = np.split(measurement_points, batch_size)
-                n_batches = len(batches)
-
-                extra_string=""
-                if n_batches > 1:
-                    extra_string = extra_string+"es"
-                n_points_LDOS = measurement_points.shape[0]
-                print("Computing the LDOS at "+str(n_points_LDOS)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(batch_size))
-
-                for k0, alpha in zip(k0range,alpharange):
-
-                    outputs = []
-                    k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-
-                    for batch in range(0, n_batches):
-                        print("Batch "+str(batch+1))
-                        batch_points = batches[batch]
-                        ldos = solver.LDOS_measurements(batch_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-
-                        outputs.append(ldos)
-
-
-                    ldos = np.cat(outputs)
-                    
-                    ldos = ldos.reshape(ngridy, ngridx)
-
-                    utils.plot_LDOS_2D(ldos,k0_,ngridx,ngridy,file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_z=0'+'_'+str(file_index), my_dpi = 300)
-
-                    if write_ldos:
-                        onp.savetxt(file_name+'_ldos_'+str(k0_)+'_'+str(index)+'.csv',ldos.numpy())
-
 
 
     ### Deal with averaging if several files provided

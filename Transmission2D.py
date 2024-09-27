@@ -161,7 +161,7 @@ class Transmission2D_vector:
                 source_location = source_distance * np.tensor([-1.0, 0.0])
                 dipole_moment = onp.sqrt(source_intensity) * np.tensor([0.0,1.0])
                 # Compute TE field in modified coordinates
-                E0[:,:,idx] = np.matmul(self.torch_greensTE(rrot.reshape(-1,1,2) - source_location.reshape(1,-1,2), k0), dipole_moment.type(np.complex128)).squeeze()
+                E0[:,:,idx] = np.matmul(self.torch_greens(rrot.reshape(-1,1,2) - source_location.reshape(1,-1,2), k0), dipole_moment.type(np.complex128)).squeeze()
                 # Rotate the TE polarization at the end to match actual coordinates
                 E0[:,:,idx] = np.matmul(rot.type(np.complex128).T, E0[:,:,idx].T).T
 
@@ -273,7 +273,7 @@ class Transmission2D_vector:
             points_ = points
         k0_ = onp.round(k0/(2.0*onp.pi),1)
         print("Calculating TE Green's function at k0L/2pi = "+str(k0_)+' ('+print_statement+')')
-        G0 = self.torch_greensTE(points_.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0, regularize=regularize, radius=radius)
+        G0 = self.torch_greens(points_.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0, regularize=regularize, radius=radius)
         #Construct matrix form
         if points == None:
             for idx in range(self.N):
