@@ -13,7 +13,6 @@ import utils
 from Transmission2D import Transmission2D_vector, Transmission2D_scalar
 from Transmission3D import Transmission3D_vector, Transmission3D_scalar
 import lattices
-import magreete_scalar
 
 import argparse
 
@@ -540,8 +539,6 @@ def main(ndim, # Required arguments
                         utils.plot_transmission_angularbeam_3d(k0range, L, thetas, total_scat_ss, measurement_points, file_name, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss', adapt_scale = adapt_scale)
                         utils.plot_transmission_angularbeam_3d(k0range, L, thetas, total_scat_ss, measurement_points, file_name, normalization=total_scat_ss, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss_norm', adapt_scale = adapt_scale)
 
-
-        sys.exit()
         ### ###############
         ### Intensity fields calculations
         ### ###############
@@ -554,14 +551,10 @@ def main(ndim, # Required arguments
             ngridx = gridsize[0]
             ngridy = gridsize[1]
             xyratio = ngridx/ngridy
-            
             if ndim == 2:
-                    
                 x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5)
                 measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
-                
             else:
-
                 x,y,z = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5, [0.0])
                 measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T)*L*window_width)
 
@@ -580,6 +573,7 @@ def main(ndim, # Required arguments
 
                 # Check if file already exists or if computation is needed
                 file = file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl'
+                sys.exit() # XXX HERE
                 # File is there: load data
                 if os.path.isfile(file):
                     EjTE, EjTM, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')

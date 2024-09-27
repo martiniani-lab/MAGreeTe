@@ -20,11 +20,3 @@ Upon executing `magreete.py` for the first time, julia will take some time to se
 ```bash
 python magreete.py -h
 ```
-
-In order to utilize Julia and its hmatrices, you will need to install a few Julia packages. Open a `julia` runtime in the terminal and run the following:
-
-```bash
-using Pkg;Pkg.activate("Transmission2D")
-Pkg.add("SpecialFunctions")
-```
-You can exit the Julia runtime and now use `--method hmatrices` on your calls to MAGreeTe! This is a slightly slower variant that saves on memory.
