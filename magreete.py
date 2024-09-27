@@ -107,68 +107,97 @@ def main(ndim, # Required arguments
     # Loop over copies
     for file_index in file_index_list:
         print("____________________________________________________\nCopy #"+str(file_index)+"\n____________________________________________________")
-
-        # A custom file was provided
+        
+        # First define full file name to check if modified point pattern already exists
         if lattice == None:
-
-            file_name = input_files_args[file_index]
-            
-            points = utils.loadpoints(file_name, ndim)
+            raw_file_name = input_files_args[file_index]
+            print_type = "custom ("+raw_file_name+")"
+            # Load here to get N_raw
+            points = utils.loadpoints(raw_file_name, ndim)
             points = np.tensor(points,dtype=np.double)
-            
-            if np.amax(points)>0.5:
-                points -= np.mean(points)
-                points /= points.amax()
-                points /= 2.0
             shape_before = points.shape
-            
-            # Make output dir
             N_raw = shape_before[0]
-            output_directory = os.path.abspath(output_directory)
-            output_directory = os.path.join(output_directory, "N"+str(N_raw), output_directory_suffix)
-            utils.trymakedir(output_directory)
-            
             # Override filename so that output files are well-behaved
-            file_name = file_name.split("/")[-1]
-            
-            # Adjust point pattern by removing overlap, cutting, kicking
-            points = np.unique(points, dim=0)
-            shape_after = points.shape
-            if shape_before[0] != shape_after[0]:
-                print("There were {} points overlapping with others! Removing.".format(shape_before[0]-shape_after[0]))
-            points = lattices.cut_circle(points,cut_radius)
-            #points *= 0.5/np.amax(points)
-            # Add random kicks
-            if kick != 0.0:
-                points = lattices.add_displacement(points, dr=kick)
-            if shift != 0.0:
-                points += shift * lattices.uniform_unit_ball_picking(1,ndim)
-
-        # A generative recipe was selected
-        else:
-
+            file_name = raw_file_name.split("/")[-1]
+        else: 
             file_name = lattice
-            output_directory = os.path.abspath(output_directory)
-            output_directory = os.path.join(output_directory, "N"+str(N_raw), output_directory_suffix)
-            utils.trymakedir(output_directory)
-            points = make_lattice(lattice, N_raw, kick, ndim)
-            if lattice == 'poisson':
-                file_name += str(ndim)+'d'
-            points = lattices.cut_circle(points, cut_radius)
-            
-            if shift != 0.0:
-                points += shift * lattices.uniform_unit_ball_picking(1,ndim)
+            print_type = lattice
 
-        # Cut configuration if needed
+        # Create output directory
+        output_directory = os.path.abspath(output_directory)
+        output_directory = os.path.join(output_directory, "N"+str(N_raw), output_directory_suffix)
+        utils.trymakedir(output_directory)
+
+        # Add suffixes
         if annulus > 0:
-            points = lattices.exclude_circle(points,annulus)
             file_name += '_annulus_'+str(annulus)
         if composite:
-            comp = lattices.square(128)
-            comp = lattices.cut_circle(comp,annulus)
-            points = np.vstack([points,comp])
             file_name += '_composite'
+            
+        if source != "beam":
+            source_suffix = source
+        else:
+            source_suffix = ""
+            
+        # Check if points file already exists in the right place
+        output_directory = os.path.join(output_directory,file_name+source_suffix)
+        saved_points_file = os.path.join(output_directory, "points.hkl")
+        if os.path.exists(saved_points_file):
+            # If file was already generated, overwrite points data here to have consistent content
+            print("\nFound hkl file, loading points from MAGreeTe dir structure")
+            points = np.tensor(hkl.load(saved_points_file),dtype=np.float64)
+        else:
+            # No previous analysis: need to load external point pattern
+            # A custom file was provided
+            if lattice == None:
+                # Points were already loaded from external file
+                
+                if np.amax(points)>0.5:
+                    points -= np.mean(points)
+                    points /= points.amax()
+                    points /= 2.0
+                
+                # Adjust point pattern by removing overlap, cutting, kicking
+                points = np.unique(points, dim=0)
+                shape_after = points.shape
+                if shape_before[0] != shape_after[0]:
+                    print("There were {} points overlapping with others! Removing.".format(shape_before[0]-shape_after[0]))
 
+                # Add random kicks
+                if kick != 0.0:
+                    points = lattices.add_displacement(points, dr=kick)
+                if shift != 0.0:
+                    points += shift * lattices.uniform_unit_ball_picking(1,ndim)
+
+            # A generative recipe was selected
+            else:
+
+                points = make_lattice(lattice, N_raw, kick, ndim)
+                if lattice == 'poisson':
+                    file_name += str(ndim)+'d'
+                
+                if shift != 0.0:
+                    points += shift * lattices.uniform_unit_ball_picking(1,ndim)
+
+            # Cut configuration if needed
+            if annulus > 0:
+                points = lattices.exclude_circle(points,annulus)
+            if composite:
+                comp = lattices.square(128)
+                comp = lattices.cut_circle(comp,annulus)
+                points = np.vstack([points,comp])
+                
+                # Save point patterns after generation if random, cut, kicks
+                hkl.dump(onp.array(points), saved_points_file)
+
+        # Now, cut points according to sss
+        points = lattices.cut_circle(points,cut_radius)
+        if size_subsample < 1.0:
+            sss_subdir = "size_subsampling_"+str(size_subsample)
+            output_directory = os.path.join(output_directory, sss_subdir)
+        utils.trymakedir(output_directory)
+        file_name = os.path.join(output_directory, file_name)
+        
         # After all this, write down the actual N and make the system the right size
         N = points.shape[0]
         if N == 0:
@@ -176,20 +205,8 @@ def main(ndim, # Required arguments
             sys.exit()
         points *= L
         assert ndim == points.shape[1]
-        print("\n\nLoaded a ("+str(file_name)+") system of N = "+str(N_raw)+" points in d = "+str(ndim))
+        print("\n\nLoaded a "+print_type+" system of N = "+str(N_raw)+" points in d = "+str(ndim))
         print("N = "+str(N)+" points remain after cutting to a disk and rescaling to L = "+str(L)+"\n\n")
-
-        if source != "beam":
-            source_suffix = source
-        else:
-            source_suffix = ""
-            
-        output_directory = os.path.join(output_directory,file_name+source_suffix)
-        if size_subsample < 1.0:
-            sss_subdir = "size_subsampling_"+str(size_subsample)
-            output_directory = os.path.join(output_directory, sss_subdir)
-        utils.trymakedir(output_directory)
-        file_name = output_directory+"/"+file_name
 
         # Define wave-vector list here to avoid defining it again when averaging
         if ndim == 2:
@@ -570,7 +587,7 @@ def main(ndim, # Required arguments
             for k0, alpha in zip(k0range,alpharange):
                 k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                 print("k0L/2pi = "+str(k0_))
-# XXX XXX HERE HERE
+                # XXX XXX HERE HERE
                 # Check if file already exists or if computation is needed
                 file = file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl'
                 # File is there: load data
@@ -584,6 +601,18 @@ def main(ndim, # Required arguments
                     k0 = onp.float64(k0)
                     alpha = onp.complex128(alpha)
                 else:
+                    
+                    if ndim == 2:
+                        # In 2d: no ambiguity to make thetas into k vectors and polarizations even if vector wave
+                        E0_scat = solver.generate_source(np.tensor(points), k0, thetas, beam_waist, print_statement='Source at scatterers')
+                    else:
+                        if scalar:
+                            # In 3d scalar, no need to specify polarization vector
+                            E0_scat = solver.generate_source(np.tensor(points), k0, u, beam_waist, print_statement='Source at scatterers')
+                        else:
+                            # In 3d vector, need to specify polarization vector
+                            E0_scat = solver.generate_source(np.tensor(points), k0, u, p, beam_waist, print_statement='Source at scatterers')
+                    
                     Ej = solver.solve(k0, alpha, thetas, E0_scat, self_interaction=self_interaction, self_interaction_type=self_interaction_type)
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                     params = [alpha, k0]
@@ -653,306 +682,302 @@ def main(ndim, # Required arguments
                             utils.plot_full_fields(Eall_longitudinal, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_long_scat', my_dpi = 300)
                             utils.plot_full_fields(Eall_transverse, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_trans_scat', my_dpi = 300)
 
+        ### ###############
+        ### DOS calculations
+        ### ###############
 
-            if compute_SDOS:
+        if compute_SDOS:
 
-                solver = Transmission2D_TETM(points, source = source)
+            DOSall = []
+            k0_range = []
 
-                DOSall_TE = []
-                DOSall_TM = []
-                k0_range = []
+            for k0, alpha in zip(k0range,alpharange):
+                dos = solver.compute_eigenvalues_and_scatterer_LDOS( k0, alpha, radius, file_name, write_eigenvalues=write_eigenvalues, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
+                DOSall.append(dos.numpy())
+                k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                k0_range.append(k0_)
 
-                for k0, alpha in zip(k0range,alpharange):
-                    dos_TE, dos_TM = solver.compute_eigenvalues_and_scatterer_LDOS( k0, alpha, radius, file_name, write_eigenvalues=write_eigenvalues, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-                    DOSall_TE.append(dos_TE.numpy())
-                    DOSall_TM.append(dos_TM.numpy())
-                    k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                    k0_range.append(k0_)
+                onp.savetxt(file_name+'_temp_sdos.csv',onp.stack([k0_range,DOSall]).T)
 
-                    onp.savetxt(file_name+'_temp_sdos_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
-                    onp.savetxt(file_name+'_temp_sdos_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+            onp.savetxt(file_name+'_sdos.csv',onp.stack([k0_range,DOSall]).T)
 
-                onp.savetxt(file_name+'_sdos_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
-                onp.savetxt(file_name+'_sdos_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+            utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'sdos', appended_string='_'+str(file_index))
 
-                utils.plot_averaged_DOS(k0range, L, DOSall_TE, file_name, 'sdos', appended_string='_'+str(file_index)+'_TE')
-                utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'sdos', appended_string='_'+str(file_index)+'_TM')
+        if compute_eigenmodes:
+            # XXX Carry over z from old 3d
+            # Expensive computation
+            ngridx = gridsize[0]
+            ngridy = gridsize[1]
+            xyratio = ngridx/ngridy
+            x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5)
+            measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
 
-            if compute_eigenmodes:
+            batches = np.split(measurement_points, batch_size)
+            n_batches = len(batches)
+
+            extra_string=""
+            if n_batches > 1:
+                extra_string = extra_string+"es"
+            print("Computing the eigenfields and plotting the "+str(number_eigenmodes)+" most localized at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
+
+            
+
+            solver = Transmission2D_TETM(points, source = None)
+
                 
-                # Expensive computation
-                ngridx = gridsize[0]
-                ngridy = gridsize[1]
-                xyratio = ngridx/ngridy
-                x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5)
-                measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
+            k0_range = []
 
-                batches = np.split(measurement_points, batch_size)
-                n_batches = len(batches)
+            for k0, alpha in zip(k0range,alpharange):
+                k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                k0_range.append(k0_)
 
-                extra_string=""
-                if n_batches > 1:
-                    extra_string = extra_string+"es"
-                print("Computing the eigenfields and plotting the "+str(number_eigenmodes)+" most localized at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
+                _, eigenmodes_TM,_ = solver.compute_eigenmodes_IPR( k0, alpha, radius, file_name, write_eigenvalues = True, number_eigenmodes = number_eigenmodes, self_interaction = self_interaction, self_interaction_type = self_interaction_type, sorting_type = sorting_type, scalar = True)
+                _, eigenmodes_TE,_ = solver.compute_eigenmodes_IPR( k0, alpha, radius, file_name, write_eigenvalues = True, number_eigenmodes = number_eigenmodes, self_interaction = self_interaction, self_interaction_type = self_interaction_type, sorting_type = sorting_type, scalar = False)
 
-                
-
-                solver = Transmission2D_TETM(points, source = None)
-
+                if plot_eigenmodes:
                     
-                k0_range = []
-
-                for k0, alpha in zip(k0range,alpharange):
-                    k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                    k0_range.append(k0_)
-
-                    _, eigenmodes_TM,_ = solver.compute_eigenmodes_IPR( k0, alpha, radius, file_name, write_eigenvalues = True, number_eigenmodes = number_eigenmodes, self_interaction = self_interaction, self_interaction_type = self_interaction_type, sorting_type = sorting_type, scalar = True)
-                    _, eigenmodes_TE,_ = solver.compute_eigenmodes_IPR( k0, alpha, radius, file_name, write_eigenvalues = True, number_eigenmodes = number_eigenmodes, self_interaction = self_interaction, self_interaction_type = self_interaction_type, sorting_type = sorting_type, scalar = False)
-
-                    if plot_eigenmodes:
+                    for i in range(number_eigenmodes):
                         
-                        for i in range(number_eigenmodes):
-                            
-                            ETEall = []
-                            ETMall = []
-                            
-                            # By default, the eigenvectors are such that their modulus is 1
-                            eigenmodes_TM[:,i] /= np.abs(eigenmodes_TM[:,i]).amax()
-                            eigenmodes_TE[:,i] /= np.abs(eigenmodes_TE[:,i]).amax()
+                        ETEall = []
+                        ETMall = []
+                        
+                        # By default, the eigenvectors are such that their modulus is 1
+                        eigenmodes_TM[:,i] /= np.abs(eigenmodes_TM[:,i]).amax()
+                        eigenmodes_TE[:,i] /= np.abs(eigenmodes_TE[:,i]).amax()
 
-                            for batch in range(0, n_batches):
-                                print("Batch "+str(batch+1))
-                                batch_points = batches[batch]
+                        for batch in range(0, n_batches):
+                            print("Batch "+str(batch+1))
+                            batch_points = batches[batch]
 
-                                eigenfield_TE, eigenfield_TM = solver.propagate_EM(batch_points, eigenmodes_TE[:,i], eigenmodes_TM[:,i].unsqueeze(-1), k0, alpha, [0.0], w, regularize = regularize, radius=radius)
+                            eigenfield_TE, eigenfield_TM = solver.propagate_EM(batch_points, eigenmodes_TE[:,i], eigenmodes_TM[:,i].unsqueeze(-1), k0, alpha, [0.0], w, regularize = regularize, radius=radius)
 
-                                ETEall.append(eigenfield_TE)
-                                ETMall.append(eigenfield_TM)
+                            ETEall.append(eigenfield_TE)
+                            ETMall.append(eigenfield_TM)
 
-                            ETEall = np.cat(ETEall, dim=0).squeeze(-1)
-                            ETMall = np.cat(ETMall, dim=0)
+                        ETEall = np.cat(ETEall, dim=0).squeeze(-1)
+                        ETMall = np.cat(ETMall, dim=0)
 
-                            ETEall_amplitude    = np.sqrt(np.absolute(ETEall[:,0])**2 + np.absolute(ETEall[:,1])**2)
-                            ETEall_amplitude    = ETEall_amplitude.reshape(ngridy, ngridx)
-                            ETMall = ETMall.reshape(ngridy, ngridx)
-                            
-                            plot_IPR_TM = np.sum(np.abs(ETMall**4)) / (np.sum(np.abs(ETMall**2)))**2
-                            plot_IPR_TE = np.sum(np.abs(ETEall**4)) / (np.sum(np.abs(ETEall**2)))**2
-                            
-                            print(f"Effective TM IPR of the whole eigenfield: {plot_IPR_TM}")
-                            print(f"Effective TE IPR of the whole eigenfield: {plot_IPR_TE}")
+                        ETEall_amplitude    = np.sqrt(np.absolute(ETEall[:,0])**2 + np.absolute(ETEall[:,1])**2)
+                        ETEall_amplitude    = ETEall_amplitude.reshape(ngridy, ngridx)
+                        ETMall = ETMall.reshape(ngridy, ngridx)
+                        
+                        plot_IPR_TM = np.sum(np.abs(ETMall**4)) / (np.sum(np.abs(ETMall**2)))**2
+                        plot_IPR_TE = np.sum(np.abs(ETEall**4)) / (np.sum(np.abs(ETEall**2)))**2
+                        
+                        print(f"Effective TM IPR of the whole eigenfield: {plot_IPR_TM}")
+                        print(f"Effective TE IPR of the whole eigenfield: {plot_IPR_TE}")
 
-                            utils.plot_full_fields(ETEall_amplitude, ngridx, ngridy, k0_, 0, True, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE_eigen_'+sorting_type+str(i), my_dpi = 300)
-                            utils.plot_full_fields(ETMall, ngridx, ngridy, k0_, 0, True, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TM_eigen_'+sorting_type+str(i), my_dpi = 300)
+                        utils.plot_full_fields(ETEall_amplitude, ngridx, ngridy, k0_, 0, True, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE_eigen_'+sorting_type+str(i), my_dpi = 300)
+                        utils.plot_full_fields(ETMall, ngridx, ngridy, k0_, 0, True, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TM_eigen_'+sorting_type+str(i), my_dpi = 300)
 
 
-            if compute_DOS:
+        if compute_DOS:
 
-                solver = Transmission2D_TETM(points, source = source)
+            solver = Transmission2D_TETM(points, source = source)
 
-                DOSall_TE = []
-                DOSall_TM = []
-                k0_range = []
+            DOSall_TE = []
+            DOSall_TM = []
+            k0_range = []
 
+            M = dospoints
+            measurement_points = utils.uniform_unit_disk_picking(M)
+            measurement_points *= L/2
+
+            utils.plot_2d_points(measurement_points, file_name+'_measurement')
+
+            for k0, alpha in zip(k0range,alpharange):
+                dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
+
+                DOSall_TE.append(dos_TE.numpy())
+                DOSall_TM.append(dos_TM.numpy())
+
+
+                k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                k0_range.append(k0_)
+
+                onp.savetxt(file_name+'_temp_dos_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
+                onp.savetxt(file_name+'_temp_dos_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+
+            onp.savetxt(file_name+'_dos_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
+            onp.savetxt(file_name+'_dos_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+
+            utils.plot_averaged_DOS(k0range, L, DOSall_TE, file_name, 'dos', appended_string='_'+str(file_index)+'_TE')
+            utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'dos', appended_string='_'+str(file_index)+'_TM')
+
+        if compute_interDOS:
+
+            for dos_size in dos_sizes[::-1]:
+
+                DOSall_TE = onp.array([])
+                DOSall_TM = onp.array([])
+                k0_range = onp.array([])
+
+                if os.path.exists(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TM.csv'):
+                    existing_TM = onp.loadtxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TM.csv')
+                    DOSall_TM = existing_TM[:,1]
+                    k0_range = existing_TM[:,0]
+                if os.path.exists(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TE.csv'):
+                    existing_TE = onp.loadtxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TE.csv')
+                    DOSall_TE = existing_TE[:,1]
+                    k0_range = existing_TE[:,0]
+                    
                 M = dospoints
                 measurement_points = utils.uniform_unit_disk_picking(M)
-                measurement_points *= L/2
+                measurement_points *= dos_size * L/2 * idos_radius
+                disk_points = lattices.cut_circle(points, rad = dos_size * 0.5)
 
-                utils.plot_2d_points(measurement_points, file_name+'_measurement')
+                solver = Transmission2D_TETM(disk_points, source = source)
 
-                for k0, alpha in zip(k0range,alpharange):
-                    dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-
-                    DOSall_TE.append(dos_TE.numpy())
-                    DOSall_TM.append(dos_TM.numpy())
-
-
-                    k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                    k0_range.append(k0_)
-
-                    onp.savetxt(file_name+'_temp_dos_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
-                    onp.savetxt(file_name+'_temp_dos_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
-
-                onp.savetxt(file_name+'_dos_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
-                onp.savetxt(file_name+'_dos_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
-
-                utils.plot_averaged_DOS(k0range, L, DOSall_TE, file_name, 'dos', appended_string='_'+str(file_index)+'_TE')
-                utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'dos', appended_string='_'+str(file_index)+'_TM')
-
-            if compute_interDOS:
-
-                for dos_size in dos_sizes[::-1]:
-
-                    DOSall_TE = onp.array([])
-                    DOSall_TM = onp.array([])
-                    k0_range = onp.array([])
-
-                    if os.path.exists(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TM.csv'):
-                        existing_TM = onp.loadtxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TM.csv')
-                        DOSall_TM = existing_TM[:,1]
-                        k0_range = existing_TM[:,0]
-                    if os.path.exists(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TE.csv'):
-                        existing_TE = onp.loadtxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TE.csv')
-                        DOSall_TE = existing_TE[:,1]
-                        k0_range = existing_TE[:,0]
-                        
-                    M = dospoints
-                    measurement_points = utils.uniform_unit_disk_picking(M)
-                    measurement_points *= dos_size * L/2 * idos_radius
-                    disk_points = lattices.cut_circle(points, rad = dos_size * 0.5)
-
-                    solver = Transmission2D_TETM(disk_points, source = source)
-
-                    # Find all overlaps and redraw while you have some
-                    # Following Pierrat et al., I use 1 diameter as the spacing there
-                    spacing = 2.0*radius
-                    spacing *= spacing_factor
+                # Find all overlaps and redraw while you have some
+                # Following Pierrat et al., I use 1 diameter as the spacing there
+                spacing = 2.0*radius
+                spacing *= spacing_factor
+                overlaps = np.nonzero(np.sum(np.cdist(measurement_points.to(np.double), disk_points.to(np.double), p=2) <= spacing, axis = -1)).squeeze()
+                if len(overlaps.shape) == 0:
+                    count = 0
+                else:
+                    count = overlaps.shape[0]
+                while count > 0:
+                    print("Removing "+str(count)+" overlaps using an exclusion distance of "+str(spacing_factor)+" scatterer diameters...")
+                    measurement_points[overlaps] = dos_size * L/2 * idos_radius * utils.uniform_unit_disk_picking(count)
                     overlaps = np.nonzero(np.sum(np.cdist(measurement_points.to(np.double), disk_points.to(np.double), p=2) <= spacing, axis = -1)).squeeze()
                     if len(overlaps.shape) == 0:
                         count = 0
                     else:
                         count = overlaps.shape[0]
-                    while count > 0:
-                        print("Removing "+str(count)+" overlaps using an exclusion distance of "+str(spacing_factor)+" scatterer diameters...")
-                        measurement_points[overlaps] = dos_size * L/2 * idos_radius * utils.uniform_unit_disk_picking(count)
-                        overlaps = np.nonzero(np.sum(np.cdist(measurement_points.to(np.double), disk_points.to(np.double), p=2) <= spacing, axis = -1)).squeeze()
-                        if len(overlaps.shape) == 0:
-                            count = 0
-                        else:
-                            count = overlaps.shape[0]
 
-                    utils.plot_2d_points(measurement_points, file_name+'_measurement_size'+str(dos_size))
+                utils.plot_2d_points(measurement_points, file_name+'_measurement_size'+str(dos_size))
 
-
-                    for k0, alpha in zip(k0range,alpharange):
-                        k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                        if k0_ not in k0_range:
-                            k0_range = onp.append(k0_range,k0_)
-                            dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-
-                            DOSall_TE = onp.append(DOSall_TE,dos_TE.numpy())
-                            DOSall_TM = onp.append(DOSall_TM,dos_TM.numpy())
-
-                            idx = onp.argsort(k0_range)
-                            k0_range = k0_range[idx]
-                            DOSall_TE = DOSall_TE[idx]
-                            DOSall_TM = DOSall_TM[idx]
-                            onp.savetxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
-                            onp.savetxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
-                    
-                    
-                    onp.savetxt(file_name+'_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
-                    onp.savetxt(file_name+'_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
-
-                    utils.plot_averaged_DOS(k0range, L, DOSall_TE, file_name, 'idos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TE')
-                    utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'idos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TM')
-                    
-            if compute_cavityDOS:
-
-                for dos_size in dos_sizes[::-1]:
-
-                    DOSall_TE = onp.array([])
-                    DOSall_TM = onp.array([])
-                    k0_range = onp.array([])
-
-                    if os.path.exists(file_name+'_temp_cdos_size'+str(dos_size)+'_TM.csv'):
-                        existing_TM = onp.loadtxt(file_name+'_temp_cdos_size'+str(dos_size)+'_TM.csv')
-                        DOSall_TM = existing_TM[:,1]
-                        k0_range = existing_TM[:,0]
-                    if os.path.exists(file_name+'_temp_cdos_size'+str(dos_size)+'_TE.csv'):
-                        existing_TE = onp.loadtxt(file_name+'_temp_cdos_size'+str(dos_size)+'_TE.csv')
-                        DOSall_TE = existing_TE[:,1]
-                        k0_range = existing_TE[:,0]
-                        
-                    measurement_points = np.zeros(ndim).reshape(1, ndim)
-                    disk_points = lattices.cut_circle(points, rad = dos_size * 0.5)
-                    
-                    # Find all overlaps and remove from system
-                    # Following Pierrat et al., I use 1 diameter as the spacing there
-                    spacing = 2.0*radius
-                    spacing *= spacing_factor
-                    disk_points = lattices.exclude_circle(disk_points, spacing)
-                    
-
-                    solver = Transmission2D_TETM(disk_points, source = source)
-
-
-                    utils.plot_2d_points(disk_points, file_name+'_kept_points_size'+str(dos_size))
-
-                    for k0, alpha in zip(k0range,alpharange):
-                        k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                        if k0_ not in k0_range:
-                            k0_range = onp.append(k0_range,k0_)
-                            dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-
-                            DOSall_TE = onp.append(DOSall_TE,dos_TE.numpy())
-                            DOSall_TM = onp.append(DOSall_TM,dos_TM.numpy())
-
-                            idx = onp.argsort(k0_range)
-                            k0_range = k0_range[idx]
-                            DOSall_TE = DOSall_TE[idx]
-                            DOSall_TM = DOSall_TM[idx]
-                            onp.savetxt(file_name+'_temp_cdos_size'+str(dos_size)+'_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
-                            onp.savetxt(file_name+'_temp_cdos_size'+str(dos_size)+'_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
-                    
-                    
-                    onp.savetxt(file_name+'_cdos_size'+str(dos_size)+'_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
-                    onp.savetxt(file_name+'_cdos_size'+str(dos_size)+'_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
-
-                    utils.plot_averaged_DOS(k0range, L, DOSall_TE, file_name, 'cdos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_TE')
-                    utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'cdos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_TM')
-
-            if compute_LDOS:
-
-                solver = Transmission2D_TETM(points, source = source)
-
-                # Expensive computation
-                ngridx = gridsize[0]
-                ngridy = gridsize[1]
-                xyratio = ngridx/ngridy
-                x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5)
-                measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
-                
-                # Determine which points are within the system
-                idx_inside = np.nonzero(np.linalg.norm(measurement_points,axis=-1)<=L/2)
-
-                batches = np.split(measurement_points, batch_size)
-                n_batches = len(batches)
-
-                extra_string=""
-                if n_batches > 1:
-                    extra_string = extra_string+"es"
-                print("Computing the LDOS at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(batch_size))
 
                 for k0, alpha in zip(k0range,alpharange):
-
-                    outputs_TE = []
-                    outputs_TM = []
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                    if k0_ not in k0_range:
+                        k0_range = onp.append(k0_range,k0_)
+                        dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
 
-                    for batch in range(0, n_batches):
-                        print("Batch "+str(batch+1))
-                        batch_points = batches[batch]
-                        ldos_TE, ldos_TM = solver.LDOS_measurements(batch_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
+                        DOSall_TE = onp.append(DOSall_TE,dos_TE.numpy())
+                        DOSall_TM = onp.append(DOSall_TM,dos_TM.numpy())
 
-                        outputs_TE.append(ldos_TE)
-                        outputs_TM.append(ldos_TM)
+                        idx = onp.argsort(k0_range)
+                        k0_range = k0_range[idx]
+                        DOSall_TE = DOSall_TE[idx]
+                        DOSall_TM = DOSall_TM[idx]
+                        onp.savetxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
+                        onp.savetxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+                
+                
+                onp.savetxt(file_name+'_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
+                onp.savetxt(file_name+'_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
 
-                    #    onp.savetxt(file_name+'_temp_ldos_'+str(k0_)+'_TE.csv',np.cat(outputs_TE).numpy())
-                    #    onp.savetxt(file_name+'_temp_ldos_'+str(k0_)+'_TM.csv',np.cat(outputs_TM).numpy())
+                utils.plot_averaged_DOS(k0range, L, DOSall_TE, file_name, 'idos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TE')
+                utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'idos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TM')
+                
+        if compute_cavityDOS:
 
-                    ldos_TE = np.cat(outputs_TE)
-                    ldos_TM = np.cat(outputs_TM)
+            for dos_size in dos_sizes[::-1]:
+
+                DOSall_TE = onp.array([])
+                DOSall_TM = onp.array([])
+                k0_range = onp.array([])
+
+                if os.path.exists(file_name+'_temp_cdos_size'+str(dos_size)+'_TM.csv'):
+                    existing_TM = onp.loadtxt(file_name+'_temp_cdos_size'+str(dos_size)+'_TM.csv')
+                    DOSall_TM = existing_TM[:,1]
+                    k0_range = existing_TM[:,0]
+                if os.path.exists(file_name+'_temp_cdos_size'+str(dos_size)+'_TE.csv'):
+                    existing_TE = onp.loadtxt(file_name+'_temp_cdos_size'+str(dos_size)+'_TE.csv')
+                    DOSall_TE = existing_TE[:,1]
+                    k0_range = existing_TE[:,0]
                     
-                    ldos_TE = ldos_TE.reshape(ngridy, ngridx)
-                    ldos_TM = ldos_TM.reshape(ngridy, ngridx)
+                measurement_points = np.zeros(ndim).reshape(1, ndim)
+                disk_points = lattices.cut_circle(points, rad = dos_size * 0.5)
+                
+                # Find all overlaps and remove from system
+                # Following Pierrat et al., I use 1 diameter as the spacing there
+                spacing = 2.0*radius
+                spacing *= spacing_factor
+                disk_points = lattices.exclude_circle(disk_points, spacing)
+                
 
-                    utils.plot_LDOS_2D(ldos_TE,k0_,ngridx,ngridy,file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE', my_dpi = 300)
-                    utils.plot_LDOS_2D(ldos_TM,k0_,ngridx,ngridy,file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TM', my_dpi = 300)
+                solver = Transmission2D_TETM(disk_points, source = source)
 
-                    if write_ldos:
-                        onp.savetxt(file_name+'_ldos_'+str(k0_)+'_TE_'+str(index)+'.csv',ldos_TE.numpy())
-                        onp.savetxt(file_name+'_ldos_'+str(k0_)+'_TM_'+str(index)+'.csv',ldos_TM.numpy())  
+
+                utils.plot_2d_points(disk_points, file_name+'_kept_points_size'+str(dos_size))
+
+                for k0, alpha in zip(k0range,alpharange):
+                    k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                    if k0_ not in k0_range:
+                        k0_range = onp.append(k0_range,k0_)
+                        dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
+
+                        DOSall_TE = onp.append(DOSall_TE,dos_TE.numpy())
+                        DOSall_TM = onp.append(DOSall_TM,dos_TM.numpy())
+
+                        idx = onp.argsort(k0_range)
+                        k0_range = k0_range[idx]
+                        DOSall_TE = DOSall_TE[idx]
+                        DOSall_TM = DOSall_TM[idx]
+                        onp.savetxt(file_name+'_temp_cdos_size'+str(dos_size)+'_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
+                        onp.savetxt(file_name+'_temp_cdos_size'+str(dos_size)+'_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+                
+                
+                onp.savetxt(file_name+'_cdos_size'+str(dos_size)+'_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
+                onp.savetxt(file_name+'_cdos_size'+str(dos_size)+'_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+
+                utils.plot_averaged_DOS(k0range, L, DOSall_TE, file_name, 'cdos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_TE')
+                utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'cdos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_TM')
+
+        if compute_LDOS:
+
+            solver = Transmission2D_TETM(points, source = source)
+
+            # Expensive computation
+            ngridx = gridsize[0]
+            ngridy = gridsize[1]
+            xyratio = ngridx/ngridy
+            x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5)
+            measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
+            
+            # Determine which points are within the system
+            idx_inside = np.nonzero(np.linalg.norm(measurement_points,axis=-1)<=L/2)
+
+            batches = np.split(measurement_points, batch_size)
+            n_batches = len(batches)
+
+            extra_string=""
+            if n_batches > 1:
+                extra_string = extra_string+"es"
+            print("Computing the LDOS at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(batch_size))
+
+            for k0, alpha in zip(k0range,alpharange):
+
+                outputs_TE = []
+                outputs_TM = []
+                k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+
+                for batch in range(0, n_batches):
+                    print("Batch "+str(batch+1))
+                    batch_points = batches[batch]
+                    ldos_TE, ldos_TM = solver.LDOS_measurements(batch_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
+
+                    outputs_TE.append(ldos_TE)
+                    outputs_TM.append(ldos_TM)
+
+                #    onp.savetxt(file_name+'_temp_ldos_'+str(k0_)+'_TE.csv',np.cat(outputs_TE).numpy())
+                #    onp.savetxt(file_name+'_temp_ldos_'+str(k0_)+'_TM.csv',np.cat(outputs_TM).numpy())
+
+                ldos_TE = np.cat(outputs_TE)
+                ldos_TM = np.cat(outputs_TM)
+                
+                ldos_TE = ldos_TE.reshape(ngridy, ngridx)
+                ldos_TM = ldos_TM.reshape(ngridy, ngridx)
+
+                utils.plot_LDOS_2D(ldos_TE,k0_,ngridx,ngridy,file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE', my_dpi = 300)
+                utils.plot_LDOS_2D(ldos_TM,k0_,ngridx,ngridy,file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TM', my_dpi = 300)
+
+                if write_ldos:
+                    onp.savetxt(file_name+'_ldos_'+str(k0_)+'_TE_'+str(index)+'.csv',ldos_TE.numpy())
+                    onp.savetxt(file_name+'_ldos_'+str(k0_)+'_TM_'+str(index)+'.csv',ldos_TM.numpy())  
 
 
     ### Deal with averaging if several files provided

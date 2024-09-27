@@ -717,6 +717,8 @@ def loadpoints(file_path, ndim):
     
     if '.hkl' in file_path:
         points = hkl.load(file_path)[:,0:ndim]
+    elif '.csv' in file_name:
+        points = np.loadtxt(input_file, delimiter=',')
     elif '.txt' in file_path:
         
         with open(file_path, 'r') as file:
@@ -724,8 +726,10 @@ def loadpoints(file_path, ndim):
         # Determine the delimiter based on the first line
         if ',' in first_line:
             delimiter = ','
+        elif "\t" in first_line:
+            delimiter = None
         elif ' ' in first_line:
-            delimiter = ' '
+            delimiter = None
         else:
             raise NotImplementedError("Delimiter not identified")
         
