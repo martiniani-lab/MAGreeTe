@@ -570,88 +570,88 @@ def main(ndim, # Required arguments
             for k0, alpha in zip(k0range,alpharange):
                 k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                 print("k0L/2pi = "+str(k0_))
-
+# XXX XXX HERE HERE
                 # Check if file already exists or if computation is needed
                 file = file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl'
-                sys.exit() # XXX HERE
                 # File is there: load data
                 if os.path.isfile(file):
-                    EjTE, EjTM, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
-                    EjTE = np.tensor(EjTE, dtype=np.complex128)
-                    EjTM = np.tensor(EjTM, dtype=np.complex128)
+                    Ej, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
+                    Ej = np.tensor(Ej, dtype=np.complex128)
+                    Ej = np.tensor(Ej, dtype=np.complex128)
                     points = np.tensor(points, dtype=np.complex128)
                     thetas = onp.float64(thetas)
                     alpha, k0 = params
                     k0 = onp.float64(k0)
                     alpha = onp.complex128(alpha)
                 else:
-                    EjTE, EjTM = solver.solve_EM(k0, alpha, thetas, radius, w, self_interaction=self_interaction, self_interaction_type=self_interaction_type)
+                    Ej = solver.solve(k0, alpha, thetas, E0_scat, self_interaction=self_interaction, self_interaction_type=self_interaction_type)
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                     params = [alpha, k0]
-                    hkl.dump([onp.array(EjTE), onp.array(EjTM), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
+                    hkl.dump([onp.array(Ej), onp.array(params),onp.array(points), onp.array(thetas)],file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
 
                 for angle in thetas_plot:
                     angle_ = onp.round(angle*180/onp.pi)
                     index = onp.where(thetas == angle)[0][0]
                     print("angle = "+str(angle_)+"degrees")
 
-                    ETEall = []
-                    ETMall = []
+                    Eall = []
                     if scattered_fields:
-                        ETEall_scat = []
-                        ETMall_scat = []
+                        Eall_scat = []
 
                     for batch in range(0, n_batches):
                         print("Batch "+str(batch+1))
                         batch_points = batches[batch]
 
-                        EkTE, EkTM = solver.propagate_EM(batch_points, EjTE[:,index], EjTM[:,index].unsqueeze(-1), k0, alpha, [angle], w, regularize = regularize, radius = radius)
+                        Ek = solver.propagate(batch_points, Ej[:,index], k0, alpha, E0[:,index], regularize = regularize, radius = radius)
 
-                        ETEall.append(EkTE)
-                        ETMall.append(EkTM)
+                        Eall.append(Ek)
                         
                         if scattered_fields:
-                            E0TE, E0TM = solver.generate_source(batch_points, k0, [angle], w, print_statement='scattered_fields')
-                            ETMall_scat.append(EkTM - E0TM)
-                            ETEall_scat.append(EkTE - E0TE)
+                            Eall_scat.append(Ek - E0[:,index])
 
-                    ETEall = np.cat(ETEall, dim=0).squeeze(-1)
-                    ETMall = np.cat(ETMall, dim=0)
+                    Eall = np.cat(Eall, dim=0)
+                    if not scalar:
+                        Eall = Eall.squeeze(-1)
                     
                     # The medium is centered at (0,0)
                     viewing_angle = np.arctan2(measurement_points[:,1], measurement_points[:,0]) #y,x
 
-                    ETEall_amplitude          = np.sqrt(np.absolute(ETEall[:,0])**2 + np.absolute(ETEall[:,1])**2)
-                    ETEall_longitudinal       = ETEall[:,0]*np.cos(viewing_angle) - ETEall[:,1]*np.sin(viewing_angle)
-                    ETEall_transverse         = ETEall[:,0]*np.sin(viewing_angle) + ETEall[:,1]*np.cos(viewing_angle)
+                    if scalar:
+                        Eall = Eall.reshape(ngridy, ngridx)
+                        utils.plot_full_fields(Eall, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index), my_dpi = 300)
+                    else:
+                        Eall_amplitude          = np.sqrt(np.absolute(Eall[:,0])**2 + np.absolute(Eall[:,1])**2)
+                        Eall_longitudinal       = Eall[:,0]*np.cos(viewing_angle) - Eall[:,1]*np.sin(viewing_angle)
+                        Eall_transverse         = Eall[:,0]*np.sin(viewing_angle) + Eall[:,1]*np.cos(viewing_angle)
 
-                    ETEall_amplitude    = ETEall_amplitude.reshape(ngridy, ngridx)
-                    ETEall_longitudinal = ETEall_longitudinal.reshape(ngridy, ngridx)
-                    ETEall_transverse   = ETEall_transverse.reshape(ngridy, ngridx)
-                    ETMall = ETMall.reshape(ngridy, ngridx)
+                        Eall_amplitude    = Eall_amplitude.reshape(ngridy, ngridx)
+                        Eall_longitudinal = Eall_longitudinal.reshape(ngridy, ngridx)
+                        Eall_transverse   = Eall_transverse.reshape(ngridy, ngridx)
 
-                    utils.plot_full_fields(ETEall_amplitude, ngridx, ngridy, k0_, angle_, intensity_fields, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE', my_dpi = 300)
-                    utils.plot_full_fields(ETEall_longitudinal, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE_long', my_dpi = 300)
-                    utils.plot_full_fields(ETEall_transverse, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE_trans', my_dpi = 300)
-                    utils.plot_full_fields(ETMall, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TM', my_dpi = 300)
+                        utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, angle_, intensity_fields, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index), my_dpi = 300)
+                        utils.plot_full_fields(Eall_longitudinal, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_long', my_dpi = 300)
+                        utils.plot_full_fields(Eall_transverse, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_trans', my_dpi = 300)
 
                     if scattered_fields:
-                        ETEall = np.cat(ETEall_scat, dim=0).squeeze(-1)
-                        ETMall = np.cat(ETMall_scat, dim=0)
+                        Eall = np.cat(Eall, dim=0)
+                        if not scalar:
+                            Eall = Eall.squeeze(-1)
                         
-                        ETEall_amplitude          = np.sqrt(np.absolute(ETEall[:,0])**2 + np.absolute(ETEall[:,1])**2)
-                        ETEall_longitudinal       = ETEall[:,0]*np.cos(viewing_angle) - ETEall[:,1]*np.sin(viewing_angle)
-                        ETEall_transverse         = ETEall[:,0]*np.sin(viewing_angle) + ETEall[:,1]*np.cos(viewing_angle)
+                        if scalar:
+                            Eall = Eall.reshape(ngridy, ngridx)
+                            utils.plot_full_fields(Eall, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_scat', my_dpi = 300)
+                        else:
+                            Eall_amplitude          = np.sqrt(np.absolute(Eall[:,0])**2 + np.absolute(Eall[:,1])**2)
+                            Eall_longitudinal       = Eall[:,0]*np.cos(viewing_angle) - Eall[:,1]*np.sin(viewing_angle)
+                            Eall_transverse         = Eall[:,0]*np.sin(viewing_angle) + Eall[:,1]*np.cos(viewing_angle)
 
-                        ETEall_amplitude    = ETEall_amplitude.reshape(ngridy, ngridx)
-                        ETEall_longitudinal = ETEall_longitudinal.reshape(ngridy, ngridx)
-                        ETEall_transverse   = ETEall_transverse.reshape(ngridy, ngridx)
-                        ETMall = ETMall.reshape(ngridy, ngridx)
+                            Eall_amplitude    = Eall_amplitude.reshape(ngridy, ngridx)
+                            Eall_longitudinal = Eall_longitudinal.reshape(ngridy, ngridx)
+                            Eall_transverse   = Eall_transverse.reshape(ngridy, ngridx)
 
-                        utils.plot_full_fields(ETEall_amplitude, ngridx, ngridy, k0_, angle_, intensity_fields, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE_scat', my_dpi = 300)
-                        utils.plot_full_fields(ETEall_longitudinal, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE_long_scat', my_dpi = 300)
-                        utils.plot_full_fields(ETEall_transverse, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE_trans_scat', my_dpi = 300)
-                        utils.plot_full_fields(ETMall, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TM_scat', my_dpi = 300)
+                            utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, angle_, intensity_fields, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_scat', my_dpi = 300)
+                            utils.plot_full_fields(Eall_longitudinal, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_long_scat', my_dpi = 300)
+                            utils.plot_full_fields(Eall_transverse, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_trans_scat', my_dpi = 300)
 
 
             if compute_SDOS:
