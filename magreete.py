@@ -386,9 +386,8 @@ def main(ndim, # Required arguments
                 for k0, alpha in zip(k0range,alpharange):
                     
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                    Ej, params, points, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
+                    Ej, params, _, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
                     Ej = np.tensor(Ej, dtype=np.complex128)
-                    points = np.tensor(points, dtype=np.float64)
                     thetas = onp.float64(thetas)
                     alpha, k0 = params
                     k0 = onp.float64(k0)
@@ -397,24 +396,10 @@ def main(ndim, # Required arguments
                     # Compute source value AT scatterers and measurement points
                     if ndim == 2:
                         
-                        # Need to initialize solver with points from loaded files here
-                        # Otherwise random kicks and/or poisson point patterns would be different from hkl files
-                        if scalar:
-                            solver = Transmission2D_scalar(points, source = source)
-                        else:
-                            solver = Transmission2D_vector(points, source = source)
-                        
                         # In 2d: no ambiguity to make thetas into k vectors and polarizations even if vector wave
                         E0_scat = solver.generate_source(np.tensor(points), k0, thetas, beam_waist, print_statement='Source at scatterers')
                         E0_meas = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='Source at measurement points')
                     else:
-                        
-                        # Need to initialize solver with points from loaded files here
-                        # Otherwise random kicks and/or poisson point patterns would be different from hkl files
-                        if scalar:
-                            solver = Transmission3D_scalar(points, source = source)
-                        else:
-                            solver = Transmission3D_vector(points, source = source)
                         
                         # In 3d, need to specify polarization vector
                         E0_scat = solver.generate_source(np.tensor(points), k0, u, p, beam_waist, print_statement='Source at scatterers')
@@ -488,7 +473,6 @@ def main(ndim, # Required arguments
                 for k0, alpha in zip(k0range,alpharange):
                     
                     # Compute source value AT scatterers and measurement points
-                    # XXX Merge into one function to call
                     if ndim == 2:
                         # In 2d: no ambiguity to make thetas into k vectors and polarizations even if vector wave
                         E0_scat = solver.generate_source(np.tensor(points), k0, thetas, beam_waist, print_statement='Source at scatterers')
@@ -587,7 +571,6 @@ def main(ndim, # Required arguments
             for k0, alpha in zip(k0range,alpharange):
                 k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                 print("k0L/2pi = "+str(k0_))
-                # XXX XXX HERE HERE
                 # Check if file already exists or if computation is needed
                 file = file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl'
                 # File is there: load data
@@ -600,17 +583,35 @@ def main(ndim, # Required arguments
                     alpha, k0 = params
                     k0 = onp.float64(k0)
                     alpha = onp.complex128(alpha)
+                    
+                    if ndim ==3:                         
+                        u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(thetas.shape)]).T
+                        u = np.tensor(u)
+                        if len(u.shape) == 1:
+                            u = u.reshape(1,-1)
+                        if not scalar:
+                            p = np.zeros(u.shape)
+                            p[:,2] = 1
+                    
+                # File is not there: compute
                 else:
                     
                     if ndim == 2:
                         # In 2d: no ambiguity to make thetas into k vectors and polarizations even if vector wave
                         E0_scat = solver.generate_source(np.tensor(points), k0, thetas, beam_waist, print_statement='Source at scatterers')
                     else:
+                        u = onp.stack([onp.cos(thetas_plot),onp.sin(thetas_plot),onp.zeros(thetas_plot.shape)]).T
+                        u = np.tensor(u)
+                        if len(u.shape) == 1:
+                            u = u.reshape(1,-1)
+                        
                         if scalar:
                             # In 3d scalar, no need to specify polarization vector
                             E0_scat = solver.generate_source(np.tensor(points), k0, u, beam_waist, print_statement='Source at scatterers')
                         else:
                             # In 3d vector, need to specify polarization vector
+                            p = np.zeros(u.shape)
+                            p[:,2] = 1
                             E0_scat = solver.generate_source(np.tensor(points), k0, u, p, beam_waist, print_statement='Source at scatterers')
                     
                     Ej = solver.solve(k0, alpha, thetas, E0_scat, self_interaction=self_interaction, self_interaction_type=self_interaction_type)
@@ -630,13 +631,26 @@ def main(ndim, # Required arguments
                     for batch in range(0, n_batches):
                         print("Batch "+str(batch+1))
                         batch_points = batches[batch]
+                        
+                        if ndim == 2:
+                            # In 2d: no ambiguity to make thetas into k vectors and polarizations even if vector wave
+                            E0_meas = solver.generate_source(batch_points, k0, [angle], beam_waist, print_statement='Source at scatterers')
+                        else:
+                            if scalar:
+                                u_angle = np.tensor([onp.cos(angle),onp.sin(angle),0])
+                                # In 3d scalar, no need to specify polarization vector
+                                E0_meas = solver.generate_source(batch_points, k0, u_angle.reshape(1,3), beam_waist, print_statement='Source at scatterers')
+                            else:
+                                p_angle = np.tensor([0,0,1])
+                                # In 3d vector, need to specify polarization vector
+                                E0_meas = solver.generate_source(batch_points, k0, u_angle.reshape(1,3), p_angle.reshape(1,3), beam_waist, print_statement='Source at scatterers')
 
-                        Ek = solver.propagate(batch_points, Ej[:,index], k0, alpha, E0[:,index], regularize = regularize, radius = radius)
+                        Ek = solver.propagate(batch_points, Ej[:,index], k0, alpha, E0_meas, regularize = regularize, radius = radius)
 
                         Eall.append(Ek)
                         
                         if scattered_fields:
-                            Eall_scat.append(Ek - E0[:,index])
+                            Eall_scat.append(Ek - E0_meas)
 
                     Eall = np.cat(Eall, dim=0)
                     if not scalar:
