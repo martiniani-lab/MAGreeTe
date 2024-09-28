@@ -632,18 +632,18 @@ def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, se
             max_TE = onp.argmax(alpha_d_TE)
             k0_max_TE = k0range[max_TE] * L / (2 * onp.pi)
             if max_TE != alpha_d_TE.shape[0] - 1:
-                print("TE Resonance in the explored interval, at k0 = "+ str(k0_max_TE) +"!")
+                print("Vector Resonance in the explored interval, at k0 = "+ str(k0_max_TE) +"!")
                 
             max_TM = onp.argmax(alpha_d_TM)
             k0_max_TM = k0range[max_TM] * L / (2 * onp.pi)
             if onp.argmax(alpha_d_TM) != alpha_d_TM.shape[0] - 1:
-                print("TM Resonance in the explored interval, at k0 = "+ str(k0_max_TM) +"!")
+                print("Scalar Resonance in the explored interval, at k0 = "+ str(k0_max_TM) +"!")
                 
             fig = plt.figure()
             ax = fig.gca()
             freqs = onp.real(k0range*L/(2*onp.pi))
-            ax.plot(freqs, alpha_d_TE, c = 'r', label = 'TE')
-            ax.plot(freqs, alpha_d_TM, c = 'b', label = 'TM')
+            ax.plot(freqs, alpha_d_TE, c = 'r', label = 'vector')
+            ax.plot(freqs, alpha_d_TM, c = 'b', label = 'scalar')
             if self_interaction:
                 ax.plot(freqs, onp.absolute(alpharange[0])*onp.ones(alpharange.shape), c='k', ls ='--', label = 'bare')
                 deltaeps = alpharange[0]*onp.ones(alpharange.shape) / volume
@@ -676,7 +676,7 @@ def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, se
             ax.set_xlabel(r'$k_0L/2\pi$')
             ax.set_ylabel('Cross-sections')
             ax.legend()
-            plt.savefig(file_name+'_crosssections_TM'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
+            plt.savefig(file_name+'_crosssections_scalar'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
             plt.close()
         
     else:
