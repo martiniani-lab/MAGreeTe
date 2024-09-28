@@ -663,15 +663,25 @@ def main(ndim, # Required arguments
                         Eall = Eall.squeeze(-1)
                     
                     # The medium is centered at (0,0)
-                    viewing_angle = np.arctan2(measurement_points[:,1], measurement_points[:,0]) #y,x
+                    if ndim == 2:
+                        viewing_angle = np.arctan2(measurement_points[:,1], measurement_points[:,0]) #y,x
+                    else:
+                        viewing_unit_vector = measurement_points / np.linalg.norm(measurement_points, axis = -1).unsqueeze(-1)
 
                     if scalar:
                         Eall = Eall.reshape(ngridy, ngridx)
                         utils.plot_full_fields(Eall, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index), my_dpi = 300)
                     else:
-                        Eall_amplitude          = np.sqrt(np.absolute(Eall[:,0])**2 + np.absolute(Eall[:,1])**2)
-                        Eall_longitudinal       = Eall[:,0]*np.cos(viewing_angle) - Eall[:,1]*np.sin(viewing_angle)
-                        Eall_transverse         = Eall[:,0]*np.sin(viewing_angle) + Eall[:,1]*np.cos(viewing_angle)
+                        Eall_amplitude          = np.sqrt(np.sum(np.absolute(Eall)**2,axis = -1))
+                        if ndim == 2:
+                            Eall_longitudinal       = Eall[:,0]*np.cos(viewing_angle) - Eall[:,1]*np.sin(viewing_angle)
+                            Eall_transverse         = Eall[:,0]*np.sin(viewing_angle) + Eall[:,1]*np.cos(viewing_angle)
+                        else:
+                            print(Eall.shape)
+                            print(viewing_unit_vector.shape)
+                            Eall_longitudinal      = np.sum(Eall*viewing_unit_vector, axis=1)
+                            Eall_transverse        = Eall - Eall_longitudinal.reshape(-1,1) * viewing_unit_vector
+                            Eall_transverse        = np.sqrt(np.sum(np.absolute(Eall_transverse)**2, axis =1))
 
                         Eall_amplitude    = Eall_amplitude.reshape(ngridy, ngridx)
                         Eall_longitudinal = Eall_longitudinal.reshape(ngridy, ngridx)
@@ -690,9 +700,15 @@ def main(ndim, # Required arguments
                             Eall = Eall.reshape(ngridy, ngridx)
                             utils.plot_full_fields(Eall, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_scat', my_dpi = 300)
                         else:
-                            Eall_amplitude          = np.sqrt(np.absolute(Eall[:,0])**2 + np.absolute(Eall[:,1])**2)
-                            Eall_longitudinal       = Eall[:,0]*np.cos(viewing_angle) - Eall[:,1]*np.sin(viewing_angle)
-                            Eall_transverse         = Eall[:,0]*np.sin(viewing_angle) + Eall[:,1]*np.cos(viewing_angle)
+                            Eall_amplitude          = np.sqrt(np.sum(np.absolute(Eall)**2,axis = -1))
+                            if ndim == 2:
+                                Eall_longitudinal       = Eall[:,0]*np.cos(viewing_angle) - Eall[:,1]*np.sin(viewing_angle)
+                                Eall_transverse         = Eall[:,0]*np.sin(viewing_angle) + Eall[:,1]*np.cos(viewing_angle)
+                            else:
+                                Eall_longitudinal      = np.sum(Eall*viewing_unit_vector, axis=1)
+                                Eall_transverse        = Eall - Eall_longitudinal.reshape(-1,1) * viewing_unit_vector
+                                Eall_transverse        = np.sqrt(np.sum(np.absolute(Eall_transverse)**2, axis =1))
+
 
                             Eall_amplitude    = Eall_amplitude.reshape(ngridy, ngridx)
                             Eall_longitudinal = Eall_longitudinal.reshape(ngridy, ngridx)
