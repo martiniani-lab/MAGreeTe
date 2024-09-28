@@ -413,7 +413,7 @@ def main(ndim, # Required arguments
                         Eall_scat.append(Ek_scat.numpy())
                     
 
-                    E0all.append(E0.numpy())
+                    E0all.append(E0_meas.numpy())
                     Eall.append(Ek.numpy())
             
             if compute_transmission or plot_transmission:
@@ -723,130 +723,126 @@ def main(ndim, # Required arguments
 
             utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'sdos', appended_string='_'+str(file_index))
 
-        if compute_eigenmodes:
-            # XXX Carry over z from old 3d
-            # Expensive computation
-            ngridx = gridsize[0]
-            ngridy = gridsize[1]
-            xyratio = ngridx/ngridy
-            x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5)
-            measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
-
-            batches = np.split(measurement_points, batch_size)
-            n_batches = len(batches)
-
-            extra_string=""
-            if n_batches > 1:
-                extra_string = extra_string+"es"
-            print("Computing the eigenfields and plotting the "+str(number_eigenmodes)+" most localized at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
-
-            
-
-            solver = Transmission2D_TETM(points, source = None)
-
+            if compute_eigenmodes:
                 
-            k0_range = []
-
-            for k0, alpha in zip(k0range,alpharange):
-                k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                k0_range.append(k0_)
-
-                _, eigenmodes_TM,_ = solver.compute_eigenmodes_IPR( k0, alpha, radius, file_name, write_eigenvalues = True, number_eigenmodes = number_eigenmodes, self_interaction = self_interaction, self_interaction_type = self_interaction_type, sorting_type = sorting_type, scalar = True)
-                _, eigenmodes_TE,_ = solver.compute_eigenmodes_IPR( k0, alpha, radius, file_name, write_eigenvalues = True, number_eigenmodes = number_eigenmodes, self_interaction = self_interaction, self_interaction_type = self_interaction_type, sorting_type = sorting_type, scalar = False)
-
-                if plot_eigenmodes:
-                    
-                    for i in range(number_eigenmodes):
+                if ndim==2:
+                
+                    if scalar:
+                        eigen_solver = Transmission2D_scalar(points, source = None)
+                    else:
+                        eigen_solver = Transmission2D_vector(points, source = None)
                         
-                        ETEall = []
-                        ETMall = []
+                else:
+                
+                    if scalar:
+                        eigen_solver = Transmission3D_scalar(points, source = None)
+                    else:
+                        eigen_solver = Transmission3D_vector(points, source = None)
+
+                # Expensive computation
+                ngridx = gridsize[0]
+                ngridy = gridsize[1]
+                xyratio = ngridx/ngridy
+                if ndim == 2:
+                    x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5)
+                    measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
+                else:
+                    x,y,z = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5, [0.0])
+                    measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T)*L*window_width)
+
+                batches = np.split(measurement_points, batch_size)
+                n_batches = len(batches)
+
+                extra_string=""
+                if n_batches > 1:
+                    extra_string = extra_string+"es"
+                print("Computing the eigenfields and plotting the "+str(number_eigenmodes)+" most localized at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
+
+                k0_range = []
+
+                for k0, alpha in zip(k0range,alpharange):
+                    k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                    k0_range.append(k0_)
+
+                    _, eigenmodes,_ = eigen_solver.compute_eigenmodes_IPR( k0, alpha, radius, file_name, write_eigenvalues = True, number_eigenmodes = number_eigenmodes, self_interaction = self_interaction, self_interaction_type = self_interaction_type, sorting_type = sorting_type)
+
+                    if plot_eigenmodes:
                         
-                        # By default, the eigenvectors are such that their modulus is 1
-                        eigenmodes_TM[:,i] /= np.abs(eigenmodes_TM[:,i]).amax()
-                        eigenmodes_TE[:,i] /= np.abs(eigenmodes_TE[:,i]).amax()
+                        for i in range(number_eigenmodes):
+                            
+                            Eall = []
+                            
+                            # By default, the eigenvectors are such that their modulus is 1
+                            eigenmodes[:,i] /= np.abs(eigenmodes[:,i]).amax()
 
-                        for batch in range(0, n_batches):
-                            print("Batch "+str(batch+1))
-                            batch_points = batches[batch]
+                            for batch in range(0, n_batches):
+                                print("Batch "+str(batch+1))
+                                batch_points = batches[batch]
 
-                            eigenfield_TE, eigenfield_TM = solver.propagate_EM(batch_points, eigenmodes_TE[:,i], eigenmodes_TM[:,i].unsqueeze(-1), k0, alpha, [0.0], w, regularize = regularize, radius=radius)
+                                eigenfield = eigen_solver.propagate(batch_points, eigenmodes[:,i], k0, alpha, [0.0], w, regularize = regularize, radius=radius)
 
-                            ETEall.append(eigenfield_TE)
-                            ETMall.append(eigenfield_TM)
+                                Eall.append(eigenfield)
 
-                        ETEall = np.cat(ETEall, dim=0).squeeze(-1)
-                        ETMall = np.cat(ETMall, dim=0)
+                            Eall = np.cat(Eall, dim=0)
+                            if not scalar:
+                                Eall = Eall.squeeze(-1)
 
-                        ETEall_amplitude    = np.sqrt(np.absolute(ETEall[:,0])**2 + np.absolute(ETEall[:,1])**2)
-                        ETEall_amplitude    = ETEall_amplitude.reshape(ngridy, ngridx)
-                        ETMall = ETMall.reshape(ngridy, ngridx)
-                        
-                        plot_IPR_TM = np.sum(np.abs(ETMall**4)) / (np.sum(np.abs(ETMall**2)))**2
-                        plot_IPR_TE = np.sum(np.abs(ETEall**4)) / (np.sum(np.abs(ETEall**2)))**2
-                        
-                        print(f"Effective TM IPR of the whole eigenfield: {plot_IPR_TM}")
-                        print(f"Effective TE IPR of the whole eigenfield: {plot_IPR_TE}")
+                            if scalar:
+                                Eall = Eall.reshape(ngridy, ngridx)
+                            else:
+                                Eall_amplitude    = np.sqrt(np.sum( np.absolute(Eall)**2, axis = -1))
+                                Eall_amplitude    = Eall_amplitude.reshape(ngridy, ngridx)
 
-                        utils.plot_full_fields(ETEall_amplitude, ngridx, ngridy, k0_, 0, True, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE_eigen_'+sorting_type+str(i), my_dpi = 300)
-                        utils.plot_full_fields(ETMall, ngridx, ngridy, k0_, 0, True, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TM_eigen_'+sorting_type+str(i), my_dpi = 300)
+                            
+                            plot_IPR = np.sum(np.abs(Eall**4)) / (np.sum(np.abs(Eall**2)))**2
+                            
+                            print(f"Effective IPR of the whole eigenfield: {plot_IPR}")
 
+                            utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, 0, True, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE_eigen_'+sorting_type+str(i), my_dpi = 300)
 
         if compute_DOS:
 
-            solver = Transmission2D_TETM(points, source = source)
-
-            DOSall_TE = []
-            DOSall_TM = []
+            DOSall = []
             k0_range = []
 
             M = dospoints
-            measurement_points = utils.uniform_unit_disk_picking(M)
+            measurement_points = utils.uniform_unit_ball_picking(M, ndim)
             measurement_points *= L/2
-
-            utils.plot_2d_points(measurement_points, file_name+'_measurement')
+            
+            if ndim == 2:
+                utils.plot_2d_points(measurement_points, file_name+'_measurement')
+            else:
+                utils.plot_3d_points(measurement_points, file_name+'_measurement')
 
             for k0, alpha in zip(k0range,alpharange):
-                dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-
-                DOSall_TE.append(dos_TE.numpy())
-                DOSall_TM.append(dos_TM.numpy())
-
+                dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
+                DOSall.append(dos.numpy())
 
                 k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                 k0_range.append(k0_)
 
-                onp.savetxt(file_name+'_temp_dos_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
-                onp.savetxt(file_name+'_temp_dos_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+                onp.savetxt(file_name+'_temp_dos.csv',onp.stack([k0_range,DOSall_TE]).T)
 
-            onp.savetxt(file_name+'_dos_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
-            onp.savetxt(file_name+'_dos_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+            onp.savetxt(file_name+'_dos.csv',onp.stack([k0_range,DOSall_TE]).T)
 
-            utils.plot_averaged_DOS(k0range, L, DOSall_TE, file_name, 'dos', appended_string='_'+str(file_index)+'_TE')
-            utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'dos', appended_string='_'+str(file_index)+'_TM')
+            utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'dos', appended_string='_'+str(file_index))
 
         if compute_interDOS:
 
             for dos_size in dos_sizes[::-1]:
 
-                DOSall_TE = onp.array([])
-                DOSall_TM = onp.array([])
+                DOSall = onp.array([])
                 k0_range = onp.array([])
 
-                if os.path.exists(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TM.csv'):
-                    existing_TM = onp.loadtxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TM.csv')
-                    DOSall_TM = existing_TM[:,1]
-                    k0_range = existing_TM[:,0]
-                if os.path.exists(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TE.csv'):
-                    existing_TE = onp.loadtxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TE.csv')
-                    DOSall_TE = existing_TE[:,1]
-                    k0_range = existing_TE[:,0]
+                if os.path.exists(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'.csv'):
+                    existing = onp.loadtxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'.csv')
+                    DOSall = existing[:,1]
+                    k0_range = existing[:,0]
                     
                 M = dospoints
-                measurement_points = utils.uniform_unit_disk_picking(M)
+                measurement_points = utils.uniform_unit_ball_picking(M, ndim)
                 measurement_points *= dos_size * L/2 * idos_radius
                 disk_points = lattices.cut_circle(points, rad = dos_size * 0.5)
-
-                solver = Transmission2D_TETM(disk_points, source = source)
 
                 # Find all overlaps and redraw while you have some
                 # Following Pierrat et al., I use 1 diameter as the spacing there
@@ -859,55 +855,48 @@ def main(ndim, # Required arguments
                     count = overlaps.shape[0]
                 while count > 0:
                     print("Removing "+str(count)+" overlaps using an exclusion distance of "+str(spacing_factor)+" scatterer diameters...")
-                    measurement_points[overlaps] = dos_size * L/2 * idos_radius * utils.uniform_unit_disk_picking(count)
+                    measurement_points[overlaps] = dos_size * L/2 * idos_radius * utils.uniform_unit_ball_picking(count, ndim).squeeze()
                     overlaps = np.nonzero(np.sum(np.cdist(measurement_points.to(np.double), disk_points.to(np.double), p=2) <= spacing, axis = -1)).squeeze()
                     if len(overlaps.shape) == 0:
                         count = 0
                     else:
                         count = overlaps.shape[0]
 
-                utils.plot_2d_points(measurement_points, file_name+'_measurement_size'+str(dos_size))
+                if ndim == 2:
+                    utils.plot_2d_points(measurement_points, file_name+'_measurement')
+                else:
+                    utils.plot_3d_points(measurement_points, file_name+'_measurement')
 
 
                 for k0, alpha in zip(k0range,alpharange):
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                     if k0_ not in k0_range:
                         k0_range = onp.append(k0_range,k0_)
-                        dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
+                        dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
 
-                        DOSall_TE = onp.append(DOSall_TE,dos_TE.numpy())
-                        DOSall_TM = onp.append(DOSall_TM,dos_TM.numpy())
+                        DOSall = onp.append(DOSall,dos.numpy())
 
                         idx = onp.argsort(k0_range)
                         k0_range = k0_range[idx]
-                        DOSall_TE = DOSall_TE[idx]
-                        DOSall_TM = DOSall_TM[idx]
-                        onp.savetxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
-                        onp.savetxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+                        DOSall = DOSall[idx]
+                        onp.savetxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'.csv',onp.stack([k0_range,DOSall]).T)
                 
                 
-                onp.savetxt(file_name+'_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
-                onp.savetxt(file_name+'_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+                onp.savetxt(file_name+'_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'.csv',onp.stack([k0_range,DOSall]).T)
 
-                utils.plot_averaged_DOS(k0range, L, DOSall_TE, file_name, 'idos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TE')
-                utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'idos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_irad'+str(idos_radius)+'_TM')
+                utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'idos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_irad'+str(idos_radius)+'')
                 
         if compute_cavityDOS:
 
             for dos_size in dos_sizes[::-1]:
 
-                DOSall_TE = onp.array([])
-                DOSall_TM = onp.array([])
+                DOSall = onp.array([])
                 k0_range = onp.array([])
 
-                if os.path.exists(file_name+'_temp_cdos_size'+str(dos_size)+'_TM.csv'):
-                    existing_TM = onp.loadtxt(file_name+'_temp_cdos_size'+str(dos_size)+'_TM.csv')
-                    DOSall_TM = existing_TM[:,1]
-                    k0_range = existing_TM[:,0]
-                if os.path.exists(file_name+'_temp_cdos_size'+str(dos_size)+'_TE.csv'):
-                    existing_TE = onp.loadtxt(file_name+'_temp_cdos_size'+str(dos_size)+'_TE.csv')
-                    DOSall_TE = existing_TE[:,1]
-                    k0_range = existing_TE[:,0]
+                if os.path.exists(file_name+'_temp_cdos_size'+str(dos_size)+'.csv'):
+                    existing = onp.loadtxt(file_name+'_temp_cdos_size'+str(dos_size)+'.csv')
+                    DOSall = existing[:,1]
+                    k0_range = existing[:,0]
                     
                 measurement_points = np.zeros(ndim).reshape(1, ndim)
                 disk_points = lattices.cut_circle(points, rad = dos_size * 0.5)
@@ -918,40 +907,30 @@ def main(ndim, # Required arguments
                 spacing *= spacing_factor
                 disk_points = lattices.exclude_circle(disk_points, spacing)
                 
-
-                solver = Transmission2D_TETM(disk_points, source = source)
-
-
-                utils.plot_2d_points(disk_points, file_name+'_kept_points_size'+str(dos_size))
+                if ndim == 2:
+                    utils.plot_2d_points(disk_points, file_name+'_measurement')
 
                 for k0, alpha in zip(k0range,alpharange):
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                     if k0_ not in k0_range:
                         k0_range = onp.append(k0_range,k0_)
-                        dos_TE, dos_TM = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
+                        dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
 
-                        DOSall_TE = onp.append(DOSall_TE,dos_TE.numpy())
-                        DOSall_TM = onp.append(DOSall_TM,dos_TM.numpy())
+                        DOSall = onp.append(DOSall,dos.numpy())
 
                         idx = onp.argsort(k0_range)
                         k0_range = k0_range[idx]
-                        DOSall_TE = DOSall_TE[idx]
-                        DOSall_TM = DOSall_TM[idx]
-                        onp.savetxt(file_name+'_temp_cdos_size'+str(dos_size)+'_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
-                        onp.savetxt(file_name+'_temp_cdos_size'+str(dos_size)+'_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+                        DOSall = DOSall[idx]
+                        onp.savetxt(file_name+'_temp_cdos_size'+str(dos_size)+'.csv',onp.stack([k0_range,DOSall]).T)
                 
                 
-                onp.savetxt(file_name+'_cdos_size'+str(dos_size)+'_TE.csv',onp.stack([k0_range,DOSall_TE]).T)
-                onp.savetxt(file_name+'_cdos_size'+str(dos_size)+'_TM.csv',onp.stack([k0_range,DOSall_TM]).T)
+                onp.savetxt(file_name+'_cdos_size'+str(dos_size)+'.csv',onp.stack([k0_range,DOSall]).T)
 
-                utils.plot_averaged_DOS(k0range, L, DOSall_TE, file_name, 'cdos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_TE')
-                utils.plot_averaged_DOS(k0range, L, DOSall_TM, file_name, 'cdos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_TM')
+                utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'cdos', appended_string='_'+str(file_index)+'_size'+str(dos_size))
 
         if compute_LDOS:
 
-            solver = Transmission2D_TETM(points, source = source)
-
-            # Expensive computation
+            # Expensive computation XXX
             ngridx = gridsize[0]
             ngridy = gridsize[1]
             xyratio = ngridx/ngridy
