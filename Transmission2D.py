@@ -873,11 +873,11 @@ class Transmission2D_scalar:
             onp.savetxt(file_name+'_deltas_'+str(k0_)+'.csv', onp.stack([np.real(deltas).numpy(), np.imag(deltas).numpy(), IPRs]).T)
             
             
-        if sorting_type is 'IPR':
+        if sorting_type == 'IPR':
             IPRs, indices = np.sort(IPRs, descending=True)
             deltas = deltas[indices]
             eigenvectors = eigenvectors[:,indices]
-        elif sorting_type is 'damping':
+        elif sorting_type == 'damping':
             indices = np.argsort(np.imag(deltas), descending= False) # Want SMALL dampings first
             deltas = deltas[indices]
             IPRs = IPRs[indices]

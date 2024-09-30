@@ -737,82 +737,86 @@ def main(ndim, # Required arguments
 
             utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'sdos', appended_string='_'+str(file_index))
 
-            if compute_eigenmodes:
-                
-                if ndim==2:
-                
-                    if scalar:
-                        eigen_solver = Transmission2D_scalar(points, source = None)
-                    else:
-                        eigen_solver = Transmission2D_vector(points, source = None)
-                        
+        if compute_eigenmodes:
+            
+            if ndim==2:
+            
+                if scalar:
+                    eigen_solver = Transmission2D_scalar(points, source = None)
                 else:
-                
-                    if scalar:
-                        eigen_solver = Transmission3D_scalar(points, source = None)
-                    else:
-                        eigen_solver = Transmission3D_vector(points, source = None)
-
-                # Expensive computation
-                ngridx = gridsize[0]
-                ngridy = gridsize[1]
-                xyratio = ngridx/ngridy
-                if ndim == 2:
-                    x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5)
-                    measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
+                    eigen_solver = Transmission2D_vector(points, source = None)
+                    
+            else:
+            
+                if scalar:
+                    eigen_solver = Transmission3D_scalar(points, source = None)
                 else:
-                    x,y,z = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5, [0.0])
-                    measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T)*L*window_width)
+                    eigen_solver = Transmission3D_vector(points, source = None)
 
-                batches = np.split(measurement_points, batch_size)
-                n_batches = len(batches)
+            # Expensive computation
+            ngridx = gridsize[0]
+            ngridy = gridsize[1]
+            xyratio = ngridx/ngridy
+            if ndim == 2:
+                x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5)
+                measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
+            else:
+                x,y,z = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5, [0.0])
+                measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T)*L*window_width)
 
-                extra_string=""
-                if n_batches > 1:
-                    extra_string = extra_string+"es"
-                print("Computing the eigenfields and plotting the "+str(number_eigenmodes)+" most localized at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
+            batches = np.split(measurement_points, batch_size)
+            n_batches = len(batches)
 
-                k0_range = []
+            extra_string=""
+            if n_batches > 1:
+                extra_string = extra_string+"es"
+            print("Computing the eigenfields and plotting the "+str(number_eigenmodes)+" most localized at "+str(gridsize)+" points in "+str(n_batches)+" batch"+extra_string+" of "+str(onp.min([batch_size, ngridx*ngridy])))
 
-                for k0, alpha in zip(k0range,alpharange):
-                    k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
-                    k0_range.append(k0_)
+            k0_range = []
 
-                    _, eigenmodes,_ = eigen_solver.compute_eigenmodes_IPR( k0, alpha, radius, file_name, write_eigenvalues = True, number_eigenmodes = number_eigenmodes, self_interaction = self_interaction, self_interaction_type = self_interaction_type, sorting_type = sorting_type)
+            for k0, alpha in zip(k0range,alpharange):
+                k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                k0_range.append(k0_)
+                
+                _, eigenmodes,_ = eigen_solver.compute_eigenmodes_IPR( k0, alpha, radius, file_name, write_eigenvalues = True, number_eigenmodes = number_eigenmodes, self_interaction = self_interaction, self_interaction_type = self_interaction_type, sorting_type = sorting_type)
 
-                    if plot_eigenmodes:
+                if plot_eigenmodes:
+                    
+                    for i in range(number_eigenmodes):
                         
-                        for i in range(number_eigenmodes):
-                            
-                            Eall = []
-                            
-                            # By default, the eigenvectors are such that their modulus is 1
-                            eigenmodes[:,i] /= np.abs(eigenmodes[:,i]).amax()
+                        Eall = []
+                        
+                        # By default, the eigenvectors are such that their modulus is 1
+                        eigenmodes[:,i] /= np.abs(eigenmodes[:,i]).amax()
 
-                            for batch in range(0, n_batches):
-                                print("Batch "+str(batch+1))
-                                batch_points = batches[batch]
-
-                                eigenfield = eigen_solver.propagate(batch_points, eigenmodes[:,i], k0, alpha, [0.0], w, regularize = regularize, radius=radius)
-
-                                Eall.append(eigenfield)
-
-                            Eall = np.cat(Eall, dim=0)
-                            if not scalar:
-                                Eall = Eall.squeeze(-1)
+                        for batch in range(0, n_batches):
+                            print("Batch "+str(batch+1))
+                            batch_points = batches[batch]
 
                             if scalar:
-                                Eall = Eall.reshape(ngridy, ngridx)
-                            else:
-                                Eall_amplitude    = np.sqrt(np.sum( np.absolute(Eall)**2, axis = -1))
-                                Eall_amplitude    = Eall_amplitude.reshape(ngridy, ngridx)
+                                dummy_E0 = np.zeros(measurement_points.shape[0],1)
+                            else: 
+                                dummy_E0 = np.zeros(measurement_points.shape[0],ndim,1)
+                            eigenfield = eigen_solver.propagate(batch_points, eigenmodes[:,i], k0, alpha, dummy_E0, regularize = regularize, radius=radius)
 
-                            
-                            plot_IPR = np.sum(np.abs(Eall**4)) / (np.sum(np.abs(Eall**2)))**2
-                            
-                            print(f"Effective IPR of the whole eigenfield: {plot_IPR}")
+                            Eall.append(eigenfield)
 
-                            utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, 0, True, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_eigen_'+sorting_type+str(i), my_dpi = 300)
+                        Eall = np.cat(Eall, dim=0)
+                        if not scalar:
+                            Eall = Eall.squeeze(-1)
+
+                        if scalar:
+                            Eall = Eall.reshape(ngridy, ngridx)
+                        else:
+                            Eall_amplitude    = np.sqrt(np.sum( np.absolute(Eall)**2, axis = -1))
+                            Eall_amplitude    = Eall_amplitude.reshape(ngridy, ngridx)
+
+                        
+                        plot_IPR = np.sum(np.abs(Eall**4)) / (np.sum(np.abs(Eall**2)))**2
+                        
+                        print(f"Effective IPR of the whole eigenfield: {plot_IPR}")
+
+                        utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, 0, True, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_eigen_'+sorting_type+str(i), my_dpi = 300)
 
         if compute_DOS:
 
