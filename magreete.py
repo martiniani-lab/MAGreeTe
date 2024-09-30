@@ -794,10 +794,10 @@ def main(ndim, # Required arguments
                             batch_points = batches[batch]
 
                             if scalar:
-                                dummy_E0 = np.zeros(measurement_points.shape[0],1)
+                                dummy_E0 = np.zeros(batch_points.shape[0],1)
                             else: 
-                                dummy_E0 = np.zeros(measurement_points.shape[0],ndim,1)
-                            eigenfield = eigen_solver.propagate(batch_points, eigenmodes[:,i], k0, alpha, dummy_E0, regularize = regularize, radius=radius)
+                                dummy_E0 = np.zeros(batch_points.shape[0],ndim,1)
+                            eigenfield = eigen_solver.propagate(batch_points, eigenmodes[:,i].unsqueeze(-1), k0, alpha, dummy_E0, regularize = regularize, radius=radius)
 
                             Eall.append(eigenfield)
 
@@ -806,7 +806,7 @@ def main(ndim, # Required arguments
                             Eall = Eall.squeeze(-1)
 
                         if scalar:
-                            Eall = Eall.reshape(ngridy, ngridx)
+                            Eall_amplitude = Eall.reshape(ngridy, ngridx)
                         else:
                             Eall_amplitude    = np.sqrt(np.sum( np.absolute(Eall)**2, axis = -1))
                             Eall_amplitude    = Eall_amplitude.reshape(ngridy, ngridx)
