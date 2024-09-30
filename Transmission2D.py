@@ -245,7 +245,7 @@ class Transmission2D_vector:
         '''
 
         points = np.tensor(points)
-        Ek_ = np.matmul(alpha*k0*k0* self.G0_vector(points, k0, print_statement='propagate_ss', regularize=regularize, radius=radius), E0_scat).reshape(points.shape[0],2,-1) + E0_meas
+        Ek_ = np.matmul(alpha*k0*k0* self.G0_vector(points, k0, print_statement='propagate_ss', regularize=regularize, radius=radius), E0_scat.reshape(self.r.shape[0]*2,-1)).reshape(points.shape[0],2,-1) + E0_meas
         
         # Take care of cases in which measurement points are exactly scatterer positions
         for j in np.argwhere(np.isnan(Ek_[:,0,0])):
@@ -404,7 +404,6 @@ class Transmission2D_vector:
         '''
 
         Npoints = self.r.shape[0]
-        print(self.r.shape)
         k0_ = onp.round(k0/(2.0*onp.pi),1)
         print("Computing spectrum and scatterer LDOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
 
@@ -821,7 +820,6 @@ class Transmission2D_scalar:
         '''
 
         Npoints = self.r.shape[0]
-        print(self.r.shape)
         k0_ = onp.round(k0/(2.0*onp.pi),1)
         print("Computing spectrum and scatterer LDOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
 

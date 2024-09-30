@@ -677,8 +677,6 @@ def main(ndim, # Required arguments
                             Eall_longitudinal       = Eall[:,0]*np.cos(viewing_angle) - Eall[:,1]*np.sin(viewing_angle)
                             Eall_transverse         = Eall[:,0]*np.sin(viewing_angle) + Eall[:,1]*np.cos(viewing_angle)
                         else:
-                            print(Eall.shape)
-                            print(viewing_unit_vector.shape)
                             Eall_longitudinal      = np.sum(Eall*viewing_unit_vector, axis=1)
                             Eall_transverse        = Eall - Eall_longitudinal.reshape(-1,1) * viewing_unit_vector
                             Eall_transverse        = np.sqrt(np.sum(np.absolute(Eall_transverse)**2, axis =1))
@@ -814,7 +812,7 @@ def main(ndim, # Required arguments
                             
                             print(f"Effective IPR of the whole eigenfield: {plot_IPR}")
 
-                            utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, 0, True, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_TE_eigen_'+sorting_type+str(i), my_dpi = 300)
+                            utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, 0, True, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_eigen_'+sorting_type+str(i), my_dpi = 300)
 
         if compute_DOS:
 
@@ -837,9 +835,9 @@ def main(ndim, # Required arguments
                 k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                 k0_range.append(k0_)
 
-                onp.savetxt(file_name+'_temp_dos.csv',onp.stack([k0_range,DOSall_TE]).T)
+                onp.savetxt(file_name+'_temp_dos.csv',onp.stack([k0_range,DOSall]).T)
 
-            onp.savetxt(file_name+'_dos.csv',onp.stack([k0_range,DOSall_TE]).T)
+            onp.savetxt(file_name+'_dos.csv',onp.stack([k0_range,DOSall]).T)
 
             utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'dos', appended_string='_'+str(file_index))
 

@@ -810,7 +810,6 @@ class Transmission3D_scalar:
         '''
 
         Npoints = self.r.shape[0]
-        print(self.r.shape)
         k0_ = onp.round(k0/(2.0*onp.pi),1)
         print("Computing spectrum and scatterer LDOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
 

@@ -346,7 +346,6 @@ def plot_transmission_linear(k0range, L,x, intensity, file_name_root,cmap='virid
     colors = onp.linspace(0,1,len(k0range))
     cmap = plt.get_cmap(cmap)
     for k in range(len(k0range)):
-        print(freqs[k])
         ax.plot(x,intensity[k,:,0],c=cmap(colors[k]))
     ax.set_xlabel(r'$x$')
     ax.set_ylabel('Intensity')
