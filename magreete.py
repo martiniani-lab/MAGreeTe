@@ -621,7 +621,7 @@ def main(ndim, # Required arguments
 
                 for angle in thetas_plot:
                     angle_ = onp.round(angle*180/onp.pi)
-                    index = onp.where(thetas == angle)[0][0]
+                    index = onp.where((thetas - angle)**2 < 1e-8)[0][0] # Assumes angles are never closer than 1e-4 rad here, avoids rounding/precision errors
                     print("angle = "+str(angle_)+"degrees")
 
                     Eall = []
