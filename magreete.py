@@ -853,8 +853,8 @@ def main(ndim, # Required arguments
                 DOSall = onp.array([])
                 k0_range = onp.array([])
 
-                if os.path.exists(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'.csv'):
-                    existing = onp.loadtxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'.csv')
+                if os.path.exists(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_sf'+str(spacing_factor)+'.csv'):
+                    existing = onp.loadtxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_sf'+str(spacing_factor)+'.csv')
                     DOSall = existing[:,1]
                     k0_range = existing[:,0]
                     
@@ -907,12 +907,12 @@ def main(ndim, # Required arguments
                         idx = onp.argsort(k0_range)
                         k0_range = k0_range[idx]
                         DOSall = DOSall[idx]
-                        onp.savetxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'.csv',onp.stack([k0_range,DOSall]).T)
+                        onp.savetxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_sf'+str(spacing_factor)+'.csv',onp.stack([k0_range,DOSall]).T)
                 
                 
-                onp.savetxt(file_name+'_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'.csv',onp.stack([k0_range,DOSall]).T)
+                onp.savetxt(file_name+'_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_sf'+str(spacing_factor)+'.csv',onp.stack([k0_range,DOSall]).T)
 
-                utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'idos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_irad'+str(idos_radius)+'')
+                utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'idos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_irad'+str(idos_radius)+'_sf'+str(spacing_factor))
                 
         if compute_cavityDOS:
 

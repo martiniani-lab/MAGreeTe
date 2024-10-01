@@ -87,7 +87,7 @@ def uniform_unit_disk_picking(n_points):
     X = onp.sqrt(U2) * onp.cos(2 * onp.pi * U1)
     Y = onp.sqrt(U2) * onp.sin(2 * onp.pi * U1)
 
-    points = np.tensor(onp.vstack((X,Y)))
+    points = np.from_numpy(onp.vstack((X,Y)))
 
     return points.t()
 
@@ -107,7 +107,7 @@ def uniform_unit_ball_picking(n_points, dim):
     points = normals/(np.linalg.norm(proxies, axis=-1)).reshape(n_points,1)
 
 
-    return np.from_numpy(points)
+    return points
 
 def fibonacci_sphere(samples=1000): 
     '''
