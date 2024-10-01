@@ -145,7 +145,7 @@ def main(ndim, # Required arguments
         if os.path.exists(saved_points_file):
             # If file was already generated, overwrite points data here to have consistent content
             print("\nFound hkl file, loading points from MAGreeTe dir structure")
-            points = np.tensor(hkl.load(saved_points_file),dtype=np.float64)
+            points = np.from_numpy(hkl.load(saved_points_file),dtype=np.float64)
         else:
             # No previous analysis: need to load external point pattern
             # A custom file was provided
@@ -329,12 +329,14 @@ def main(ndim, # Required arguments
                 Ntheta_meas = 360
                 thetas_measurement = onp.arange(Ntheta_meas)/Ntheta_meas*2*np.pi
                 measurement_points = transmission_radius*L*onp.vstack([onp.cos(thetas_measurement),onp.sin(thetas_measurement)]).T
+                measurement_points = np.from_numpy(measurement_points)
             else: 
                 # Use Fibonacci sphere as samples on the sphere
                 measurement_points = transmission_radius*L*utils.fibonacci_sphere(N_fibo)
+                measurement_points = np.from_numpy(measurement_points)
                 # Also define the unit vectors describing the source orientation and its polarization from here
                 u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
-                u = np.tensor(u)
+                u = np.from_numpy(u)
                 p = np.zeros(u.shape)
                 p[:,2] = 1
                 
@@ -350,17 +352,17 @@ def main(ndim, # Required arguments
                     # Compute source value AT scatterers and measurement points
                     if ndim == 2:
                         # In 2d: no ambiguity to make thetas into k vectors and polarizations even if vector wave
-                        E0_scat = solver.generate_source(np.tensor(points), k0, thetas, beam_waist, print_statement='Source at scatterers')
-                        E0_meas = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='Source at measurement points')
+                        E0_scat = solver.generate_source(points, k0, thetas, beam_waist, print_statement='Source at scatterers')
+                        E0_meas = solver.generate_source(measurement_points, k0, thetas, beam_waist, print_statement='Source at measurement points')
                     else:
                         if scalar:
                             # In 3d scalar, no need to specify polarization vector
-                            E0_scat = solver.generate_source(np.tensor(points), k0, u, beam_waist, print_statement='Source at scatterers')
-                            E0_meas = solver.generate_source(np.tensor(measurement_points), k0, u, beam_waist, print_statement='Source at measurement points')
+                            E0_scat = solver.generate_source(points, k0, u, beam_waist, print_statement='Source at scatterers')
+                            E0_meas = solver.generate_source(measurement_points, k0, u, beam_waist, print_statement='Source at measurement points')
                         else:
                             # In 3d vector, need to specify polarization vector
-                            E0_scat = solver.generate_source(np.tensor(points), k0, u, p, beam_waist, print_statement='Source at scatterers')
-                            E0_meas = solver.generate_source(np.tensor(measurement_points), k0, u, p, beam_waist, print_statement='Source at measurement points')
+                            E0_scat = solver.generate_source(points, k0, u, p, beam_waist, print_statement='Source at scatterers')
+                            E0_meas = solver.generate_source(measurement_points, k0, u, p, beam_waist, print_statement='Source at measurement points')
                     
                     Ej = solver.solve(k0, alpha, radius, E0_scat, self_interaction=self_interaction, self_interaction_type=self_interaction_type)
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
@@ -387,7 +389,7 @@ def main(ndim, # Required arguments
                     
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                     Ej, params, _, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
-                    Ej = np.tensor(Ej, dtype=np.complex128)
+                    Ej = np.from_numpy(Ej, dtype=np.complex128)
                     thetas = onp.float64(thetas)
                     alpha, k0 = params
                     k0 = onp.float64(k0)
@@ -397,13 +399,13 @@ def main(ndim, # Required arguments
                     if ndim == 2:
                         
                         # In 2d: no ambiguity to make thetas into k vectors and polarizations even if vector wave
-                        E0_scat = solver.generate_source(np.tensor(points), k0, thetas, beam_waist, print_statement='Source at scatterers')
-                        E0_meas = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='Source at measurement points')
+                        E0_scat = solver.generate_source(points, k0, thetas, beam_waist, print_statement='Source at scatterers')
+                        E0_meas = solver.generate_source(measurement_points, k0, thetas, beam_waist, print_statement='Source at measurement points')
                     else:
                         
                         # In 3d, need to specify polarization vector
-                        E0_scat = solver.generate_source(np.tensor(points), k0, u, p, beam_waist, print_statement='Source at scatterers')
-                        E0_meas = solver.generate_source(np.tensor(measurement_points), k0, u, p, beam_waist, print_statement='Source at measurement points')
+                        E0_scat = solver.generate_source(points, k0, u, p, beam_waist, print_statement='Source at scatterers')
+                        E0_meas = solver.generate_source(measurement_points, k0, u, p, beam_waist, print_statement='Source at measurement points')
 
                     Ek = solver.propagate(measurement_points, Ej, k0, alpha, E0_meas, regularize = regularize, radius = radius)
                     
@@ -475,17 +477,17 @@ def main(ndim, # Required arguments
                     # Compute source value AT scatterers and measurement points
                     if ndim == 2:
                         # In 2d: no ambiguity to make thetas into k vectors and polarizations even if vector wave
-                        E0_scat = solver.generate_source(np.tensor(points), k0, thetas, beam_waist, print_statement='Source at scatterers')
-                        E0_meas = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='Source at measurement points')
+                        E0_scat = solver.generate_source(points, k0, thetas, beam_waist, print_statement='Source at scatterers')
+                        E0_meas = solver.generate_source(measurement_points, k0, thetas, beam_waist, print_statement='Source at measurement points')
                     else:
                         if scalar:
                             # In 3d scalar, no need to specify polarization vector
-                            E0_scat = solver.generate_source(np.tensor(points), k0, u, beam_waist, print_statement='Source at scatterers')
-                            E0_meas = solver.generate_source(np.tensor(measurement_points), k0, u, beam_waist, print_statement='Source at measurement points')
+                            E0_scat = solver.generate_source(points, k0, u, beam_waist, print_statement='Source at scatterers')
+                            E0_meas = solver.generate_source(measurement_points, k0, u, beam_waist, print_statement='Source at measurement points')
                         else:
                             # In 3d vector, need to specify polarization vector
-                            E0_scat = solver.generate_source(np.tensor(points), k0, u, p, beam_waist, print_statement='Source at scatterers')
-                            E0_meas = solver.generate_source(np.tensor(measurement_points), k0, u, p, beam_waist, print_statement='Source at measurement points')
+                            E0_scat = solver.generate_source(points, k0, u, p, beam_waist, print_statement='Source at scatterers')
+                            E0_meas = solver.generate_source(measurement_points, k0, u, p, beam_waist, print_statement='Source at measurement points')
                     
                     Ek_ss = solver.propagate_ss(measurement_points, k0, alpha, E0_meas, E0_scat, regularize = regularize, radius = radius)
                     
@@ -554,10 +556,10 @@ def main(ndim, # Required arguments
             xyratio = ngridx/ngridy
             if ndim == 2:
                 x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5)
-                measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
+                measurement_points = np.from_numpy((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
             else:
                 x,y,z = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5, [0.0])
-                measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T)*L*window_width)
+                measurement_points = np.from_numpy((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T)*L*window_width)
 
             batches = np.split(measurement_points, batch_size)
             n_batches = len(batches)
@@ -576,9 +578,8 @@ def main(ndim, # Required arguments
                 # File is there: load data
                 if os.path.isfile(file):
                     Ej, params, _, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
-                    Ej = np.tensor(Ej, dtype=np.complex128)
-                    Ej = np.tensor(Ej, dtype=np.complex128)
-                    points = np.tensor(points, dtype=np.complex128)
+                    Ej = np.from_numpy(Ej, dtype=np.complex128)
+                    Ej = np.from_numpy(Ej, dtype=np.complex128)
                     thetas = onp.float64(thetas)
                     alpha, k0 = params
                     k0 = onp.float64(k0)
@@ -586,7 +587,7 @@ def main(ndim, # Required arguments
                     
                     if ndim ==3:                         
                         u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(thetas.shape)]).T
-                        u = np.tensor(u)
+                        u = np.from_numpy(u)
                         if len(u.shape) == 1:
                             u = u.reshape(1,-1)
                         if not scalar:
@@ -598,21 +599,21 @@ def main(ndim, # Required arguments
                     
                     if ndim == 2:
                         # In 2d: no ambiguity to make thetas into k vectors and polarizations even if vector wave
-                        E0_scat = solver.generate_source(np.tensor(points), k0, thetas, beam_waist, print_statement='Source at scatterers')
+                        E0_scat = solver.generate_source(points, k0, thetas, beam_waist, print_statement='Source at scatterers')
                     else:
                         u = onp.stack([onp.cos(thetas_plot),onp.sin(thetas_plot),onp.zeros(thetas_plot.shape)]).T
-                        u = np.tensor(u)
+                        u = np.from_numpy(u)
                         if len(u.shape) == 1:
                             u = u.reshape(1,-1)
                         
                         if scalar:
                             # In 3d scalar, no need to specify polarization vector
-                            E0_scat = solver.generate_source(np.tensor(points), k0, u, beam_waist, print_statement='Source at scatterers')
+                            E0_scat = solver.generate_source(points, k0, u, beam_waist, print_statement='Source at scatterers')
                         else:
                             # In 3d vector, need to specify polarization vector
                             p = np.zeros(u.shape)
                             p[:,2] = 1
-                            E0_scat = solver.generate_source(np.tensor(points), k0, u, p, beam_waist, print_statement='Source at scatterers')
+                            E0_scat = solver.generate_source(points, k0, u, p, beam_waist, print_statement='Source at scatterers')
                     
                     Ej = solver.solve(k0, alpha, radius, E0_scat, self_interaction=self_interaction, self_interaction_type=self_interaction_type)
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
@@ -759,10 +760,10 @@ def main(ndim, # Required arguments
             xyratio = ngridx/ngridy
             if ndim == 2:
                 x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5)
-                measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
+                measurement_points = np.from_numpy((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
             else:
                 x,y,z = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5, [0.0])
-                measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T)*L*window_width)
+                measurement_points = np.from_numpy((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T)*L*window_width)
 
             batches = np.split(measurement_points, batch_size)
             n_batches = len(batches)
@@ -882,15 +883,24 @@ def main(ndim, # Required arguments
 
                 if ndim == 2:
                     utils.plot_2d_points(measurement_points, file_name+'_measurement')
+                    if scalar:
+                        dos_solver = Transmission2D_scalar(disk_points, source = None)
+                    else:
+                        dos_solver = Transmission2D_vector(disk_points, source = source)
+                    
                 else:
                     utils.plot_3d_points(measurement_points, file_name+'_measurement')
+                    if scalar:
+                        dos_solver = Transmission3D_scalar(disk_points, source = source)
+                    else:
+                        dos_solver = Transmission3D_vector(disk_points, source = source)
 
 
                 for k0, alpha in zip(k0range,alpharange):
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                     if k0_ not in k0_range:
                         k0_range = onp.append(k0_range,k0_)
-                        dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
+                        dos = dos_solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
 
                         DOSall = onp.append(DOSall,dos.numpy())
 
@@ -927,12 +937,22 @@ def main(ndim, # Required arguments
                 
                 if ndim == 2:
                     utils.plot_2d_points(disk_points, file_name+'_measurement')
+                    if scalar:
+                        dos_solver = Transmission2D_scalar(disk_points, source = None)
+                    else:
+                        dos_solver = Transmission2D_vector(disk_points, source = source)
+                    
+                else:
+                    if scalar:
+                        dos_solver = Transmission3D_scalar(disk_points, source = source)
+                    else:
+                        dos_solver = Transmission3D_vector(disk_points, source = source)
 
                 for k0, alpha in zip(k0range,alpharange):
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                     if k0_ not in k0_range:
                         k0_range = onp.append(k0_range,k0_)
-                        dos = solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
+                        dos = dos_solver.mean_DOS_measurements(measurement_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
 
                         DOSall = onp.append(DOSall,dos.numpy())
 
@@ -954,10 +974,10 @@ def main(ndim, # Required arguments
             xyratio = ngridx/ngridy
             if ndim == 2:
                 x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5)
-                measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
+                measurement_points = np.from_numpy((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
             else:
                 x,y,z = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5, [0.0])
-                measurement_points = np.tensor((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T)*L*window_width)
+                measurement_points = np.from_numpy((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T)*L*window_width)
             
             # Determine which points are within the system
             idx_inside = np.nonzero(np.linalg.norm(measurement_points,axis=-1)<=L/2)
@@ -999,8 +1019,8 @@ def main(ndim, # Required arguments
             if compute_transmission: 
 
                 # Accumulate data from calculations
-                Eall = []
-                Iall = []
+                E_all = []
+                I_all = []
 
                 for file_index in file_index_list: 
 
@@ -1039,13 +1059,13 @@ def main(ndim, # Required arguments
                         measurement_points = transmission_radius*L*utils.fibonacci_sphere(N_fibo)
                         # Also define the unit vectors describing the source orientation and its polarization from here
                         u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
-                        u = np.tensor(u)
+                        u = np.from_numpy(u)
                         p = np.zeros(u.shape)
                         p[:,2] = 1
                         
                     E0all = []
                     for k0 in k0range:
-                        E0 = solver.generate_source(np.tensor(measurement_points), k0, thetas, beam_waist, print_statement='scattered_fields')
+                        E0 = solver.generate_source(measurement_points, k0, thetas, beam_waist, print_statement='scattered_fields')
                         E0all.append(E0.numpy())
 
                     I0all = onp.absolute(E0all)**2
