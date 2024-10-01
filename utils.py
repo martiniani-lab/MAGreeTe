@@ -107,7 +107,7 @@ def uniform_unit_ball_picking(n_points, dim):
     points = normals/(np.linalg.norm(proxies, axis=-1)).reshape(n_points,1)
 
 
-    return np.tensor(points, dtype = np.float64)
+    return np.from_numpy(points)
 
 def fibonacci_sphere(samples=1000): 
     '''
@@ -215,7 +215,7 @@ def plot_transmission_angularbeam_3d(k0range, L, thetas, intensity, measurement_
     cos_max_angle = onp.cos(angular_width * (onp.pi/2))
     u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
     u_out = measurement_points/onp.linalg.norm(measurement_points,axis=-1)[:,onp.newaxis]
-    dotprod = onp.sum(u[:,onp.newaxis] * u_out, axis = -1)
+    dotprod = onp.sum(u[:,onp.newaxis] * u_out.numpy(), axis = -1)
     dotprod = dotprod.transpose()
     forward = dotprod >= cos_max_angle
     

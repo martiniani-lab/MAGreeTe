@@ -158,7 +158,6 @@ class Transmission3D_vector:
         regularize       - bool          bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
         radius           - (1)           considered scatterer radius, only used for regularization 
         '''
-        points = np.tensor(points)
         
         # calculate Ek field at all measurement points
         Ek_ = np.matmul(alpha*k0*k0*self.G0(points, k0, print_statement='propagate', regularize=regularize, radius=radius), Ek).reshape(points.shape[0],3,-1) + E0j 
@@ -583,7 +582,6 @@ class Transmission3D_scalar:
         regularize       - bool          bring everything below a scatterer radius to the center value, to be consistent with approximations and avoid divergences
         radius           - (1)           considered scatterer radius, only used for regularization 
         '''
-        points = np.tensor(points)
         
         # calculate Ek field at all measurement points
         Ek_ = np.matmul(alpha*k0*k0*self.G0(points, k0, print_statement='propagate', regularize=regularize, radius=radius), Ek).reshape(points.shape[0],E0j.shape[1]) + E0j 
