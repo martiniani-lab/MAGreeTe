@@ -187,7 +187,6 @@ class Transmission2D_vector:
         radius           - (1)           considered scatterer radius, only used for regularization
         '''
 
-        points = np.tensor(points)
         Ek_ = np.matmul(alpha*k0*k0* self.G0_vector(points, k0, print_statement='propagate', regularize=regularize, radius=radius), Ek).reshape(points.shape[0],2,-1) + E0
 
         # Take care of cases in which measurement points are exactly scatterer positions
@@ -244,7 +243,6 @@ class Transmission2D_vector:
         radius           - (1)        considered scatterer radius, only used for regularization
         '''
 
-        points = np.tensor(points)
         Ek_ = np.matmul(alpha*k0*k0* self.G0_vector(points, k0, print_statement='propagate_ss', regularize=regularize, radius=radius), E0_scat.reshape(self.r.shape[0]*2,-1)).reshape(points.shape[0],2,-1) + E0_meas
         
         # Take care of cases in which measurement points are exactly scatterer positions
@@ -613,7 +611,6 @@ class Transmission2D_scalar:
         radius           - (1)           considered scatterer radius, only used for regularization
         '''
 
-        points = np.tensor(points)
         Ek_ = np.matmul(alpha*k0*k0* self.G0(points, k0, print_statement='propagate', regularize=regularize, radius=radius), Ek) + E0j
         
         # Take care of cases in which measurement points are exactly scatterer positions

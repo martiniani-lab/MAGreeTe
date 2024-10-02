@@ -578,11 +578,10 @@ def main(ndim, # Required arguments
                 # File is there: load data
                 if os.path.isfile(file):
                     Ej, params, _, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
-                    Ej = np.from_numpy(Ej, dtype=np.complex128)
-                    Ej = np.from_numpy(Ej, dtype=np.complex128)
+                    Ej = np.from_numpy(Ej)
                     thetas = onp.float64(thetas)
                     alpha, k0 = params
-                    k0 = onp.float64(k0)
+                    k0 = k0.real
                     alpha = onp.complex128(alpha)
                     
                     if ndim ==3:                         
