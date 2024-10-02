@@ -939,13 +939,13 @@ def main(ndim, # Required arguments
                     if scalar:
                         dos_solver = Transmission2D_scalar(disk_points, source = None)
                     else:
-                        dos_solver = Transmission2D_vector(disk_points, source = source)
+                        dos_solver = Transmission2D_vector(disk_points, source = None)
                     
                 else:
                     if scalar:
-                        dos_solver = Transmission3D_scalar(disk_points, source = source)
+                        dos_solver = Transmission3D_scalar(disk_points, source = None)
                     else:
-                        dos_solver = Transmission3D_vector(disk_points, source = source)
+                        dos_solver = Transmission3D_vector(disk_points, source = None)
 
                 for k0, alpha in zip(k0range,alpharange):
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
@@ -967,7 +967,6 @@ def main(ndim, # Required arguments
 
         if compute_LDOS:
 
-            # Expensive computation XXX
             ngridx = gridsize[0]
             ngridy = gridsize[1]
             xyratio = ngridx/ngridy
