@@ -13,7 +13,8 @@ import matplotlib.colors as clr
 
 import cmasher as cmr # https://github.com/1313e/CMasher
 
-from Transmission2D import self_interaction_integral_TM, self_interaction_integral_TE
+from Transmission2D import self_interaction_integral_scalar as self_interaction_integral_TM
+from Transmission2D import self_interaction_integral_vector as self_interaction_integral_TE
 from Transmission3D import self_interaction_integral_scalar, self_interaction_integral_vector
 
 c = 3e8   #speed of light in vacuum, m/s
@@ -86,7 +87,7 @@ def uniform_unit_disk_picking(n_points):
     X = onp.sqrt(U2) * onp.cos(2 * onp.pi * U1)
     Y = onp.sqrt(U2) * onp.sin(2 * onp.pi * U1)
 
-    points = np.tensor(onp.vstack((X,Y)))
+    points = np.from_numpy(onp.vstack((X,Y)))
 
     return points.t()
 
@@ -106,7 +107,7 @@ def uniform_unit_ball_picking(n_points, dim):
     points = normals/(np.linalg.norm(proxies, axis=-1)).reshape(n_points,1)
 
 
-    return np.tensor(points, dtype = np.float64)
+    return points
 
 def fibonacci_sphere(samples=1000): 
     '''
@@ -175,6 +176,30 @@ def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,
     plt.savefig(file_name_root+'_transmission_angularbeam_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
     plt.close()
 
+    fig = plt.figure()
+    ax = fig.gca()
+    pc = ax.imshow(total_[:,:int(total_.shape[1]/2)], norm=clr.LogNorm(vmin=vmin,vmax=vmax), cmap=cmr.ember, extent =[0,180,freqs[0],freqs[-1]], origin='lower')
+    ax.set_xlabel(r'$\theta$')
+    ax.set_ylabel(r'k_0L/2\pi')
+    ax.set_aspect(180/(freqs[-1] - freqs[0]))
+    fig.colorbar(pc)
+    plt.savefig(file_name_root+'_transmission_beam_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
+    plt.close()
+    
+    avg_intensity = onp.mean(total_, axis=1)
+    fig = plt.figure()
+    ax = fig.gca()
+    freqs = onp.real(k0range*L/(2*onp.pi))
+    ax.plot(freqs, avg_intensity)
+    ax.set_xlabel(r'$k_0L/2\pi$')
+    ax.set_ylabel('Intensity')
+    ax.legend()
+    ax.set_yscale('log')
+    plt.savefig(file_name_root+'_transmission_beam_avg'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
+    plt.close()
+    
+    onp.savetxt(file_name_root+'_transmission_beam_avg'+appended_string+'.csv',onp.stack([freqs,avg_intensity]).T)
+
 def plot_transmission_angularbeam_3d(k0range, L, thetas, intensity, measurement_points, file_name_root, angular_width = 1.0, adapt_scale = False, normalization = onp.array([]), appended_string=''):
     """
     Plots a radial version of the frequency-angle transmission plot given 
@@ -190,7 +215,7 @@ def plot_transmission_angularbeam_3d(k0range, L, thetas, intensity, measurement_
     cos_max_angle = onp.cos(angular_width * (onp.pi/2))
     u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
     u_out = measurement_points/onp.linalg.norm(measurement_points,axis=-1)[:,onp.newaxis]
-    dotprod = onp.sum(u[:,onp.newaxis] * u_out, axis = -1)
+    dotprod = onp.sum(u[:,onp.newaxis] * u_out.numpy(), axis = -1)
     dotprod = dotprod.transpose()
     forward = dotprod >= cos_max_angle
     
@@ -321,7 +346,6 @@ def plot_transmission_linear(k0range, L,x, intensity, file_name_root,cmap='virid
     colors = onp.linspace(0,1,len(k0range))
     cmap = plt.get_cmap(cmap)
     for k in range(len(k0range)):
-        print(freqs[k])
         ax.plot(x,intensity[k,:,0],c=cmap(colors[k]))
     ax.set_xlabel(r'$x$')
     ax.set_ylabel('Intensity')
@@ -607,18 +631,18 @@ def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, se
             max_TE = onp.argmax(alpha_d_TE)
             k0_max_TE = k0range[max_TE] * L / (2 * onp.pi)
             if max_TE != alpha_d_TE.shape[0] - 1:
-                print("TE Resonance in the explored interval, at k0 = "+ str(k0_max_TE) +"!")
+                print("Vector Resonance in the explored interval, at k0 = "+ str(k0_max_TE) +"!")
                 
             max_TM = onp.argmax(alpha_d_TM)
             k0_max_TM = k0range[max_TM] * L / (2 * onp.pi)
             if onp.argmax(alpha_d_TM) != alpha_d_TM.shape[0] - 1:
-                print("TM Resonance in the explored interval, at k0 = "+ str(k0_max_TM) +"!")
+                print("Scalar Resonance in the explored interval, at k0 = "+ str(k0_max_TM) +"!")
                 
             fig = plt.figure()
             ax = fig.gca()
             freqs = onp.real(k0range*L/(2*onp.pi))
-            ax.plot(freqs, alpha_d_TE, c = 'r', label = 'TE')
-            ax.plot(freqs, alpha_d_TM, c = 'b', label = 'TM')
+            ax.plot(freqs, alpha_d_TE, c = 'r', label = 'vector')
+            ax.plot(freqs, alpha_d_TM, c = 'b', label = 'scalar')
             if self_interaction:
                 ax.plot(freqs, onp.absolute(alpharange[0])*onp.ones(alpharange.shape), c='k', ls ='--', label = 'bare')
                 deltaeps = alpharange[0]*onp.ones(alpharange.shape) / volume
@@ -651,7 +675,7 @@ def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, se
             ax.set_xlabel(r'$k_0L/2\pi$')
             ax.set_ylabel('Cross-sections')
             ax.legend()
-            plt.savefig(file_name+'_crosssections_TM'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
+            plt.savefig(file_name+'_crosssections_scalar'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
             plt.close()
         
     else:
@@ -692,6 +716,8 @@ def loadpoints(file_path, ndim):
     
     if '.hkl' in file_path:
         points = hkl.load(file_path)[:,0:ndim]
+    elif '.csv' in file_name:
+        points = np.loadtxt(input_file, delimiter=',')
     elif '.txt' in file_path:
         
         with open(file_path, 'r') as file:
@@ -699,8 +725,10 @@ def loadpoints(file_path, ndim):
         # Determine the delimiter based on the first line
         if ',' in first_line:
             delimiter = ','
+        elif "\t" in first_line:
+            delimiter = None
         elif ' ' in first_line:
-            delimiter = ' '
+            delimiter = None
         else:
             raise NotImplementedError("Delimiter not identified")
         
