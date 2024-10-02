@@ -10,7 +10,12 @@ matplotlib.use('Agg')
 
 import matplotlib.pyplot as plt
 import matplotlib.colors as clr
-
+plt.rc('xtick',labelsize=12)
+plt.rc('ytick',labelsize=12)
+plt.rc('axes', labelsize=16, titlesize=24)  
+plt.rc('legend', fontsize=10,frameon=False)
+plt.rc('text', usetex=True)
+plt.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
 import cmasher as cmr # https://github.com/1313e/CMasher
 
 from Transmission2D import self_interaction_integral_scalar as self_interaction_integral_TM
@@ -180,7 +185,7 @@ def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,
     ax = fig.gca()
     pc = ax.imshow(total_[:,:int(total_.shape[1]/2)], norm=clr.LogNorm(vmin=vmin,vmax=vmax), cmap=cmr.ember, extent =[0,180,freqs[0],freqs[-1]], origin='lower')
     ax.set_xlabel(r'$\theta$')
-    ax.set_ylabel(r'k_0L/2\pi')
+    ax.set_ylabel(r'$k_0L/2\pi$')
     ax.set_aspect(180/(freqs[-1] - freqs[0]))
     fig.colorbar(pc)
     plt.savefig(file_name_root+'_transmission_beam_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
@@ -251,7 +256,7 @@ def plot_transmission_angularbeam_3d(k0range, L, thetas, intensity, measurement_
     ax = fig.gca()
     pc = ax.imshow(total_[:,:int(total_.shape[1]/2)], norm=clr.LogNorm(vmin=vmin,vmax=vmax), cmap=cmr.ember, extent =[0,180,freqs[0],freqs[-1]], origin='lower')
     ax.set_xlabel(r'$\theta$')
-    ax.set_ylabel(r'k_0L/2\pi')
+    ax.set_ylabel(r'$k_0L/2\pi$')
     ax.set_aspect(180/(freqs[-1] - freqs[0]))
     fig.colorbar(pc)
     plt.savefig(file_name_root+'_transmission_beam_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
@@ -308,7 +313,7 @@ def plot_transmission_flat(k0range, L, thetas, intensity, file_name_root,  n_the
     ax = fig.gca()
     pc = ax.imshow(total_[:,:int(total_.shape[1]/2)], norm=clr.LogNorm(vmin=vmin,vmax=vmax), cmap=cmr.ember, extent =[0,180,freqs[0],freqs[-1]], origin='lower')
     ax.set_xlabel(r'$\theta$')
-    ax.set_ylabel(r'k_0L/2\pi')
+    ax.set_ylabel(r'$k_0L/2\pi$')
     ax.set_aspect(180/(freqs[-1] - freqs[0]))
     fig.colorbar(pc)
     plt.savefig(file_name_root+'_transmission_beam_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
@@ -553,7 +558,7 @@ def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, se
             clausius = 3 * volume * deltaeps / (deltaeps + 3)
             ax.plot(freqs, onp.absolute(clausius), c='k', ls =':', label = 'Clausius-Mossotti')
         ax.set_xlabel(r'$k_0L/2\pi$')
-        ax.set_ylabel(r"|\alpha_d|")
+        ax.set_ylabel(r"$|\alpha_d|$")
         ax.legend()
         plt.savefig(file_name+'_alphad'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
         plt.close()
@@ -605,7 +610,7 @@ def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, se
             ax.plot(freqs, alpha_d_TM, c = 'r')
             ax.plot(freqs, onp.absolute(alpharange[0])*onp.ones(alpharange.shape), c='k', ls ='--', label = 'bare')
             ax.set_xlabel(r'$k_0L/2\pi$')
-            ax.set_ylabel(r"|\alpha_d|")
+            ax.set_ylabel(r"$|\alpha_d|$")
             ax.legend()
             plt.savefig(file_name+'_alphad'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
             plt.close()
@@ -644,7 +649,7 @@ def plot_dressed_polarizability(k0range, L, alpharange, ndim, radius, volume, se
                 clausius = 2 * volume * deltaeps / (deltaeps + 2)
                 ax.plot(freqs, onp.absolute(clausius), c='k', ls =':', label = 'Clausius-Mossotti')
             ax.set_xlabel(r'$k_0L/2\pi$')
-            ax.set_ylabel(r"|\alpha_d|")
+            ax.set_ylabel(r"$|\alpha_d|$")
             ax.legend()
             plt.savefig(file_name+'_alphad'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0)
             plt.close()
