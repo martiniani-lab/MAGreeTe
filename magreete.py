@@ -20,7 +20,7 @@ import argparse
 def main(ndim, # Required arguments
         refractive_n = 1.65 + 0.025j, phi = 0.1, regularize = True, N_raw = 16384, beam_waist = 0.2, L = 1, size_subsample = 1.0, source = "beam", scalar = False, # Physical parameters
         lattice=None, cold_atoms=False, kresonant_ = None, annulus = 0, composite = False, kick = 0.0, shift = 0.0, input_files_args = None, # Special cases
-        k0range_args = None, thetarange_args = None,# Range of values to use
+        k0range_args = None, thetarange_args = None, polarization_angle_degrees = 0, # Range of values to use
         compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, scattered_fields=False, transmission_radius = 2.0,
         compute_DOS=False, compute_cavityDOS = False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, dos_sizes_args = None, dospoints=1, spacing_factor = 1.0, idos_radius = 1.0, N_fibo = 1000,
         compute_eigenmodes = False, number_eigenmodes = 1, plot_eigenmodes = False, sorting_type = 'IPR', adapt_z = True,
@@ -35,6 +35,8 @@ def main(ndim, # Required arguments
     cut_radius = 0.5 * size_subsample
     beam_waist *= size_subsample
     transmission_radius *= size_subsample
+    
+    polarization_angle_radians = polarization_angle_degrees * onp.pi / 180.0
 
     # The full option does not conserve energy but is interesting to have for pedagogy?
     self_interaction_type = "Rayleigh" # Rayleigh or full
@@ -135,9 +137,14 @@ def main(ndim, # Required arguments
             file_name += '_composite'
             
         if source != "beam":
-            source_suffix = source
+            source_suffix = "_"+source
         else:
             source_suffix = ""
+            
+        # XXX May need to make this more flexible if more complete scans
+        if ndim == 3 and not scalar and polarization_angle_degrees != 0.0:
+            # Human-readable rotation for polarization
+            source_suffix += "_pangle_"+str(polarization_angle_degrees)
             
         # Check if points file already exists in the right place
         output_directory = os.path.join(output_directory,file_name+source_suffix)
@@ -337,8 +344,12 @@ def main(ndim, # Required arguments
                 # Also define the unit vectors describing the source orientation and its polarization from here
                 u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
                 u = np.from_numpy(u)
-                p = np.zeros(u.shape)
-                p[:,2] = 1
+                # Define orthoradial spherical basis vectors perp to u(altitude = 0, azimuth = theta)
+                # Here make it so p is 0 0 1 if polarization_angle_degrees = 0: minus sign compared to usual physics convention
+                e_alt = np.zeros(u.shape)
+                e_alt[:,2] = 1
+                e_azim = onp.stack([onp.sin(thetas),-onp.cos(thetas),onp.zeros(len(thetas))]).T
+                p = e_alt * onp.cos(polarization_angle_radians) + e_azim * onp.sin(polarization_angle_radians)
                 
             # A fresh computation is required
             if compute_transmission: 
@@ -590,8 +601,12 @@ def main(ndim, # Required arguments
                         if len(u.shape) == 1:
                             u = u.reshape(1,-1)
                         if not scalar:
-                            p = np.zeros(u.shape)
-                            p[:,2] = 1
+                            # Define orthoradial spherical basis vectors perp to u(altitude = 0, azimuth = theta)
+                            # Here make it so p is 0 0 1 if polarization_angle_degrees = 0: minus sign compared to usual physics convention
+                            e_alt = np.zeros(u.shape)
+                            e_alt[:,2] = 1
+                            e_azim = onp.stack([onp.sin(thetas),-onp.cos(thetas),onp.zeros(len(thetas))]).T
+                            p = e_alt * onp.cos(polarization_angle_radians) + e_azim * onp.sin(polarization_angle_radians)
                     
                 # File is not there: compute
                 else:
@@ -610,8 +625,12 @@ def main(ndim, # Required arguments
                             E0_scat = solver.generate_source(points, k0, u, beam_waist, print_statement='Source at scatterers')
                         else:
                             # In 3d vector, need to specify polarization vector
-                            p = np.zeros(u.shape)
-                            p[:,2] = 1
+                            # Define orthoradial spherical basis vectors perp to u(altitude = 0, azimuth = theta)
+                            # Here make it so p is 0 0 1 if polarization_angle_degrees = 0 and keep a direct orthonormal basis: minus sign compared to usual physics convention
+                            e_alt = np.zeros(u.shape)
+                            e_alt[:,2] = 1
+                            e_azim = onp.stack([onp.sin(thetas),-onp.cos(thetas),onp.zeros(len(thetas))]).T
+                            p = e_alt * onp.cos(polarization_angle_radians) + e_azim * onp.sin(polarization_angle_radians)
                             E0_scat = solver.generate_source(points, k0, u, p, beam_waist, print_statement='Source at scatterers')
                     
                     Ej = solver.solve(k0, alpha, radius, E0_scat, self_interaction=self_interaction, self_interaction_type=self_interaction_type)
@@ -641,7 +660,10 @@ def main(ndim, # Required arguments
                                 # In 3d scalar, no need to specify polarization vector
                                 E0_meas = solver.generate_source(batch_points, k0, u_angle.reshape(1,3), beam_waist, print_statement='Source at scatterers')
                             else:
-                                p_angle = np.tensor([0,0,1])
+                                e_alt = np.zeros(u_angle.shape)
+                                e_alt[2] = 1
+                                e_azim = np.tensor([onp.sin(angle),-onp.cos(angle),0])
+                                p_angle = e_alt * onp.cos(polarization_angle_radians) + e_azim * onp.sin(polarization_angle_radians)
                                 # In 3d vector, need to specify polarization vector
                                 E0_meas = solver.generate_source(batch_points, k0, u_angle.reshape(1,3), p_angle.reshape(1,3), beam_waist, print_statement='Source at scatterers')
 
@@ -1058,8 +1080,12 @@ def main(ndim, # Required arguments
                         # Also define the unit vectors describing the source orientation and its polarization from here
                         u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
                         u = np.from_numpy(u)
-                        p = np.zeros(u.shape)
-                        p[:,2] = 1
+                        # Define orthoradial spherical basis vectors perp to u(altitude = 0, azimuth = theta)
+                        # Here make it so p is 0 0 1 if polarization_angle_degrees = 0 and keep a direct orthonormal basis: minus sign compared to usual physics convention
+                        e_alt = np.zeros(u.shape)
+                        e_alt[:,2] = 1
+                        e_azim = onp.stack([onp.sin(thetas),-onp.cos(thetas),onp.zeros(len(thetas))]).T
+                        p = e_alt * onp.cos(polarization_angle_radians) + e_azim * onp.sin(polarization_angle_radians)
                         
                     E0all = []
                     for k0 in k0range:
