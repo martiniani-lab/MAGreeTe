@@ -754,8 +754,8 @@ def loadpoints(file_path, ndim):
     
     if '.hkl' in file_path:
         points = hkl.load(file_path)[:,0:ndim]
-    elif '.csv' in file_name:
-        points = np.loadtxt(input_file, delimiter=',')
+    elif '.csv' in file_path:
+        points = np.loadtxt(file_path, delimiter=',')
     elif '.txt' in file_path:
         
         with open(file_path, 'r') as file:

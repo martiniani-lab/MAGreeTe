@@ -187,6 +187,8 @@ def main(ndim, # Required arguments
                 points = make_lattice(lattice, N_raw, kick, ndim)
                 if lattice == 'poisson':
                     file_name += str(ndim)+'d'
+                if lattice == 'quasicrystal' and ndim == 3:
+                    file_name += '_icosahedral'
                 
                 if shift != 0.0:
                     points += shift * lattices.uniform_unit_ball_picking(1,ndim)
@@ -1182,6 +1184,8 @@ def make_lattice(lattice, N_raw, kick, ndim):
             if Ny%2 == 0:
                 Ny += 1
             points = lattices.simple_hexagonal(Nx=Nx, Ny=Ny,Nz=Ny, disp=kick)
+        elif lattice == 'quasicrystal':
+            points = lattices.icosahedral_quasicrystal(N=N_raw, disp=kick)
         elif lattice == 'poisson':
             points = lattices.poisson(N_raw, ndim)
         else: 
