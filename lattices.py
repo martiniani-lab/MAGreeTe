@@ -90,6 +90,236 @@ def vogel_spiral(N = 1000):
     
     return r
 
+def icosahedral_quasicrystal(nspan = 4, N=4096, offset = None, disp=0):
+    '''
+    Generate an icosahedral quasicrystal in 3d from a projection of a 6d lattice
+    Adapted from https://github.com/joshcol9232/tiling/tree/1825644190ff08786c4ada890b088b533244c4b6
+    '''
+    
+    if offset == None:
+        offset = np.zeros(6) # Thin rhomboids at center?
+    
+    # From: https://physics.princeton.edu//~steinh/QuasiPartII.pdf
+    sqrt5 = onp.sqrt(5)
+    icos = [
+        onp.array([(2.0 / sqrt5) * onp.cos(2 * onp.pi * n / 5),
+                  (2.0 / sqrt5) * onp.sin(2 * onp.pi * n / 5),
+                  1.0 / sqrt5])
+        for n in range(5)
+    ]
+    icos.append(onp.array([0.0, 0.0, 1.0]))
+    
+    ico_basis = Basis(onp.array(icos), offset)
+    
+    # Run the algorithm. k_ranges sets the number of construction planes used in the method.
+    # The function outputs a list of Cell objects.
+    cells = dualgrid_method(ico_basis, nspan)
+    
+    r = []
+    unique_indices = []  # Edges will be when distance between indices is 1
+    for c in cells:
+        for arr_index, i in enumerate(c.indices):
+            i = list(i)
+            if i not in unique_indices:
+                unique_indices.append(i)
+                r.append(c.verts[arr_index])
+    r = onp.vstack(r)
+    r = onp.unique(r, axis = 0)
+    
+    r /= r.max()
+    rabs = onp.absolute(r)
+    points = r[onp.nonzero((rabs[:,0]<=0.5)*(rabs[:,1]<=0.5))]+0.5
+    r = np.from_numpy(r)
+
+    # Get smaller numbers
+    # XXX could make the construction above a bit more flexible, but need some logic in the nspan
+    N_measured = points.shape[0]
+    ratio = onp.cbrt(N/N_measured)
+    if ratio > 1:
+        print("Can't currently make a quasicrystal that big!")
+        # sys.exit()
+        print("Capping to "+str(N_measured)+" particles")
+    else:
+        #Multiply the surface area by ratio, or the max radius by sqrt(ratio)
+        r = cut_circle(r, rad = ratio * 0.5)
+        r *= 0.5/ratio
+    if disp != 0:
+        r = add_displacement(r,dr=disp)
+        
+    r /= r.max()
+    
+    return r
+
+def quasicrystal(N = 4096, nspan=46, ndirs=5, mode="",disp=0, offset = None):
+    # http://www.gregegan.net/APPLETS/12/deBruijnNotes.html
+    if ndirs < 4:
+        print("A quasicrystal needs at least 4-fold symmetry!")
+        sys.exit()
+    if mode != "":
+        nspan=33
+        
+    if offset == None:
+        offset = np.zeros(ndirs) # Thin rhombi at center
+        # offset = np.ones(ndirs)/ndirs # Anti-Penrose? http://www.jcrystal.com/steffenweber/ftgallery/ftgallery.html column2
+        # offset = 1/2 - np.ones(ndirs)/(2*ndirs) # Penrose column1
+    
+    intersectrange = onp.arange(-nspan+1, nspan)
+    sizes = (ndirs, intersectrange.shape[0], ndirs, intersectrange.shape[0])
+
+    x = onp.fromfunction(lambda k,j,s,q: (bjk_factor(j - nspan+1,k,offset,ndirs)*onp.sin(s*onp.pi/ndirs) - bjk_factor(q - nspan+1, s, offset, ndirs) * onp.sin(k*onp.pi/ndirs) ) / onp.sin( (k - s) * onp.pi / ndirs ), sizes, dtype = int  )
+    y = onp.fromfunction(lambda k,j,s,q: (-bjk_factor(j - nspan+1,k,offset,ndirs)*onp.cos(s*onp.pi/ndirs) + bjk_factor(q - nspan+1, s, offset, ndirs) * onp.cos(k*onp.pi/ndirs) ) / onp.sin( (k - s) * onp.pi / ndirs ), sizes, dtype = int  )
+    
+    r = onp.vstack([x.ravel(),y.ravel()]).T
+    r = r[onp.isfinite(x.ravel())*onp.isfinite(y.ravel())]
+    r = onp.unique(r,axis=0)
+    
+    print("Raw quasicrystal contains "+str(r.shape[0])+" points")
+    
+    if mode == 'quasidual':
+        centroids = []
+        tri = Delaunay(r)
+        for t in tri.simplices:
+            p = onp.mean(r[t],axis=0)
+            centroids.append(p)
+        r = onp.asarray(centroids)
+    elif mode == 'quasivoro':
+        voro = Voronoi(r)
+        r = onp.asarray(voro.vertices)
+    elif mode == 'deBruijndual':
+        centroids = []
+        tri = Delaunay(r)
+        for t in tri.simplices:
+            p = onp.mean(r[t],axis=0)
+            centroids.append(p)
+        centroids = onp.asarray(centroids)
+        r = project_dual_luftalla(centroids, ndirs, offset)
+        
+    r /= r.max()
+    rabs = onp.absolute(r)
+    points = r[onp.nonzero((rabs[:,0]<=0.5)*(rabs[:,1]<=0.5))]+0.5
+    r = np.tensor(r)
+
+    # Get smaller numbers
+    # XXX could make the construction above a bit more flexible, but need some logic in the nspan
+    N_measured = points.shape[0]
+    ratio = onp.sqrt(N/N_measured)
+    if ratio > 1:
+        print("Can't currently make a quasicrystal that big!")
+        # sys.exit()
+        print("Capping to "+str(N_measured)+" particles")
+    else:
+        #Multiply the surface area by ratio, or the max radius by sqrt(ratio)
+        r = cut_circle(r, rad = ratio * 0.5)
+        r *= 0.5/ratio
+    if disp != 0:
+        r = add_displacement(r,dr=disp)
+        
+    r /= r.max()
+    return r
+
+def bjk_factor(j, k, offset, ndirs):
+
+    b = onp.power(-1,k) * (offset.numpy()[k] - j - 1/2) * onp.sqrt(ndirs/2)
+    
+    return b
+
+def project_dual_luftalla(points, ndirs, offset, angle_offset = 0):
+    # Implements dual relation from https://drops.dagstuhl.de/opus/volltexte/2021/14018/pdf/OASIcs-AUTOMATA-2021-9.pdf
+    # The dual is written for shifts of 1 between lines, while the Egan construction above uses sqrt(ndirs/2)
+    scaling_factor = onp.sqrt(ndirs/2) 
+    
+    if ndirs % 2 == 1:
+        angles = onp.arange(ndirs)*2.0*onp.pi/ndirs + angle_offset
+    else:
+        print("\n\nEven values can have issues for some offsets! 0 is the safest.\n\n")
+        angles = onp.arange(ndirs)*1.0*onp.pi/ndirs + angle_offset
+        offset *= onp.power(-1, range(ndirs))
+        
+    term1 = onp.outer(points[:,0], onp.cos(angles)) + onp.outer(points[:,1], onp.sin(angles))
+    term1 /= scaling_factor
+    term1 += offset.numpy()-0.5
+    term1 = onp.ceil(term1)
+    x = term1 * onp.cos(angles)
+    y = term1 * onp.sin(angles)
+    x = onp.sum(x, axis = 1)
+    y = onp.sum(y, axis = 1)
+    
+    r = onp.vstack([x,y]).T
+    r = r[onp.isfinite(x.ravel())*onp.isfinite(y.ravel())]
+    r = onp.unique(r,axis=0)
+    r /= scaling_factor # Not sure about that scaling though, but it doesn't matter for this generation code
+    
+    return(r)
+
+def cubic(Nside=17,centered=True,disp=0,normalize=True):
+    x = np.arange(Nside)
+    grid = np.zeros((Nside,Nside,Nside,3),dtype=np.double)
+    grid[:,:,:,0] = x.reshape(-1,1,1)
+    grid[:,:,:,1] = x.reshape(1,-1,1)
+    grid[:,:,:,2] = x.reshape(1,1,-1)
+    r = grid.reshape(-1,3)
+    if normalize:
+        if centered:
+            r /= Nside-1
+        else:
+            r /= Nside
+        r -= 0.5
+    if disp != 0:
+        r = add_displacement(r,dr=disp)
+    return r
+
+def bcc(Nside=17,disp=0,normalize=True):
+    r = cubic(Nside, normalize=False)
+    r = np.cat((r,r+np.tensor([0.5,0.5,0.5]).reshape(1,3)),0)
+    if normalize:
+        r /= Nside-1
+        r -= 0.5
+    if disp != 0:
+        r = add_displacement(r,dr=disp)
+    return r
+
+def fcc(Nside=17,disp=0,normalize=True):
+    r = cubic(Nside,normalize=False)
+    r = np.cat((r,r+np.tensor([0.5,0.5,0]).reshape(1,3),r+np.tensor([0.5,0,0.5]).reshape(1,3),r+np.tensor([0,0.5,0.5]).reshape(1,3)),0)
+    if normalize:
+        r /= Nside-1
+        r -= 0.5
+    if disp != 0:
+        r = add_displacement(r,dr=disp)
+    return r
+
+def diamond(Nside=17,disp=0, normalize=True):
+    r = fcc(Nside,normalize=False)
+    r = np.cat((r,r+np.tensor([0.25,0.25,0.25]).reshape(1,3)),0)
+    if normalize:
+        r /= Nside-1
+        r -= 0.5
+    if disp != 0:
+        r = add_displacement(r,dr=disp)
+    return r
+
+def simple_hexagonal(Nx=17,Ny=15, Nz=15, disp=0):
+    N = Nx*Ny
+    x = np.arange(-Nx,Nx+1,dtype=np.double)*onp.sqrt(3)/2
+    y = np.arange(-Ny,Ny+1,dtype=np.double)
+    z = np.arange(-Nz,Nz+1,dtype=np.double)
+    grid = np.zeros((x.shape[0],y.shape[0],z.shape[0],3))
+    grid[:,:,:,0] = x.reshape(-1,1,1)
+    grid[:,:,:,1] = y.reshape(1,-1,1)
+    grid[:,:,:,2] = y.reshape(1,1,-1)
+    grid[::2,:,:,1] += 0.5
+    r = grid.reshape(-1,3)
+    #r += onp.random.random(2)
+    r -= np.mean(r)
+    r /= np.max(r[:,0])
+    if disp != 0:
+        r = add_displacement(r,dr=disp)
+    r = r.to(np.double)
+    return r
+
+
+# XXX The following needs rewriting
+
 import itertools
 from multiprocessing import Pool
 from functools import partial
@@ -337,230 +567,3 @@ def _get_k_combos(k_range, dimensions):
     Then, when comparing two 2D construction sets, this compares line (-1) of set 1, with line (-1) of set 2, etc...
     """
     return onp.array(list(itertools.product(*[ [k for k in range(1-k_range, k_range)] for _d in range(dimensions) ])))
-
-def icosahedral_quasicrystal(nspan = 4, N=4096, offset = None, disp=0):
-    '''
-    Generate an icosahedral quasicrystal in 3d from a projection of a 6d lattice
-    Adapted from https://github.com/joshcol9232/tiling/tree/1825644190ff08786c4ada890b088b533244c4b6
-    '''
-    
-    if offset == None:
-        offset = np.zeros(6) # Thin rhomboids at center?
-    
-    # From: https://physics.princeton.edu//~steinh/QuasiPartII.pdf
-    sqrt5 = onp.sqrt(5)
-    icos = [
-        onp.array([(2.0 / sqrt5) * onp.cos(2 * onp.pi * n / 5),
-                  (2.0 / sqrt5) * onp.sin(2 * onp.pi * n / 5),
-                  1.0 / sqrt5])
-        for n in range(5)
-    ]
-    icos.append(onp.array([0.0, 0.0, 1.0]))
-    
-    ico_basis = Basis(onp.array(icos), offset)
-    
-    # Run the algorithm. k_ranges sets the number of construction planes used in the method.
-    # The function outputs a list of Cell objects.
-    cells = dualgrid_method(ico_basis, nspan)
-    
-    r = []
-    unique_indices = []  # Edges will be when distance between indices is 1
-    for c in cells:
-        for arr_index, i in enumerate(c.indices):
-            i = list(i)
-            if i not in unique_indices:
-                unique_indices.append(i)
-                r.append(c.verts[arr_index])
-    r = onp.vstack(r)
-    r = onp.unique(r, axis = 0)
-    
-    r /= r.max()
-    rabs = onp.absolute(r)
-    points = r[onp.nonzero((rabs[:,0]<=0.5)*(rabs[:,1]<=0.5))]+0.5
-    r = np.from_numpy(r)
-
-    # Get smaller numbers
-    # XXX could make the construction above a bit more flexible, but need some logic in the nspan
-    N_measured = points.shape[0]
-    ratio = onp.cbrt(N/N_measured)
-    if ratio > 1:
-        print("Can't currently make a quasicrystal that big!")
-        # sys.exit()
-        print("Capping to "+str(N_measured)+" particles")
-    else:
-        #Multiply the surface area by ratio, or the max radius by sqrt(ratio)
-        r = cut_circle(r, rad = ratio * 0.5)
-        r *= 0.5/ratio
-    if disp != 0:
-        r = add_displacement(r,dr=disp)
-        
-    r /= r.max()
-    
-    return r
-
-def quasicrystal(N = 4096, nspan=46, ndirs=5, mode="",disp=0, offset = None):
-    # http://www.gregegan.net/APPLETS/12/deBruijnNotes.html
-    if ndirs < 4:
-        print("A quasicrystal needs at least 4-fold symmetry!")
-        sys.exit()
-    if mode != "":
-        nspan=33
-        
-    if offset == None:
-        offset = np.zeros(ndirs) # Thin rhombi at center
-        # offset = np.ones(ndirs)/ndirs # Anti-Penrose? http://www.jcrystal.com/steffenweber/ftgallery/ftgallery.html column2
-        # offset = 1/2 - np.ones(ndirs)/(2*ndirs) # Penrose column1
-    
-    intersectrange = onp.arange(-nspan+1, nspan)
-    sizes = (ndirs, intersectrange.shape[0], ndirs, intersectrange.shape[0])
-
-    x = onp.fromfunction(lambda k,j,s,q: (bjk_factor(j - nspan+1,k,offset,ndirs)*onp.sin(s*onp.pi/ndirs) - bjk_factor(q - nspan+1, s, offset, ndirs) * onp.sin(k*onp.pi/ndirs) ) / onp.sin( (k - s) * onp.pi / ndirs ), sizes, dtype = int  )
-    y = onp.fromfunction(lambda k,j,s,q: (-bjk_factor(j - nspan+1,k,offset,ndirs)*onp.cos(s*onp.pi/ndirs) + bjk_factor(q - nspan+1, s, offset, ndirs) * onp.cos(k*onp.pi/ndirs) ) / onp.sin( (k - s) * onp.pi / ndirs ), sizes, dtype = int  )
-    
-    r = onp.vstack([x.ravel(),y.ravel()]).T
-    r = r[onp.isfinite(x.ravel())*onp.isfinite(y.ravel())]
-    r = onp.unique(r,axis=0)
-    
-    print("Raw quasicrystal contains "+str(r.shape[0])+" points")
-    
-    if mode == 'quasidual':
-        centroids = []
-        tri = Delaunay(r)
-        for t in tri.simplices:
-            p = onp.mean(r[t],axis=0)
-            centroids.append(p)
-        r = onp.asarray(centroids)
-    elif mode == 'quasivoro':
-        voro = Voronoi(r)
-        r = onp.asarray(voro.vertices)
-    elif mode == 'deBruijndual':
-        centroids = []
-        tri = Delaunay(r)
-        for t in tri.simplices:
-            p = onp.mean(r[t],axis=0)
-            centroids.append(p)
-        centroids = onp.asarray(centroids)
-        r = project_dual_luftalla(centroids, ndirs, offset)
-        
-    r /= r.max()
-    rabs = onp.absolute(r)
-    points = r[onp.nonzero((rabs[:,0]<=0.5)*(rabs[:,1]<=0.5))]+0.5
-    r = np.tensor(r)
-
-    # Get smaller numbers
-    # XXX could make the construction above a bit more flexible, but need some logic in the nspan
-    N_measured = points.shape[0]
-    ratio = onp.sqrt(N/N_measured)
-    if ratio > 1:
-        print("Can't currently make a quasicrystal that big!")
-        # sys.exit()
-        print("Capping to "+str(N_measured)+" particles")
-    else:
-        #Multiply the surface area by ratio, or the max radius by sqrt(ratio)
-        r = cut_circle(r, rad = ratio * 0.5)
-        r *= 0.5/ratio
-    if disp != 0:
-        r = add_displacement(r,dr=disp)
-        
-    r /= r.max()
-    return r
-
-def bjk_factor(j, k, offset, ndirs):
-
-    b = onp.power(-1,k) * (offset.numpy()[k] - j - 1/2) * onp.sqrt(ndirs/2)
-    
-    return b
-
-def project_dual_luftalla(points, ndirs, offset, angle_offset = 0):
-    # Implements dual relation from https://drops.dagstuhl.de/opus/volltexte/2021/14018/pdf/OASIcs-AUTOMATA-2021-9.pdf
-    # The dual is written for shifts of 1 between lines, while the Egan construction above uses sqrt(ndirs/2)
-    scaling_factor = onp.sqrt(ndirs/2) 
-    
-    if ndirs % 2 == 1:
-        angles = onp.arange(ndirs)*2.0*onp.pi/ndirs + angle_offset
-    else:
-        print("\n\nEven values can have issues for some offsets! 0 is the safest.\n\n")
-        angles = onp.arange(ndirs)*1.0*onp.pi/ndirs + angle_offset
-        offset *= onp.power(-1, range(ndirs))
-        
-    term1 = onp.outer(points[:,0], onp.cos(angles)) + onp.outer(points[:,1], onp.sin(angles))
-    term1 /= scaling_factor
-    term1 += offset.numpy()-0.5
-    term1 = onp.ceil(term1)
-    x = term1 * onp.cos(angles)
-    y = term1 * onp.sin(angles)
-    x = onp.sum(x, axis = 1)
-    y = onp.sum(y, axis = 1)
-    
-    r = onp.vstack([x,y]).T
-    r = r[onp.isfinite(x.ravel())*onp.isfinite(y.ravel())]
-    r = onp.unique(r,axis=0)
-    r /= scaling_factor # Not sure about that scaling though, but it doesn't matter for this generation code
-    
-    return(r)
-
-def cubic(Nside=17,centered=True,disp=0,normalize=True):
-    x = np.arange(Nside)
-    grid = np.zeros((Nside,Nside,Nside,3),dtype=np.double)
-    grid[:,:,:,0] = x.reshape(-1,1,1)
-    grid[:,:,:,1] = x.reshape(1,-1,1)
-    grid[:,:,:,2] = x.reshape(1,1,-1)
-    r = grid.reshape(-1,3)
-    if normalize:
-        if centered:
-            r /= Nside-1
-        else:
-            r /= Nside
-        r -= 0.5
-    if disp != 0:
-        r = add_displacement(r,dr=disp)
-    return r
-
-def bcc(Nside=17,disp=0,normalize=True):
-    r = cubic(Nside, normalize=False)
-    r = np.cat((r,r+np.tensor([0.5,0.5,0.5]).reshape(1,3)),0)
-    if normalize:
-        r /= Nside-1
-        r -= 0.5
-    if disp != 0:
-        r = add_displacement(r,dr=disp)
-    return r
-
-def fcc(Nside=17,disp=0,normalize=True):
-    r = cubic(Nside,normalize=False)
-    r = np.cat((r,r+np.tensor([0.5,0.5,0]).reshape(1,3),r+np.tensor([0.5,0,0.5]).reshape(1,3),r+np.tensor([0,0.5,0.5]).reshape(1,3)),0)
-    if normalize:
-        r /= Nside-1
-        r -= 0.5
-    if disp != 0:
-        r = add_displacement(r,dr=disp)
-    return r
-
-def diamond(Nside=17,disp=0, normalize=True):
-    r = fcc(Nside,normalize=False)
-    r = np.cat((r,r+np.tensor([0.25,0.25,0.25]).reshape(1,3)),0)
-    if normalize:
-        r /= Nside-1
-        r -= 0.5
-    if disp != 0:
-        r = add_displacement(r,dr=disp)
-    return r
-
-def simple_hexagonal(Nx=17,Ny=15, Nz=15, disp=0):
-    N = Nx*Ny
-    x = np.arange(-Nx,Nx+1,dtype=np.double)*onp.sqrt(3)/2
-    y = np.arange(-Ny,Ny+1,dtype=np.double)
-    z = np.arange(-Nz,Nz+1,dtype=np.double)
-    grid = np.zeros((x.shape[0],y.shape[0],z.shape[0],3))
-    grid[:,:,:,0] = x.reshape(-1,1,1)
-    grid[:,:,:,1] = y.reshape(1,-1,1)
-    grid[:,:,:,2] = y.reshape(1,1,-1)
-    grid[::2,:,:,1] += 0.5
-    r = grid.reshape(-1,3)
-    #r += onp.random.random(2)
-    r -= np.mean(r)
-    r /= np.max(r[:,0])
-    if disp != 0:
-        r = add_displacement(r,dr=disp)
-    r = r.to(np.double)
-    return r
