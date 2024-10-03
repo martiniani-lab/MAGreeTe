@@ -144,7 +144,7 @@ def main(ndim, # Required arguments
         # XXX May need to make this more flexible if more complete scans
         if ndim == 3 and not scalar and polarization_angle_degrees != 0.0:
             # Human-readable rotation for polarization
-            source_suffix += "_pangle_"+str(polarization_angle_degrees)
+            source_suffix += "_pangle_"+str(1.0*polarization_angle_degrees)
             
         # Check if points file already exists in the right place
         output_directory = os.path.join(output_directory,file_name+source_suffix)
@@ -1248,6 +1248,8 @@ if __name__ == '__main__':
         default=(1,0.25 * L/scatterer_radius,0.5)*2pi/L ", default=None)
     parser.add_argument("-t","--thetas",  nargs = "+", type = float, help = "Angles to consider, in degrees. Can be a single-value argument, a theta_min and a theta_max (with default step 1), or theta_min, theta_max, and step\
         default=(0,359,1)", default = None)
+    parser.add_argument("-pangle", "--polarization_angle_degrees", type = float, help = "Rotation angle (in degrees) for the polarization of 3d vector sources, in the orthoradial part of the spherical base\
+        default = 0 degrees (vertical)", default = 0.0)
     # Special systems
     parser.add_argument("-i", "--input_files", nargs='+', type=str, help="Name of hkl files containing points. May contain several, that will be averaged over. \
         default=None", default=None)
@@ -1354,6 +1356,7 @@ if __name__ == '__main__':
     input_files_args                = args.input_files
     if input_files_args     != None:
         input_files_args            = tuple(input_files_args)
+    polarization_angle_degrees      = args.polarization_angle_degrees
     # Special cases
     cold_atoms                      = args.cold_atoms
     kresonant_                      = args.kres
@@ -1405,7 +1408,7 @@ if __name__ == '__main__':
         
     main(ndim,
         refractive_n = refractive_n,  phi=phi, regularize=regularize, N_raw=N, source = source, beam_waist=beam_waist, L=boxsize, size_subsample=size_subsample, scalar=scalar,
-        k0range_args = k0range_args, thetarange_args=thetarange_args, input_files_args = input_files_args,
+        k0range_args = k0range_args, thetarange_args=thetarange_args, polarization_angle_degrees=polarization_angle_degrees, input_files_args = input_files_args,
         cold_atoms=cold_atoms, kresonant_ = kresonant_, lattice=lattice, annulus = annulus, composite = composite, kick = kick, shift = shift,
         compute_transmission = compute_transmission, plot_transmission=plot_transmission, single_scattering_transmission=single_scattering_transmission, scattered_fields=scattered_fields, transmission_radius=transmission_radius, N_fibo=N_fibo,
         compute_DOS=compute_DOS, compute_cavityDOS = compute_cavityDOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS, dos_sizes_args= dos_sizes_args, 
