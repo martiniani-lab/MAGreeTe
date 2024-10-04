@@ -319,6 +319,7 @@ def simple_hexagonal(Nx=17,Ny=15, Nz=15, disp=0):
 
 
 # XXX The following needs rewriting
+# For now, this is a minimal working unit from https://github.com/joshcol9232/tiling/tree/1825644190ff08786c4ada890b088b533244c4b6
 
 import itertools
 from multiprocessing import Pool
@@ -377,7 +378,6 @@ class Cell:
 class Basis:
     """
     Utility class for defining a set of basis vectors. Has conversion functions between different spaces.
-    Stolen from https://github.com/joshcol9232/tiling/tree/1825644190ff08786c4ada890b088b533244c4b6
     """
     def __init__(self, vecs, offsets):
         self.vecs = vecs

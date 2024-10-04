@@ -652,10 +652,10 @@ def main(ndim, # Required arguments
                                 # In 3d scalar, no need to specify polarization vector
                                 u_angle, _ = utils.vector_3d_u_and_p([angle], rotate_u = rotate_u)
                                 u_angle = u_angle.reshape(1,-1)
-                                E0_scat = solver.generate_source(points, k0, u_angle.reshape(1,3), beam_waist, print_statement='Source at scatterers')
+                                E0_meas = solver.generate_source(batch_points, k0, u_angle.reshape(1,3), beam_waist, print_statement='Source at scatterers')
                             else:
                                 u_angle, p_angle = utils.vector_3d_u_and_p([angle], rotate_u = rotate_u, polarization_angle_radians = polarization_angle_radians, switch_angle_scans = switch_angle_scans)
-                                E0_scat = solver.generate_source(points, k0, u_angle.reshape(1,3), p_angle.reshape(1,3), beam_waist, print_statement='Source at scatterers')
+                                E0_meas = solver.generate_source(batch_points, k0, u_angle.reshape(1,3), p_angle.reshape(1,3), beam_waist, print_statement='Source at scatterers')
 
                         if scalar:
                             E0_meas = E0_meas.reshape(batch_points.shape[0], 1)
@@ -1264,7 +1264,7 @@ if __name__ == '__main__':
     parser.add_argument("-trad","--transmission_radius", type = float, help = "Radius of the sphere on which transmission measurements are performed, in units of L,\
         default=0.51", default = 0.51)
     parser.add_argument("--N_fibo", type = int, help = "Number of points to use on Fibonacci sampling of sphere in 3d transmission\
-        default = 1000", default = 1000)
+        default = 2000", default = 2000)
     parser.add_argument("-dos","--compute_DOS", action='store_true', help="Compute the mean DOS of the medium  \
         default=False", default=False)
     parser.add_argument("-cdos","--compute_cavityDOS", action='store_true', help="Compute the DOS at the center of the medium, removing nearby points if any \
