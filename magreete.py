@@ -20,7 +20,7 @@ import argparse
 def main(ndim, # Required arguments
         refractive_n = 1.65 + 0.025j, phi = 0.1, regularize = True, N_raw = 16384, beam_waist = 0.2, L = 1, size_subsample = 1.0, source = "beam", scalar = False, # Physical parameters
         lattice=None, cold_atoms=False, kresonant_ = None, annulus = 0, composite = False, kick = 0.0, shift = 0.0, input_files_args = None, # Special cases
-        k0range_args = None, thetarange_args = None,# Range of values to use
+        k0range_args = None, thetarange_args = None, polarization_angle_degrees = 0, switch_angle_scans = False, rotate_u = [0,0], # Range of values to use
         compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, scattered_fields=False, transmission_radius = 2.0,
         compute_DOS=False, compute_cavityDOS = False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, dos_sizes_args = None, dospoints=1, spacing_factor = 1.0, idos_radius = 1.0, N_fibo = 1000,
         compute_eigenmodes = False, number_eigenmodes = 1, plot_eigenmodes = False, sorting_type = 'IPR', adapt_z = True,
@@ -35,6 +35,8 @@ def main(ndim, # Required arguments
     cut_radius = 0.5 * size_subsample
     beam_waist *= size_subsample
     transmission_radius *= size_subsample
+    
+    polarization_angle_radians = polarization_angle_degrees * onp.pi / 180.0
 
     # The full option does not conserve energy but is interesting to have for pedagogy?
     self_interaction_type = "Rayleigh" # Rayleigh or full
@@ -135,9 +137,19 @@ def main(ndim, # Required arguments
             file_name += '_composite'
             
         if source != "beam":
-            source_suffix = source
+            source_suffix = "_"+source
         else:
             source_suffix = ""
+            
+        # XXX May need to make this more flexible if more complete scans
+        if ndim == 3 and not scalar:
+            if polarization_angle_degrees != 0.0:
+                # Human-readable rotation for polarization
+                source_suffix += "_pangle_"+str(1.0*polarization_angle_degrees)
+            if rotate_u != [0,0]:
+                source_suffix += "_urot_"+str(rotate_u[0])+"_"+str(rotate_u[1])
+            if switch_angle_scans:
+                source_suffix += "_switchangles"
             
         # Check if points file already exists in the right place
         output_directory = os.path.join(output_directory,file_name+source_suffix)
@@ -175,6 +187,8 @@ def main(ndim, # Required arguments
                 points = make_lattice(lattice, N_raw, kick, ndim)
                 if lattice == 'poisson':
                     file_name += str(ndim)+'d'
+                if lattice == 'quasicrystal' and ndim == 3:
+                    file_name += '_icosahedral'
                 
                 if shift != 0.0:
                     points += shift * lattices.uniform_unit_ball_picking(1,ndim)
@@ -335,11 +349,10 @@ def main(ndim, # Required arguments
                 measurement_points = transmission_radius*L*utils.fibonacci_sphere(N_fibo)
                 measurement_points = np.from_numpy(measurement_points)
                 # Also define the unit vectors describing the source orientation and its polarization from here
-                u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
-                u = np.from_numpy(u)
-                p = np.zeros(u.shape)
-                p[:,2] = 1
-                
+                u, p = utils.vector_3d_u_and_p(thetas, rotate_u = rotate_u, polarization_angle_radians = polarization_angle_radians, switch_angle_scans = switch_angle_scans)
+                if not scalar:
+                    utils.plot_3d_points(p,file_name+"_polarization")
+                utils.plot_3d_points(u,file_name+"_incomingorientation")
             # A fresh computation is required
             if compute_transmission: 
 
@@ -434,7 +447,7 @@ def main(ndim, # Required arguments
                 if ndim == 2:
                     utils.plot_transmission_angularbeam(k0range, L, thetas, total, file_name,  n_thetas_trans = n_thetas_trans, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index), adapt_scale = adapt_scale)
                 else:
-                    utils.plot_transmission_angularbeam_3d(k0range, L, thetas, total, measurement_points, file_name, angular_width = angular_width, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index), adapt_scale = adapt_scale)
+                    utils.plot_transmission_angularbeam_3d(k0range, L, thetas, u, total, measurement_points, file_name, angular_width = angular_width, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index), adapt_scale = adapt_scale)
                 
                 # Produce transmission normalized by total intensity of the INCIDENT FIELD on the sphere
                 I0all = onp.absolute(E0all)**2
@@ -445,8 +458,8 @@ def main(ndim, # Required arguments
                     utils.plot_transmission_angularbeam(k0range, L, thetas, total, file_name,  n_thetas_trans = n_thetas_trans, normalization = I0all, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
                     utils.plot_transmission_angularbeam(k0range, L, thetas, total, file_name,  n_thetas_trans = n_thetas_trans, normalization = total, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
                 else:
-                    utils.plot_transmission_angularbeam_3d(k0range, L, thetas, total, measurement_points, file_name, angular_width = angular_width, normalization = I0all, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
-                    utils.plot_transmission_angularbeam_3d(k0range, L, thetas, total, measurement_points, file_name, angular_width = angular_width, normalization = total, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
+                    utils.plot_transmission_angularbeam_3d(k0range, L, thetas, u, total, measurement_points, file_name, angular_width = angular_width, normalization = I0all, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
+                    utils.plot_transmission_angularbeam_3d(k0range, L, thetas, u, total, measurement_points, file_name, angular_width = angular_width, normalization = total, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
 
 
 
@@ -463,8 +476,8 @@ def main(ndim, # Required arguments
                         utils.plot_transmission_angularbeam(k0range, L, thetas, total_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat')
                         utils.plot_transmission_angularbeam(k0range, L, thetas, total_scat, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, normalization = total_scat, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_norm')
                     else:
-                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, total_scat, measurement_points, file_name, angular_width = angular_width, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat', adapt_scale = adapt_scale)
-                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, total_scat, measurement_points, file_name, angular_width = angular_width, normalization = total, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_norm')
+                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, u, total_scat, measurement_points, file_name, angular_width = angular_width, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat', adapt_scale = adapt_scale)
+                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, u, total_scat, measurement_points, file_name, angular_width = angular_width, normalization = total, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_norm')
                             
             # Single-scattering transmission
             if single_scattering_transmission:
@@ -509,7 +522,7 @@ def main(ndim, # Required arguments
                     theta_plot = onp.round(180 * thetas[plot_theta_index]/onp.pi)
                     utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, total_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_ss')
                 else:
-                    utils.plot_transmission_angularbeam_3d(k0range, L, thetas, total_ss, measurement_points, file_name, angular_width = angular_width, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_ss', adapt_scale = adapt_scale)
+                    utils.plot_transmission_angularbeam_3d(k0range, L, thetas, u, total_ss, measurement_points, file_name, angular_width = angular_width, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_ss', adapt_scale = adapt_scale)
                 
                 if plot_transmission:
                     # Also compute the intensity associated to the multiple-scattering contribution of the field, if the full field was computed
@@ -523,7 +536,7 @@ def main(ndim, # Required arguments
                         utils.plot_transmission_angularbeam(k0range, L, thetas, total_multiple, file_name,  n_thetas_trans = n_thetas_trans, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_multiple')
                         utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, total_multiple, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_multiple')
                     else:
-                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, total_multiple, measurement_points, file_name, angular_width = angular_width, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_multiple', adapt_scale = adapt_scale)
+                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, u, total_multiple, measurement_points, file_name, angular_width = angular_width, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_multiple', adapt_scale = adapt_scale)
 
                 if scattered_fields:
                     # Compute scattered intensities at measurement points
@@ -539,8 +552,8 @@ def main(ndim, # Required arguments
                         utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, total_scat_ss, file_name, plot_theta_index = plot_theta_index, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_scat_ss')
                         utils.plot_singlebeam_angular_frequency_plot(k0range, L, thetas, total_scat_ss, file_name, plot_theta_index = plot_theta_index, normalization = total_scat_ss, appended_string='_'+str(file_index)+'_angle_'+str(theta_plot)+'_scat_ss_norm')
                     else:
-                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, total_scat_ss, measurement_points, file_name, angular_width = angular_width, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss', adapt_scale = adapt_scale)
-                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, total_scat_ss, measurement_points, file_name, angular_width = angular_width, normalization=total_scat_ss, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss_norm', adapt_scale = adapt_scale)
+                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, u, total_scat_ss, measurement_points, file_name, angular_width = angular_width, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss', adapt_scale = adapt_scale)
+                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, u, total_scat_ss, measurement_points, file_name, angular_width = angular_width, normalization=total_scat_ss, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_scat_ss_norm', adapt_scale = adapt_scale)
 
         ### ###############
         ### Intensity fields calculations
@@ -584,15 +597,15 @@ def main(ndim, # Required arguments
                     k0 = k0.real
                     alpha = onp.complex128(alpha)
                     
-                    if ndim ==3:                         
-                        u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(thetas.shape)]).T
-                        u = np.from_numpy(u)
-                        if len(u.shape) == 1:
+                    if ndim ==3:
+                        
+                        if scalar:
+                            u, _ = utils.vector_3d_u_and_p(thetas, rotate_u = rotate_u)
                             u = u.reshape(1,-1)
-                        if not scalar:
-                            p = np.zeros(u.shape)
-                            p[:,2] = 1
-                    
+                        else:
+                            u, p = utils.vector_3d_u_and_p(thetas, rotate_u = rotate_u, polarization_angle_radians = polarization_angle_radians, switch_angle_scans = switch_angle_scans)
+                            utils.plot_3d_points(p,file_name+"_polarization")
+                        utils.plot_3d_points(u,file_name+"_incomingorientation")
                 # File is not there: compute
                 else:
                     
@@ -600,19 +613,17 @@ def main(ndim, # Required arguments
                         # In 2d: no ambiguity to make thetas into k vectors and polarizations even if vector wave
                         E0_scat = solver.generate_source(points, k0, thetas, beam_waist, print_statement='Source at scatterers')
                     else:
-                        u = onp.stack([onp.cos(thetas_plot),onp.sin(thetas_plot),onp.zeros(thetas_plot.shape)]).T
-                        u = np.from_numpy(u)
-                        if len(u.shape) == 1:
-                            u = u.reshape(1,-1)
-                        
+
                         if scalar:
                             # In 3d scalar, no need to specify polarization vector
+                            u, _ = utils.vector_3d_u_and_p(thetas, rotate_u = rotate_u)
+                            u = u.reshape(1,-1)
                             E0_scat = solver.generate_source(points, k0, u, beam_waist, print_statement='Source at scatterers')
                         else:
-                            # In 3d vector, need to specify polarization vector
-                            p = np.zeros(u.shape)
-                            p[:,2] = 1
+                            u, p = utils.vector_3d_u_and_p(thetas, rotate_u = rotate_u, polarization_angle_radians = polarization_angle_radians, switch_angle_scans = switch_angle_scans)
                             E0_scat = solver.generate_source(points, k0, u, p, beam_waist, print_statement='Source at scatterers')
+                            utils.plot_3d_points(p,file_name+"_polarization")
+                        utils.plot_3d_points(u,file_name+"_incomingorientation")
                     
                     Ej = solver.solve(k0, alpha, radius, E0_scat, self_interaction=self_interaction, self_interaction_type=self_interaction_type)
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
@@ -636,15 +647,15 @@ def main(ndim, # Required arguments
                             # In 2d: no ambiguity to make thetas into k vectors and polarizations even if vector wave
                             E0_meas = solver.generate_source(batch_points, k0, [angle], beam_waist, print_statement='Source at scatterers')
                         else:
-                            u_angle = np.tensor([onp.cos(angle),onp.sin(angle),0])
+                            
                             if scalar:
                                 # In 3d scalar, no need to specify polarization vector
+                                u_angle, _ = utils.vector_3d_u_and_p([angle], rotate_u = rotate_u)
+                                u_angle = u_angle.reshape(1,-1)
                                 E0_meas = solver.generate_source(batch_points, k0, u_angle.reshape(1,3), beam_waist, print_statement='Source at scatterers')
                             else:
-                                p_angle = np.tensor([0,0,1])
-                                # In 3d vector, need to specify polarization vector
+                                u_angle, p_angle = utils.vector_3d_u_and_p([angle], rotate_u = rotate_u, polarization_angle_radians = polarization_angle_radians, switch_angle_scans = switch_angle_scans)
                                 E0_meas = solver.generate_source(batch_points, k0, u_angle.reshape(1,3), p_angle.reshape(1,3), beam_waist, print_statement='Source at scatterers')
-
 
                         if scalar:
                             E0_meas = E0_meas.reshape(batch_points.shape[0], 1)
@@ -1056,10 +1067,7 @@ def main(ndim, # Required arguments
                         # Use Fibonacci sphere as samples on the sphere
                         measurement_points = transmission_radius*L*utils.fibonacci_sphere(N_fibo)
                         # Also define the unit vectors describing the source orientation and its polarization from here
-                        u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
-                        u = np.from_numpy(u)
-                        p = np.zeros(u.shape)
-                        p[:,2] = 1
+                        u, p = utils.vector_3d_u_and_p(thetas, rotate_u = rotate_u, polarization_angle_radians = polarization_angle_radians, switch_angle_scans = switch_angle_scans)
                         
                     E0all = []
                     for k0 in k0range:
@@ -1086,15 +1094,15 @@ def main(ndim, # Required arguments
                         utils.plot_transmission_angularbeam(k0range, L, thetas, I_fluct, file_name, n_thetas_trans = n_thetas_trans, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies', adapt_scale = adapt_scale)
                     else:
                         # Produce plots for average intensity
-                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, I_mean, measurement_points, file_name, appended_string='_averageintensity_'+str(n_copies)+'copies', adapt_scale = adapt_scale)
+                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, u, I_mean, measurement_points, file_name, appended_string='_averageintensity_'+str(n_copies)+'copies', adapt_scale = adapt_scale)
                         # Produce plots for normalized average intensity
-                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, I_mean, measurement_points, file_name, normalization=I0all, appended_string='_averageintensity_'+str(n_copies)+'copies_incnorm', adapt_scale = adapt_scale)
+                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, u, I_mean, measurement_points, file_name, normalization=I0all, appended_string='_averageintensity_'+str(n_copies)+'copies_incnorm', adapt_scale = adapt_scale)
                         # Produce plots for intensity of the average field = ballistic intensity
-                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, I_ball, measurement_points, file_name, appended_string='_ballisticintensity_'+str(n_copies)+'copies', adapt_scale = adapt_scale)
+                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, u, I_ball, measurement_points, file_name, appended_string='_ballisticintensity_'+str(n_copies)+'copies', adapt_scale = adapt_scale)
                         # Produce plots for NORMALIZED intensity of the average field = ballistic intensity
-                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, I_ball, measurement_points, file_name, normalization=I0all, appended_string='_ballisticintensity_'+str(n_copies)+'copies_incnorm', adapt_scale = adapt_scale)
+                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, u, I_ball, measurement_points, file_name, normalization=I0all, appended_string='_ballisticintensity_'+str(n_copies)+'copies_incnorm', adapt_scale = adapt_scale)
                         # Produce plots for intensity of the fluctuating field
-                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, I_fluct, measurement_points, file_name, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies', adapt_scale = adapt_scale)
+                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, u, I_fluct, measurement_points, file_name, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies', adapt_scale = adapt_scale)
                     
 def make_lattice(lattice, N_raw, kick, ndim):
 
@@ -1176,6 +1184,8 @@ def make_lattice(lattice, N_raw, kick, ndim):
             if Ny%2 == 0:
                 Ny += 1
             points = lattices.simple_hexagonal(Nx=Nx, Ny=Ny,Nz=Ny, disp=kick)
+        elif lattice == 'quasicrystal':
+            points = lattices.icosahedral_quasicrystal(N=N_raw, disp=kick)
         elif lattice == 'poisson':
             points = lattices.poisson(N_raw, ndim)
         else: 
@@ -1222,6 +1232,12 @@ if __name__ == '__main__':
         default=(1,0.25 * L/scatterer_radius,0.5)*2pi/L ", default=None)
     parser.add_argument("-t","--thetas",  nargs = "+", type = float, help = "Angles to consider, in degrees. Can be a single-value argument, a theta_min and a theta_max (with default step 1), or theta_min, theta_max, and step\
         default=(0,359,1)", default = None)
+    parser.add_argument("-pangle", "--polarization_angle_degrees", type = float, help = "Rotation angle (in degrees) for the polarization of 3d vector sources, in the orthoradial part of the spherical base\
+        default = 0 degrees (vertical)", default = 0.0)
+    parser.add_argument("--switch_angle_scans", action='store_true', help = "Fix beam angle and scan polarization angles instead of the usual in 3d vector\
+        default=False", default = False)
+    parser.add_argument("--rotate_u", nargs=2, type=float, help = "Rotate the default great circle (Oxy) covered by u in 3d by (theta_x, theta_y) around x and y axes\
+        default = 0 0", default = [0,0])
     # Special systems
     parser.add_argument("-i", "--input_files", nargs='+', type=str, help="Name of hkl files containing points. May contain several, that will be averaged over. \
         default=None", default=None)
@@ -1248,7 +1264,7 @@ if __name__ == '__main__':
     parser.add_argument("-trad","--transmission_radius", type = float, help = "Radius of the sphere on which transmission measurements are performed, in units of L,\
         default=0.51", default = 0.51)
     parser.add_argument("--N_fibo", type = int, help = "Number of points to use on Fibonacci sampling of sphere in 3d transmission\
-        default = 1000", default = 1000)
+        default = 2000", default = 2000)
     parser.add_argument("-dos","--compute_DOS", action='store_true', help="Compute the mean DOS of the medium  \
         default=False", default=False)
     parser.add_argument("-cdos","--compute_cavityDOS", action='store_true', help="Compute the DOS at the center of the medium, removing nearby points if any \
@@ -1328,6 +1344,9 @@ if __name__ == '__main__':
     input_files_args                = args.input_files
     if input_files_args     != None:
         input_files_args            = tuple(input_files_args)
+    polarization_angle_degrees      = args.polarization_angle_degrees
+    switch_angle_scans              = args.switch_angle_scans
+    rotate_u                        = args.rotate_u
     # Special cases
     cold_atoms                      = args.cold_atoms
     kresonant_                      = args.kres
@@ -1379,7 +1398,7 @@ if __name__ == '__main__':
         
     main(ndim,
         refractive_n = refractive_n,  phi=phi, regularize=regularize, N_raw=N, source = source, beam_waist=beam_waist, L=boxsize, size_subsample=size_subsample, scalar=scalar,
-        k0range_args = k0range_args, thetarange_args=thetarange_args, input_files_args = input_files_args,
+        k0range_args = k0range_args, thetarange_args=thetarange_args, polarization_angle_degrees=polarization_angle_degrees, switch_angle_scans = switch_angle_scans, rotate_u = rotate_u, input_files_args = input_files_args,
         cold_atoms=cold_atoms, kresonant_ = kresonant_, lattice=lattice, annulus = annulus, composite = composite, kick = kick, shift = shift,
         compute_transmission = compute_transmission, plot_transmission=plot_transmission, single_scattering_transmission=single_scattering_transmission, scattered_fields=scattered_fields, transmission_radius=transmission_radius, N_fibo=N_fibo,
         compute_DOS=compute_DOS, compute_cavityDOS = compute_cavityDOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS, dos_sizes_args= dos_sizes_args, 

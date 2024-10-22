@@ -135,6 +135,51 @@ def fibonacci_sphere(samples=1000):
 
     return points.astype(onp.float64)
 
+def vector_3d_u_and_p(thetas, rotate_u = [0,0], polarization_angle_radians = 0.0, switch_angle_scans = False):
+    '''
+    Generate tensors of incoming wave vector orientations u and polarization orientations p based on thetas, rotation angles
+    Allows user to switch between incoming orientation scan and polarization scan
+    '''
+    
+    u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
+    u = np.from_numpy(u)
+    # Define orthoradial spherical basis vectors perp to u(altitude = 0, azimuth = theta)
+    # Here make it so p is 0 0 1 if polarization_angle_degrees = 0: minus sign compared to usual physics convention
+    e_alt = np.zeros(u.shape)
+    e_alt[:,2] = 1
+    e_azim = onp.stack([onp.sin(thetas),-onp.cos(thetas),onp.zeros(len(thetas))]).T
+    p = e_alt * onp.cos(polarization_angle_radians) + e_azim * onp.sin(polarization_angle_radians)
+    
+    if rotate_u != [0,0]:
+        u = rotate_3d_xy(u, rotate_u)
+        p = rotate_3d_xy(p, rotate_u)
+    
+    # Do a polarization scan instead of a u scan
+    if switch_angle_scans:
+        return p, u
+    else:
+        return u, p
+    
+
+def rotation_matrix(vector, angle):
+    # https://en.wikipedia.org/wiki/Rotation_matrix#Rotation_matrix_from_axis_and_angle
+    return onp.cos(angle) * onp.eye(3) + onp.sin(angle) * onp.cross(vector, onp.eye(3)) + (1 - onp.cos(angle)) * onp.outer(vector,vector)
+
+def rotate_3d_xy(u, rotate_u):
+    '''
+    Rotate incoming vectors by a list of 2 angles in DEGREES encoding rotation around x and rotation around y in 3d
+    '''
+    
+    Rx = rotation_matrix(onp.array([1,0,0]), rotate_u[0] * onp.pi / 180.0)
+    Ry = rotation_matrix(onp.array([0,1,0]), rotate_u[1] * onp.pi / 180.0)
+    
+    Rtot = onp.matmul(Rx,Ry)
+    Rtot = np.from_numpy(Rtot)
+
+    rotated =np.matmul(Rtot.reshape(1,3,3),u.reshape(-1,3,1)).squeeze()
+    
+    return(rotated)
+
 def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,  n_thetas_trans = 0.0, adapt_scale = False, normalization = onp.array([]), appended_string=''):
     """
     Plots a radial version of the frequency-angle transmission plot given 
@@ -204,7 +249,7 @@ def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,
     
     onp.savetxt(file_name_root+'_transmission_beam_avg'+appended_string+'.csv',onp.stack([freqs,avg_intensity]).T)
 
-def plot_transmission_angularbeam_3d(k0range, L, thetas, intensity, measurement_points, file_name_root, angular_width = 1.0, adapt_scale = False, normalization = onp.array([]), appended_string=''):
+def plot_transmission_angularbeam_3d(k0range, L, thetas, u, intensity, measurement_points, file_name_root, angular_width = 1.0, adapt_scale = False, normalization = onp.array([]), appended_string=''):
     """
     Plots a radial version of the frequency-angle transmission plot given 
     k0range: list of wave vector moduli, in rad/m
@@ -217,7 +262,7 @@ def plot_transmission_angularbeam_3d(k0range, L, thetas, intensity, measurement_
 
     freqs = onp.real(k0range*L/(2*onp.pi))
     cos_max_angle = onp.cos(angular_width * (onp.pi/2))
-    u = onp.stack([onp.cos(thetas),onp.sin(thetas),onp.zeros(len(thetas))]).T
+    u = u.numpy()
     u_out = measurement_points/onp.linalg.norm(measurement_points,axis=-1)[:,onp.newaxis]
     dotprod = onp.sum(u[:,onp.newaxis] * u_out.numpy(), axis = -1)
     dotprod = dotprod.transpose()
@@ -714,8 +759,8 @@ def loadpoints(file_path, ndim):
     
     if '.hkl' in file_path:
         points = hkl.load(file_path)[:,0:ndim]
-    elif '.csv' in file_name:
-        points = np.loadtxt(input_file, delimiter=',')
+    elif '.csv' in file_path:
+        points = np.loadtxt(file_path, delimiter=',')
     elif '.txt' in file_path:
         
         with open(file_path, 'r') as file:
