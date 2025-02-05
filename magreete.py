@@ -23,7 +23,7 @@ def main(ndim, # Required arguments
         k0range_args = None, thetarange_args = None, polarization_angle_degrees = 0, switch_angle_scans = False, rotate_u = [0,0], # Range of values to use
         compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, scattered_fields=False, transmission_radius = 2.0,
         compute_DOS=False, compute_cavityDOS = False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, dos_sizes_args = None, dospoints=1, spacing_factor = 1.0, idos_radius = 1.0, N_fibo = 1000,
-        compute_eigenmodes = False, number_eigenmodes = 1, plot_eigenmodes = False, sorting_type = 'IPR', adapt_z = True,
+        compute_eigenmodes = False, number_eigenmodes = 1, plot_eigenmodes = False, sorting_type = 'IPR', adapt_z = True, slice_coordinate = 0,
         intensity_fields = False, amplitude_fields = False, phase_fields = False, just_compute_averages = False,# Computations to perform
         write_eigenvalues=False, write_ldos= False,  gridsize=(301,301), window_width=1.2, angular_width = 0.0, plot_theta_index = 0, batch_size = 101*101, adapt_scale = False, output_directory="" # Parameters for outputs
         ):
@@ -221,7 +221,7 @@ def main(ndim, # Required arguments
         assert ndim == points.shape[1]
         print("\n\nLoaded a "+print_type+" system of N = "+str(N_raw)+" points in d = "+str(ndim))
         print("N = "+str(N)+" points remain after cutting to a disk and rescaling to L = "+str(L)+"\n\n")
-
+        hkl.dump(points.numpy(),"triangular.hkl")
         # Define wave-vector list here to avoid defining it again when averaging
         if ndim == 2:
             
@@ -571,7 +571,7 @@ def main(ndim, # Required arguments
                 x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5)
                 measurement_points = np.from_numpy((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
             else:
-                x,y,z = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5, [0.0])
+                x,y,z = onp.roll(onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5, [0.0]),slice_coordinate, axis=0)
                 measurement_points = np.from_numpy((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T)*L*window_width)
 
             batches = np.split(measurement_points, batch_size)
@@ -696,9 +696,14 @@ def main(ndim, # Required arguments
                         Eall_longitudinal = Eall_longitudinal.reshape(ngridy, ngridx)
                         Eall_transverse   = Eall_transverse.reshape(ngridy, ngridx)
 
-                        utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, angle_, intensity_fields, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index), my_dpi = 300)
-                        utils.plot_full_fields(Eall_longitudinal, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_long', my_dpi = 300)
-                        utils.plot_full_fields(Eall_transverse, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_trans', my_dpi = 300)
+                        slice_string = ''
+                        if ndim == 3:
+                            slice_ = ('z','x','y')
+                            slice_string = '_slice_'+slice_[slice_coordinate%3]
+
+                        utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, angle_, intensity_fields, False, False, file_name, appended_string='_width_'+str(window_width)+slice_string+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index), my_dpi = 300)
+                        utils.plot_full_fields(Eall_longitudinal, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+slice_string+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_long', my_dpi = 300)
+                        utils.plot_full_fields(Eall_transverse, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+slice_string+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_trans', my_dpi = 300)
 
                     if scattered_fields:
                         Eall = np.cat(Eall, dim=0)
@@ -772,7 +777,7 @@ def main(ndim, # Required arguments
                 x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5)
                 measurement_points = np.from_numpy((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
             else:
-                x,y,z = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5, [0.0])
+                x,y,z = onp.roll(onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5, [0.0]),slice_coordinate,axis=0)
                 measurement_points = np.from_numpy((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T)*L*window_width)
 
             batches = np.split(measurement_points, batch_size)
@@ -827,7 +832,12 @@ def main(ndim, # Required arguments
                         
                         print(f"Effective IPR of the whole eigenfield: {plot_IPR}")
 
-                        utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, 0, True, False, False, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_eigen_'+sorting_type+str(i), my_dpi = 300)
+                        slice_string = ''
+                        if ndim == 3:
+                            slice_ = ('z','x','y')
+                            slice_string = '_slice_'+slice_[slice_coordinate%3]
+
+                        utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, 0, True, False, False, file_name, appended_string='_width_'+str(window_width)+slice_string+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_eigen_'+sorting_type+str(i), my_dpi = 300)
 
         if compute_DOS:
 
@@ -985,7 +995,7 @@ def main(ndim, # Required arguments
                 x,y = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5)
                 measurement_points = np.from_numpy((onp.vstack([x.ravel(),y.ravel()]).T)*L*window_width)
             else:
-                x,y,z = onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5, [0.0])
+                x,y,z = onp.roll(onp.meshgrid(onp.linspace(0,xyratio,ngridx)  - xyratio/2.0,onp.linspace(0,1,ngridy) - 0.5, [0.0]),slice_coordinate, axis=0)
                 measurement_points = np.from_numpy((onp.vstack([x.ravel(),y.ravel(), z.ravel()]).T)*L*window_width)
             
             # Determine which points are within the system
@@ -1013,7 +1023,11 @@ def main(ndim, # Required arguments
 
                 ldos = np.cat(outputs)
                 ldos = ldos.reshape(ngridy, ngridx)
-                utils.plot_LDOS_2D(ldos,k0_,ngridx,ngridy,file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index), my_dpi = 300)
+                slice_string = ''
+                if ndim == 3:
+                    slice_ = ('z','x','y')
+                    slice_string = '_slice_'+slice_[slice_coordinate%3]
+                utils.plot_LDOS_2D(ldos,k0_,ngridx,ngridy,file_name, appended_string='_width_'+str(window_width)+slice_string+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index), my_dpi = 300)
 
                 if write_ldos:
                     onp.savetxt(file_name+'_ldos_'+str(k0_)+'_'+str(index)+'.csv',ldos.numpy())
@@ -1304,6 +1318,8 @@ if __name__ == '__main__':
         default=True", default=False)
     parser.add_argument("--write_ldos", action="store_true", help="Save all computed LDOS outputs. Warning: this can grow pretty big.\
         default = False", default = False)
+    parser.add_argument("--slice_coordinate", type=int, help="Coordinate to slice against in 3d fields (0 = z, 1 = x, 2 = y).\
+        default = 0", default = 0)
     parser.add_argument("-g","--gridsize",nargs=2,type=int, help="Number of pixels to use in the sidelength of output images \
         default = (301,301)", default=(301,301))
     parser.add_argument("-w","--window_width", type=float, help="Width of the viewfield for real-space plots, in units of system diameters, \
@@ -1384,6 +1400,7 @@ if __name__ == '__main__':
     idos_radius                     = args.idos_radius
     write_eigenvalues               = args.write_eigenvalues
     write_ldos                      = args.write_ldos
+    slice_coordinate                = args.slice_coordinate
     gridsize                        = tuple(args.gridsize)
     window_width                    = args.window_width
     batch_size                      = args.batch_size
@@ -1402,7 +1419,7 @@ if __name__ == '__main__':
         cold_atoms=cold_atoms, kresonant_ = kresonant_, lattice=lattice, annulus = annulus, composite = composite, kick = kick, shift = shift,
         compute_transmission = compute_transmission, plot_transmission=plot_transmission, single_scattering_transmission=single_scattering_transmission, scattered_fields=scattered_fields, transmission_radius=transmission_radius, N_fibo=N_fibo,
         compute_DOS=compute_DOS, compute_cavityDOS = compute_cavityDOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS, dos_sizes_args= dos_sizes_args, 
-        compute_eigenmodes = compute_eigenmodes, number_eigenmodes = number_eigenmodes, plot_eigenmodes = plot_eigenmodes, sorting_type = sorting_type,
+        compute_eigenmodes = compute_eigenmodes, number_eigenmodes = number_eigenmodes, plot_eigenmodes = plot_eigenmodes, sorting_type = sorting_type, slice_coordinate = slice_coordinate,
         intensity_fields = intensity_fields, amplitude_fields=amplitude_fields, phase_fields=phase_fields, just_compute_averages=just_compute_averages,
         dospoints=dospoints, spacing_factor=spacing_factor, idos_radius=idos_radius, write_eigenvalues=write_eigenvalues, write_ldos=write_ldos, gridsize=gridsize, window_width=window_width, batch_size = batch_size, angular_width=angular_width, plot_theta_index=plot_theta_index, adapt_scale = adapt_scale,
         output_directory=output_directory
