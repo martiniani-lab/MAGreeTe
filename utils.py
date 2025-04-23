@@ -203,7 +203,7 @@ def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,
 
     #Normalize the field differently if needed
     if normalization.shape[0] != 0:
-        total_norm = onp.sum(normalization,axis=1)
+        total_norm = onp.sum(normalization*anglewidth_matrix,axis=1)
         total_ /= total_norm
     else:
         total_ /= n_thetas_trans + 1
@@ -213,7 +213,7 @@ def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,
         vmin = None
         vmax = None
     else: 
-        vmin = 1e-3
+        vmin = 1e-2
         vmax = 1e0
     
     fig, ax = plt.subplots(subplot_kw={'projection':'polar'})
@@ -221,7 +221,7 @@ def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,
     #ax.set_rmin(10.0)
     #ax.set_rticks([20,40])
     ax.set_axis_off()
-    cbar = fig.colorbar(pc, location='left')
+    cbar = fig.colorbar(pc)#, location='left')
     cbar.ax.tick_params(labelsize=24)
     plt.savefig(file_name_root+'_transmission_angularbeam_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
     plt.close()
@@ -501,6 +501,8 @@ def plot_IPR_damping_values(lambdas, IPRs, file_name, appended_string = '', logs
     fig = plt.figure(figsize=(10,10),dpi=300)
     ax = fig.gca()
     scatterplot = ax.scatter(np.real(lambdas), np.imag(lambdas), c=IPRs, s = 100, edgecolors='none',  cmap=cmr.bubblegum, vmin = 0, vmax = 0.5)
+    idx = np.argmin(np.imag(lambdas))
+    ax.scatter(np.real(lambdas)[idx], np.imag(lambdas)[idx],s=120,edgecolors='r', c = 'none')
     cbar = plt.colorbar(scatterplot)
     cbar.set_label('IPR', rotation=270)
     ax.set_xlabel(r'$Re \Delta_n$')

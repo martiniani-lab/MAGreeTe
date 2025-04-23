@@ -19,13 +19,13 @@ import argparse
 
 def main(ndim, # Required arguments
         refractive_n = 1.65 + 0.025j, phi = 0.1, regularize = True, N_raw = 16384, beam_waist = 0.2, L = 1, size_subsample = 1.0, source = "beam", scalar = False, # Physical parameters
-        lattice=None, cold_atoms=False, kresonant_ = None, annulus = 0, composite = False, kick = 0.0, shift = 0.0, input_files_args = None, # Special cases
+        lattice=None, cold_atoms=False, kresonant_ = None, annulus = 0, composite = False, cut_circle=True, kick = 0.0, shift = 0.0, input_files_args = None, # Special cases
         k0range_args = None, thetarange_args = None, polarization_angle_degrees = 0, switch_angle_scans = False, rotate_u = [0,0], # Range of values to use
         compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, scattered_fields=False, transmission_radius = 2.0,
         compute_DOS=False, compute_cavityDOS = False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, dos_sizes_args = None, dospoints=1, spacing_factor = 1.0, idos_radius = 1.0, N_fibo = 1000,
         compute_eigenmodes = False, number_eigenmodes = 1, plot_eigenmodes = False, sorting_type = 'IPR', adapt_z = True, slice_coordinate = 0,
         intensity_fields = False, amplitude_fields = False, phase_fields = False, just_compute_averages = False,# Computations to perform
-        write_eigenvalues=False, write_ldos= False,  gridsize=(301,301), window_width=1.2, angular_width = 0.0, plot_theta_index = 0, batch_size = 101*101, adapt_scale = False, output_directory="" # Parameters for outputs
+        save_fields=True, write_eigenvalues=False, write_ldos= False,  gridsize=(301,301), window_width=1.2, angular_width = 0.0, plot_theta_index = 0, batch_size = 101*101, adapt_scale = False, raw_output_directory="" # Parameters for outputs
         ):
     '''
     Simple front-end for MAGreeTe
@@ -126,7 +126,7 @@ def main(ndim, # Required arguments
             print_type = lattice
 
         # Create output directory
-        output_directory = os.path.abspath(output_directory)
+        output_directory = os.path.abspath(raw_output_directory)
         output_directory = os.path.join(output_directory, "N"+str(N_raw), output_directory_suffix)
         utils.trymakedir(output_directory)
 
@@ -205,10 +205,11 @@ def main(ndim, # Required arguments
                 hkl.dump(points.numpy(), saved_points_file)
 
         # Now, cut points according to sss
-        points = lattices.cut_circle(points,cut_radius)
-        if size_subsample < 1.0:
-            sss_subdir = "size_subsampling_"+str(size_subsample)
-            output_directory = os.path.join(output_directory, sss_subdir)
+        if cut_circle:
+            points = lattices.cut_circle(points,cut_radius)
+            if size_subsample < 1.0:
+                sss_subdir = "size_subsampling_"+str(size_subsample)
+                output_directory = os.path.join(output_directory, sss_subdir)
         utils.trymakedir(output_directory)
         file_name = os.path.join(output_directory, file_name)
         
@@ -403,7 +404,7 @@ def main(ndim, # Required arguments
                     k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                     Ej, params, _, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
                     Ej = np.from_numpy(Ej)
-                    thetas = onp.float64(thetas)
+                    thetas = thetas.astype(onp.float64)
                     alpha, k0 = params
                     k0 = onp.float64(k0)
                     alpha = onp.complex128(alpha)
@@ -460,8 +461,6 @@ def main(ndim, # Required arguments
                 else:
                     utils.plot_transmission_angularbeam_3d(k0range, L, thetas, u, total, measurement_points, file_name, angular_width = angular_width, normalization = I0all, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_incnorm')
                     utils.plot_transmission_angularbeam_3d(k0range, L, thetas, u, total, measurement_points, file_name, angular_width = angular_width, normalization = total, adapt_scale = adapt_scale, appended_string='_trad'+str(transmission_radius)+'_angwidth'+str(angular_width)+'_'+str(file_index)+'_norm')
-
-
 
                 if scattered_fields:
                     # Compute scattered intensities at measurement points
@@ -592,7 +591,7 @@ def main(ndim, # Required arguments
                 if os.path.isfile(file):
                     Ej, params, _, thetas = hkl.load(file_name+'_Ek_k0_'+str(k0_)+'_'+str(file_index)+'.hkl')
                     Ej = np.from_numpy(Ej)
-                    thetas = onp.float64(thetas)
+                    thetas = thetas.astype(onp.float64)
                     alpha, k0 = params
                     k0 = k0.real
                     alpha = onp.complex128(alpha)
@@ -678,7 +677,8 @@ def main(ndim, # Required arguments
                         viewing_angle = np.arctan2(measurement_points[:,1], measurement_points[:,0]) #y,x
                     else:
                         viewing_unit_vector = measurement_points / np.linalg.norm(measurement_points, axis = -1).unsqueeze(-1)
-
+                    if save_fields:
+                        hkl.dump(Eall.reshape(ngridy, ngridx).numpy(), file_name+'_Eall_k0_'+str(k0_)+'_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'.hkl')
                     if scalar:
                         Eall = Eall.reshape(ngridy, ngridx)
                         utils.plot_full_fields(Eall, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index), my_dpi = 300)
@@ -1039,7 +1039,7 @@ def main(ndim, # Required arguments
 
         if ndim == 2:
 
-            if compute_transmission: 
+            if plot_transmission: 
 
                 # Accumulate data from calculations
                 E_all = []
@@ -1049,8 +1049,8 @@ def main(ndim, # Required arguments
 
                     E_onecopy, E_onecopy, k0range, thetas = hkl.load(file_name+'_transmission_'+str(file_index)+'.hkl')
                     E_onecopy = onp.complex128(E_onecopy)
-                    thetas = onp.float64(thetas)
-                    k0range = onp.float64(k0range)
+                    thetas = thetas.astype(onp.float64)
+                    k0range = k0range.astype(onp.float64)
                     I_onecopy = onp.absolute(E_onecopy)**2
                     if not scalar:
                         I_onecopy = onp.sum(I_onecopy, axis=2)
@@ -1092,32 +1092,29 @@ def main(ndim, # Required arguments
                     if not scalar:
                         I0all = onp.sum(I0all, axis = 2)
 
-                # If required: plot results
-                if plot_transmission:
-                    
-                    if ndim == 2:
-                        # Produce plots for average intensity
-                        utils.plot_transmission_angularbeam(k0range, L, thetas, I_mean, file_name, n_thetas_trans = n_thetas_trans, appended_string='_averageintensity_'+str(n_copies)+'copies', adapt_scale = adapt_scale)
-                        # Produce plots for normalized average intensity
-                        utils.plot_transmission_angularbeam(k0range, L, thetas, I_mean, file_name, n_thetas_trans = n_thetas_trans, normalization=I0all, appended_string='_averageintensity_'+str(n_copies)+'copies_incnorm', adapt_scale = adapt_scale)
-                        # Produce plots for intensity of the average field = ballistic intensity
-                        utils.plot_transmission_angularbeam(k0range, L, thetas, I_ball, file_name, n_thetas_trans = n_thetas_trans, appended_string='_ballisticintensity_'+str(n_copies)+'copies', adapt_scale = adapt_scale)
-                        # Produce plots for NORMALIZED intensity of the average field = ballistic intensity
-                        utils.plot_transmission_angularbeam(k0range, L, thetas, I_ball, file_name, n_thetas_trans = n_thetas_trans, normalization=I0all, appended_string='_ballisticintensity_'+str(n_copies)+'copies_incnorm', adapt_scale = adapt_scale)
-                        # Produce plots for intensity of the fluctuating field
-                        utils.plot_transmission_angularbeam(k0range, L, thetas, I_fluct, file_name, n_thetas_trans = n_thetas_trans, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies', adapt_scale = adapt_scale)
-                    else:
-                        # Produce plots for average intensity
-                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, u, I_mean, measurement_points, file_name, appended_string='_averageintensity_'+str(n_copies)+'copies', adapt_scale = adapt_scale)
-                        # Produce plots for normalized average intensity
-                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, u, I_mean, measurement_points, file_name, normalization=I0all, appended_string='_averageintensity_'+str(n_copies)+'copies_incnorm', adapt_scale = adapt_scale)
-                        # Produce plots for intensity of the average field = ballistic intensity
-                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, u, I_ball, measurement_points, file_name, appended_string='_ballisticintensity_'+str(n_copies)+'copies', adapt_scale = adapt_scale)
-                        # Produce plots for NORMALIZED intensity of the average field = ballistic intensity
-                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, u, I_ball, measurement_points, file_name, normalization=I0all, appended_string='_ballisticintensity_'+str(n_copies)+'copies_incnorm', adapt_scale = adapt_scale)
-                        # Produce plots for intensity of the fluctuating field
-                        utils.plot_transmission_angularbeam_3d(k0range, L, thetas, u, I_fluct, measurement_points, file_name, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies', adapt_scale = adapt_scale)
-                    
+                if ndim == 2:
+                    # Produce plots for average intensity
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, I_mean, file_name, n_thetas_trans = n_thetas_trans, appended_string='_averageintensity_'+str(n_copies)+'copies', adapt_scale = adapt_scale)
+                    # Produce plots for normalized average intensity
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, I_mean, file_name, n_thetas_trans = n_thetas_trans, normalization=I0all, appended_string='_averageintensity_'+str(n_copies)+'copies_incnorm', adapt_scale = adapt_scale)
+                    # Produce plots for intensity of the average field = ballistic intensity
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, I_ball, file_name, n_thetas_trans = n_thetas_trans, appended_string='_ballisticintensity_'+str(n_copies)+'copies', adapt_scale = adapt_scale)
+                    # Produce plots for NORMALIZED intensity of the average field = ballistic intensity
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, I_ball, file_name, n_thetas_trans = n_thetas_trans, normalization=I0all, appended_string='_ballisticintensity_'+str(n_copies)+'copies_incnorm', adapt_scale = adapt_scale)
+                    # Produce plots for intensity of the fluctuating field
+                    utils.plot_transmission_angularbeam(k0range, L, thetas, I_fluct, file_name, n_thetas_trans = n_thetas_trans, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies', adapt_scale = adapt_scale)
+                else:
+                    # Produce plots for average intensity
+                    utils.plot_transmission_angularbeam_3d(k0range, L, thetas, u, I_mean, measurement_points, file_name, appended_string='_averageintensity_'+str(n_copies)+'copies', adapt_scale = adapt_scale)
+                    # Produce plots for normalized average intensity
+                    utils.plot_transmission_angularbeam_3d(k0range, L, thetas, u, I_mean, measurement_points, file_name, normalization=I0all, appended_string='_averageintensity_'+str(n_copies)+'copies_incnorm', adapt_scale = adapt_scale)
+                    # Produce plots for intensity of the average field = ballistic intensity
+                    utils.plot_transmission_angularbeam_3d(k0range, L, thetas, u, I_ball, measurement_points, file_name, appended_string='_ballisticintensity_'+str(n_copies)+'copies', adapt_scale = adapt_scale)
+                    # Produce plots for NORMALIZED intensity of the average field = ballistic intensity
+                    utils.plot_transmission_angularbeam_3d(k0range, L, thetas, u, I_ball, measurement_points, file_name, normalization=I0all, appended_string='_ballisticintensity_'+str(n_copies)+'copies_incnorm', adapt_scale = adapt_scale)
+                    # Produce plots for intensity of the fluctuating field
+                    utils.plot_transmission_angularbeam_3d(k0range, L, thetas, u, I_fluct, measurement_points, file_name, appended_string='_fluctuatingintensity_'+str(n_copies)+'copies', adapt_scale = adapt_scale)
+                
 def make_lattice(lattice, N_raw, kick, ndim):
 
     if ndim==2:
@@ -1262,6 +1259,8 @@ if __name__ == '__main__':
         default=0", default=0)
     parser.add_argument("-c","--composite", action='store_true', help="Whether to fill annulus vacancy with square lattice\
         default=False", default=False)
+    parser.add_argument("--slab", action='store_true', help="Whether to keep a square slab\
+        default=False", default=False)
     parser.add_argument("--kick", type=float, help="Value of max amplitude of randomly oriented, random uniform length small kicks to add to all positions, in units of L\
         default = 0", default = 0.0)
     parser.add_argument("--shift", type = float, help ="Shifts the positions of the whole system by one random vector of the specified modulus\
@@ -1331,7 +1330,7 @@ if __name__ == '__main__':
     parser.add_argument("--plot_theta_index", type = int, help="Index of special theta to use for some plots\
         default = 0", default = 0)
     parser.add_argument("--adapt_scale", action='store_true', help="Whether to adapt intensity scales in transmission plots to actual value, otherwise snapped to 1e-3 to 1e0\
-        default = false0", default = False)
+        default = false", default = False)
     parser.add_argument("-o", "--output", type=str, help="Output directory\
         default = ./refractive_n_$Value/", default='')
 
@@ -1369,6 +1368,7 @@ if __name__ == '__main__':
     lattice                         = args.lattice
     annulus                         = args.annulus
     composite                       = args.composite
+    cut_circle                      = not args.slab
     kick                            = args.kick
     shift                           = args.shift
     # Outputs
@@ -1416,13 +1416,13 @@ if __name__ == '__main__':
     main(ndim,
         refractive_n = refractive_n,  phi=phi, regularize=regularize, N_raw=N, source = source, beam_waist=beam_waist, L=boxsize, size_subsample=size_subsample, scalar=scalar,
         k0range_args = k0range_args, thetarange_args=thetarange_args, polarization_angle_degrees=polarization_angle_degrees, switch_angle_scans = switch_angle_scans, rotate_u = rotate_u, input_files_args = input_files_args,
-        cold_atoms=cold_atoms, kresonant_ = kresonant_, lattice=lattice, annulus = annulus, composite = composite, kick = kick, shift = shift,
+        cold_atoms=cold_atoms, kresonant_ = kresonant_, lattice=lattice, annulus = annulus, composite = composite, cut_circle=cut_circle, kick = kick, shift = shift,
         compute_transmission = compute_transmission, plot_transmission=plot_transmission, single_scattering_transmission=single_scattering_transmission, scattered_fields=scattered_fields, transmission_radius=transmission_radius, N_fibo=N_fibo,
         compute_DOS=compute_DOS, compute_cavityDOS = compute_cavityDOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS, dos_sizes_args= dos_sizes_args, 
         compute_eigenmodes = compute_eigenmodes, number_eigenmodes = number_eigenmodes, plot_eigenmodes = plot_eigenmodes, sorting_type = sorting_type, slice_coordinate = slice_coordinate,
         intensity_fields = intensity_fields, amplitude_fields=amplitude_fields, phase_fields=phase_fields, just_compute_averages=just_compute_averages,
         dospoints=dospoints, spacing_factor=spacing_factor, idos_radius=idos_radius, write_eigenvalues=write_eigenvalues, write_ldos=write_ldos, gridsize=gridsize, window_width=window_width, batch_size = batch_size, angular_width=angular_width, plot_theta_index=plot_theta_index, adapt_scale = adapt_scale,
-        output_directory=output_directory
+        raw_output_directory=output_directory
         )
     sys.exit()
 
