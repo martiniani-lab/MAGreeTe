@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Casiulis"
+  given-names: "Mathias"
+  orcid: "https://orcid.org/0000-0002-5370-076X"
+- family-names: "Shih"
+  given-names: "Aaron"
+  orcid: "https://orcid.org/0000-0003-3602-6782"
+- family-names: "Martiniani"
+  given-names: "Stefano"
+  orcid: "https://orcid.org/0000-0003-2028-2175"
+title: "MAGreeTe"
+date-released: 2024-03-10
+url: "https://github.com/martiniani-lab/MAGreeTe"
