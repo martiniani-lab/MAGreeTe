@@ -32,8 +32,12 @@ def main(ndim, # Required arguments
     '''
     
     # Keep cut_radius as the internal here
-    cut_radius = 0.5 * size_subsample
-    beam_waist *= size_subsample
+    if cut_circle:
+        cut_radius = 0.5 * size_subsample
+        beam_waist *= size_subsample
+    else:
+        # If not cut_circle, assume slab geometry and that the measurement will be performed at small angles only right behind the slab
+        slab_halfwidth = 0.5 * size_subsample
     transmission_radius *= size_subsample
     
     polarization_angle_radians = polarization_angle_degrees * onp.pi / 180.0
@@ -207,9 +211,12 @@ def main(ndim, # Required arguments
         # Now, cut points according to sss
         if cut_circle:
             points = lattices.cut_circle(points,cut_radius)
-            if size_subsample < 1.0:
-                sss_subdir = "size_subsampling_"+str(size_subsample)
-                output_directory = os.path.join(output_directory, sss_subdir)
+        else:
+            #Slab geometry
+            points = lattices.cut_slab(points, slab_halfwidth)
+        if size_subsample < 1.0:
+            sss_subdir = "size_subsampling_"+str(size_subsample)
+            output_directory = os.path.join(output_directory, sss_subdir)
         utils.trymakedir(output_directory)
         file_name = os.path.join(output_directory, file_name)
         

@@ -9,6 +9,11 @@ def cut_circle(r, rad=0.5):
     r = np.squeeze(r[idx])
     return r
 
+def cut_slab(r, halfwidth=0.5):
+    idx = np.nonzero(np.abs(r[:,0])<=halfwidth)
+    r = np.squeeze(r[idx])
+    return r
+
 def exclude_circle(r, rad=0.25):
     idx = np.nonzero(np.linalg.norm(r,axis=-1)>rad)
     r = np.squeeze(r[idx])
