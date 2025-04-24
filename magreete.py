@@ -214,6 +214,7 @@ def main(ndim, # Required arguments
         else:
             #Slab geometry
             points = lattices.cut_slab(points, slab_halfwidth)
+            output_directory += "_slab"
         if size_subsample < 1.0:
             sss_subdir = "size_subsampling_"+str(size_subsample)
             output_directory = os.path.join(output_directory, sss_subdir)
