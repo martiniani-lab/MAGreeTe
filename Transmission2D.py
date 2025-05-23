@@ -60,7 +60,7 @@ class Transmission2D_vector:
         else:
             exit("torch Hankel function only implemented for orders 0 and 1!")
 
-    def torch_greens(self, r, k0, periodic = '', regularize = False, radius = 0.0):
+    def torch_greens(self, r, k0, periodic = '', regularize = False, radius = 0.0 , transverse = False):
         '''
         Torch implementation of the TE Green's function, taking tensors as entries
         r          - (N,M,2)      distances to propagate over
@@ -88,7 +88,10 @@ class Transmission2D_vector:
         if regularize:
             R = np.where(R < radius, 0.0, R)
 
-        return 0.25j*((I-RxR)*self.torch_hankel1(0,R).reshape(N,M,1,1)-(I-2*RxR)*(self.torch_hankel1(1,R)/R).reshape(N,M,1,1))
+        if transverse:
+            return 0.25j*(I-RxR)*(self.torch_hankel1(0,R).reshape(N,M,1,1)-(self.torch_hankel1(1,R)/R).reshape(N,M,1,1))
+        else:
+            return 0.25j*((I-RxR)*self.torch_hankel1(0,R).reshape(N,M,1,1)-(I-2*RxR)*(self.torch_hankel1(1,R)/R).reshape(N,M,1,1))
     
     def generate_source(self, points, k0, thetas, w, print_statement=''):
         '''
@@ -260,7 +263,7 @@ class Transmission2D_vector:
                 
         return Ek_
 
-    def G0_vector(self, points, k0, print_statement = '', regularize = False, radius = 0.0):
+    def G0_vector(self, points, k0, print_statement = '', regularize = False, radius = 0.0, transverse = False):
         '''
         Returns a Green's tensor linking all points to all scatterers for the TE polarization
         '''
@@ -271,7 +274,7 @@ class Transmission2D_vector:
             points_ = points
         k0_ = onp.round(k0/(2.0*onp.pi),1)
         print("Calculating TE Green's function at k0L/2pi = "+str(k0_)+' ('+print_statement+')')
-        G0 = self.torch_greens(points_.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0, regularize=regularize, radius=radius)
+        G0 = self.torch_greens(points_.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0, regularize=regularize, radius=radius, transverse=transverse)
         #Construct matrix form
         if points == None:
             for idx in range(self.N):
@@ -279,7 +282,7 @@ class Transmission2D_vector:
         G0 = np.transpose(G0,1,2).reshape(2*G0.shape[0],2*G0.shape[1]).to(np.complex128)
         return G0
 
-    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", t_matrix = True, regularize = False, discard_absorption = False):
+    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", t_matrix = True, transverse = True, regularize = False, discard_absorption = False):
         '''
         Computes the LDOS averaged at a list of measurement points, for TM and TE.
         This computation is a bit less expensive than the actual LDOS one,
@@ -303,10 +306,10 @@ class Transmission2D_vector:
         if t_matrix:
             volume = onp.pi*radius*radius
             alpha_d = alpha / (1 - k0**2 * alpha * self_interaction_integral_vector(k0, radius, self_interaction_type) / volume)
-            M_tensor = -alpha_d*k0*k0*self.G0_vector(None, k0, print_statement='DOS inverse')
+            M_tensor = -alpha_d*k0*k0*self.G0_vector(None, k0, print_statement='DOS inverse', transverse=transverse)
             self_interaction = False
         else:
-            M_tensor = -alpha*k0*k0*self.G0_vector(None, k0, print_statement='DOS inverse')
+            M_tensor = -alpha*k0*k0*self.G0_vector(None, k0, print_statement='DOS inverse', transverse=transverse)
         M_tensor.fill_diagonal_(1)
         if self_interaction:
             # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
@@ -317,7 +320,7 @@ class Transmission2D_vector:
         W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0_vector(measure_points, k0, print_statement='DOS measure', regularize=regularize, radius=radius)
+        G0_measure = self.G0_vector(measure_points, k0, print_statement='DOS measure', regularize=regularize, radius=radius, transverse = transverse)
         # Check for measurement points falling exactly on scatterers
         for j in np.argwhere(np.isnan(G0_measure)):
             point_idx = j[0]
@@ -343,7 +346,7 @@ class Transmission2D_vector:
 
         return dos_factor_vector
 
-    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", t_matrix = True, regularize = False, discard_absorption = False):
+    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", t_matrix = True, regularize = False, discard_absorption = False, transverse=True):
         '''
         Computes the LDOS at a list of measurement points, for TM and TE.
         This computation is fairly expensive, the number of measurement points should be small to avoid saturating resources.
@@ -364,10 +367,10 @@ class Transmission2D_vector:
         if t_matrix:
             volume = onp.pi*radius*radius
             alpha_d = alpha / (1 - k0**2 * alpha * self_interaction_integral_vector(k0, radius, self_interaction_type) / volume)
-            M_tensor = -alpha_d*k0*k0*self.G0_vector(None, k0, print_statement='DOS inverse')
+            M_tensor = -alpha_d*k0*k0*self.G0_vector(None, k0, print_statement='DOS inverse', transverse=transverse)
             self_interaction = False
         else:
-            M_tensor = -alpha*k0*k0*self.G0_vector(None, k0, print_statement='DOS inverse')
+            M_tensor = -alpha*k0*k0*self.G0_vector(None, k0, print_statement='DOS inverse', transverse=transverse)
 
         M_tensor.fill_diagonal_(1)
         if self_interaction:
@@ -379,7 +382,7 @@ class Transmission2D_vector:
         W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0_vector(measure_points, k0, print_statement='LDOS measure', regularize=regularize, radius=radius)
+        G0_measure = self.G0_vector(measure_points, k0, print_statement='LDOS measure', regularize=regularize, radius=radius, transverse=transverse)
         # Check for measurement points falling exactly on scatterers
         for j in np.argwhere(np.isnan(G0_measure)):
             point_idx = j[0]

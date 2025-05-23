@@ -44,7 +44,7 @@ class Transmission3D_vector:
         self.N = self.r.shape[0]
         self.source = source
     
-    def greens(self,r,k0,periodic = '', regularize = False, radius=0.0):
+    def greens(self,r,k0,periodic = '', regularize = False, radius=0.0, transverse = False):
         '''
         Torch implementation of the 3d Green's function, taking tensors as entries
         r          - (M,2)      distances to propagate over
@@ -74,7 +74,10 @@ class Transmission3D_vector:
         if regularize:
             R = np.where(R < radius, 0.0, R)
 
-        return (I-RxR-(I-3*RxR)*(1/(1j*k0*R)+(k0*R)**-2))*np.exp(1j*k0*R)/(4*onp.pi*R)
+        if transverse:
+            return (I-RxR) *(1 - (1/(1j*k0*R)+(k0*R)**-2))*np.exp(1j*k0*R)/(4*onp.pi*R)
+        else:
+            return (I-RxR-(I-3*RxR)*(1/(1j*k0*R)+(k0*R)**-2))*np.exp(1j*k0*R)/(4*onp.pi*R)
 
     def generate_source(self, points, k0, u, p, w, print_statement = ''):
         '''
@@ -237,7 +240,7 @@ class Transmission3D_vector:
                 
         return Ek_
 
-    def G0(self, points, k0, print_statement='', regularize = False, radius = 0.0):
+    def G0(self, points, k0, print_statement='', regularize = False, radius = 0.0, transverse = False):
         '''
         Generate the Green's tensor for a set of positions
 
@@ -256,7 +259,7 @@ class Transmission3D_vector:
         k0_ = onp.round(k0/(2.0*onp.pi),1)
         print("Calculating Green's function at k0L/2pi = "+str(k0_)+' ('+print_statement+')')
         # populate Green's tensor
-        G0 = self.greens(points_.reshape(-1,1,3)-self.r.reshape(1,-1,3), k0, regularize=regularize, radius=radius) #shape is (M,N,3,3)
+        G0 = self.greens(points_.reshape(-1,1,3)-self.r.reshape(1,-1,3), k0, regularize=regularize, radius=radius, transverse=transverse) #shape is (M,N,3,3)
 
         # replace NaN entries resulting from divergence (r-r'=0)
         if points == None:
@@ -267,7 +270,7 @@ class Transmission3D_vector:
         G0 = np.transpose(G0,1,2).reshape(3*G0.shape[0],3*G0.shape[1]).to(np.complex128)
         return G0
 
-    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, self_interaction_type = "Rayleigh", t_matrix = True, regularize = False, discard_absorption = False):
+    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, self_interaction_type = "Rayleigh", t_matrix = True, transverse =True, regularize = False, discard_absorption = False):
         '''
         Computes the LDOS averaged at a list of measurement points.
         This computation is a bit less expensive than the actual LDOS one,
@@ -290,10 +293,10 @@ class Transmission3D_vector:
         if t_matrix:
             volume = 4*onp.pi*(radius**3)/3
             alpha_d = alpha / (1 - k0**2 * alpha * self_interaction_integral_vector(k0, radius, self_interaction_type) / volume)
-            M_tensor = -alpha_d*k0*k0*self.G0(None, k0, print_statement='DOS inverse')
+            M_tensor = -alpha_d*k0*k0*self.G0(None, k0, print_statement='DOS inverse', transverse=transverse)
             self_interaction = False
         else:
-            M_tensor = -alpha*k0*k0*self.G0(None, k0, print_statement='DOS inverse')
+            M_tensor = -alpha*k0*k0*self.G0(None, k0, print_statement='DOS inverse', transverse = transverse)
             
         M_tensor.fill_diagonal_(1)
         if self_interaction:
@@ -305,7 +308,7 @@ class Transmission3D_vector:
         W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0(measure_points, k0, print_statement='DOS measure', regularize=regularize, radius = radius)
+        G0_measure = self.G0(measure_points, k0, print_statement='DOS measure', regularize=regularize, radius = radius, transverse = transverse)
         # Check for measurement points falling exactly on scatterers
         for j in np.argwhere(np.isnan(G0_measure)):
             point_idx = j[0]
@@ -331,7 +334,7 @@ class Transmission3D_vector:
 
         return dos_factor
 
-    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, self_interaction_type = "Rayleigh", t_matrix = True, regularize = False, discard_absorption = False):
+    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, self_interaction_type = "Rayleigh", t_matrix = True, regularize = False, discard_absorption = False, transverse = True):
         '''
         Computes the LDOS at a list of measurement points
         This computation is fairly expensive, the number of measurement points should be small to avoid saturating resources
@@ -351,10 +354,10 @@ class Transmission3D_vector:
         if t_matrix:
             volume = 4*onp.pi*(radius**3)/3
             alpha_d = alpha / (1 - k0**2 * alpha * self_interaction_integral_vector(k0, radius, self_interaction_type) / volume)
-            M_tensor = -alpha_d*k0*k0*self.G0(None, k0, print_statement='DOS inverse')
+            M_tensor = -alpha_d*k0*k0*self.G0(None, k0, print_statement='DOS inverse', transverse=transverse)
             self_interaction = False
         else:
-            M_tensor = -alpha*k0*k0*self.G0(None, k0, print_statement='DOS inverse')
+            M_tensor = -alpha*k0*k0*self.G0(None, k0, print_statement='DOS inverse', transverse=transverse)
 
         M_tensor.fill_diagonal_(1)
         if self_interaction:
@@ -366,7 +369,7 @@ class Transmission3D_vector:
         W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
 
         # Define the propagators from scatterers to measurement points
-        G0_measure = self.G0(measure_points, k0, print_statement='LDOS measure', regularize=regularize, radius=radius)
+        G0_measure = self.G0(measure_points, k0, print_statement='LDOS measure', regularize=regularize, radius=radius, transverse=transverse)
         # Check for measurement points falling exactly on scatterers
         for j in np.argwhere(np.isnan(G0_measure)):
             point_idx = j[0]
