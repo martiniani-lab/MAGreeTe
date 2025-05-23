@@ -279,7 +279,7 @@ class Transmission2D_vector:
         G0 = np.transpose(G0,1,2).reshape(2*G0.shape[0],2*G0.shape[1]).to(np.complex128)
         return G0
 
-    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", regularize = False, discard_absorption = False):
+    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", t_matrix = True, regularize = False, discard_absorption = False):
         '''
         Computes the LDOS averaged at a list of measurement points, for TM and TE.
         This computation is a bit less expensive than the actual LDOS one,
@@ -300,7 +300,13 @@ class Transmission2D_vector:
 
         ### TE calculation
         # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
-        M_tensor = -alpha*k0*k0*self.G0_vector(None, k0, print_statement='DOS inverse')
+        if t_matrix:
+            volume = onp.pi*radius*radius
+            alpha_d = alpha / (1 - k0**2 * alpha * self_interaction_integral_vector(k0, radius, self_interaction_type) / volume)
+            M_tensor = -alpha_d*k0*k0*self.G0_vector(None, k0, print_statement='DOS inverse')
+            self_interaction = False
+        else:
+            M_tensor = -alpha*k0*k0*self.G0_vector(None, k0, print_statement='DOS inverse')
         M_tensor.fill_diagonal_(1)
         if self_interaction:
             # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
@@ -325,7 +331,9 @@ class Transmission2D_vector:
         # symm_mat = onp.matmul(onp.transpose(G0_measure), G0_measure)
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
         dos_factor_vector = ( np.matmul(G0_measure.t(), G0_measure) * W_tensor ).sum()/Npoints
-        if discard_absorption:
+        if t_matrix:
+            alpha_ = alpha_d
+        elif discard_absorption:
             # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
             alpha_ = onp.real(alpha)
         else:
@@ -335,7 +343,7 @@ class Transmission2D_vector:
 
         return dos_factor_vector
 
-    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", regularize = False, discard_absorption = False):
+    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", t_matrix = True, regularize = False, discard_absorption = False):
         '''
         Computes the LDOS at a list of measurement points, for TM and TE.
         This computation is fairly expensive, the number of measurement points should be small to avoid saturating resources.
@@ -353,7 +361,14 @@ class Transmission2D_vector:
 
         ### TE calculation
         # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
-        M_tensor = -alpha*k0*k0* self.G0_vector(None, k0, print_statement='LDOS inverse')
+        if t_matrix:
+            volume = onp.pi*radius*radius
+            alpha_d = alpha / (1 - k0**2 * alpha * self_interaction_integral_vector(k0, radius, self_interaction_type) / volume)
+            M_tensor = -alpha_d*k0*k0*self.G0_vector(None, k0, print_statement='DOS inverse')
+            self_interaction = False
+        else:
+            M_tensor = -alpha*k0*k0*self.G0_vector(None, k0, print_statement='DOS inverse')
+
         M_tensor.fill_diagonal_(1)
         if self_interaction:
             # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
@@ -377,7 +392,9 @@ class Transmission2D_vector:
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
         ldos_factor_vector = np.einsum('ij, ji->i',np.matmul(G0_measure, W_tensor), (G0_measure).t() )
-        if discard_absorption:
+        if t_matrix:
+            alpha_ = alpha_d
+        elif discard_absorption:
             # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
             alpha_ = onp.real(alpha)
         else:
@@ -697,7 +714,7 @@ class Transmission2D_scalar:
         G0_scalar = self.torch_greens(points.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0, regularize=regularize, radius=radius)
         return G0_scalar
 
-    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, self_interaction_type = "Rayleigh", regularize = False, discard_absorption = False):
+    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, self_interaction_type = "Rayleigh", t_matrix = True, regularize = False, discard_absorption = False):
         '''
         Computes the LDOS averaged at a list of measurement points, for TM and TE.
         This computation is a bit less expensive than the actual LDOS one,
@@ -717,7 +734,14 @@ class Transmission2D_scalar:
         print("Computing mean DOS using "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
 
         # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
-        M_tensor = -alpha*k0*k0* self.G0(self.r, k0, print_statement='DOS inverse')
+        if t_matrix:
+            volume = onp.pi*radius*radius
+            alpha_d = alpha / (1 - k0**2 * alpha * self_interaction_integral_scalar(k0, radius, self_interaction_type) / volume)
+            M_tensor = -alpha_d*k0*k0*self.G0(None, k0, print_statement='DOS inverse')
+            self_interaction = False
+        else:
+            M_tensor = -alpha*k0*k0*self.G0(None, k0, print_statement='DOS inverse')
+
         M_tensor.fill_diagonal_(1)
         if self_interaction:
             # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
@@ -743,7 +767,9 @@ class Transmission2D_scalar:
         #  Use that trace(A.B^T) = AxB with . = matrix product and x = Hadamard product, and that G^T G is symmetric,
         dos_factor_scalar = ( np.matmul(G0_measure.t(), G0_measure) * W_tensor ).sum()/Npoints
 
-        if discard_absorption:
+        if t_matrix:
+            alpha_ = alpha_d
+        elif discard_absorption:
             # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
             alpha_ = onp.real(alpha)
         else:
@@ -753,7 +779,7 @@ class Transmission2D_scalar:
 
         return dos_factor_scalar
 
-    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, self_interaction_type = "Rayleigh", regularize = False, discard_absorption = False):
+    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, self_interaction_type = "Rayleigh", t_matrix = True, regularize = False, discard_absorption = False):
         '''
         Computes the LDOS at a list of measurement points, for TM and TE.
         This computation is fairly expensive, the number of measurement points should be small to avoid saturating resources.
@@ -770,7 +796,14 @@ class Transmission2D_scalar:
         M = measure_points.shape[0]
 
         # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
-        M_tensor = -alpha*k0*k0* self.G0(self.r, k0, print_statement='LDOS inverse')
+        if t_matrix:
+            volume = onp.pi*radius*radius
+            alpha_d = alpha / (1 - k0**2 * alpha * self_interaction_integral_scalar(k0, radius, self_interaction_type) / volume)
+            M_tensor = -alpha_d*k0*k0*self.G0(None, k0, print_statement='DOS inverse')
+            self_interaction = False
+        else:
+            M_tensor = -alpha*k0*k0*self.G0(None, k0, print_statement='DOS inverse')
+
         M_tensor.fill_diagonal_(1)
         if self_interaction:
             # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
@@ -794,7 +827,9 @@ class Transmission2D_scalar:
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, W_tensor),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
         ldos_factor_scalar = np.einsum('ij, ji->i',np.matmul(G0_measure, W_tensor), (G0_measure).t() )
-        if discard_absorption:
+        if t_matrix:
+            alpha_ = alpha_d
+        elif discard_absorption:
             # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
             alpha_ = onp.real(alpha)
         else:
