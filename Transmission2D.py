@@ -712,9 +712,15 @@ class Transmission2D_scalar:
         Returns a Green's tensor linking all points to all scatterers for the TM polarization
         '''
         #Green's function
+        
+        if points == None:
+            points_ = self.r
+        else:
+            points_ = points
+        
         k0_ = onp.round(k0/(2.0*onp.pi),1)
         print("Calculating TM Green's function at k0L/2pi = "+str(k0_)+' ('+print_statement+')')
-        G0_scalar = self.torch_greens(points.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0, regularize=regularize, radius=radius)
+        G0_scalar = self.torch_greens(points_.reshape(-1,1,2) - self.r.reshape(1,-1,2), k0, regularize=regularize, radius=radius)
         return G0_scalar
 
     def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction= True, self_interaction_type = "Rayleigh", t_matrix = True, regularize = False, discard_absorption = False):
