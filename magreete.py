@@ -881,8 +881,9 @@ def main(ndim, # Required arguments
                 DOSall = onp.array([])
                 k0_range = onp.array([])
 
-                if os.path.exists(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_sf'+str(spacing_factor)+'.csv'):
-                    existing = onp.loadtxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_sf'+str(spacing_factor)+'.csv')
+                temp_filename = f"{file_name}_temp_idos_size{dos_size}_irad{idos_radius}_sf{spacing_factor}.csv"
+                if os.path.exists(temp_filename):
+                    existing = onp.loadtxt(temp_filename)
                     DOSall = existing[:,1]
                     k0_range = existing[:,0]
                     
@@ -901,7 +902,7 @@ def main(ndim, # Required arguments
                 else:
                     count = overlaps.shape[0]
                 while count > 0:
-                    print("Removing "+str(count)+" overlaps using an exclusion distance of "+str(spacing_factor)+" scatterer diameters...")
+                    print(f"Removing {count} overlaps using an exclusion distance of {spacing_factor} scatterer diameters...")
                     measurement_points[overlaps] = dos_size * L/2 * idos_radius * utils.uniform_unit_ball_picking(count, ndim).squeeze()
                     overlaps = np.nonzero(np.sum(np.cdist(measurement_points.to(np.double), disk_points.to(np.double), p=2) <= spacing, axis = -1)).squeeze()
                     if len(overlaps.shape) == 0:
@@ -935,12 +936,12 @@ def main(ndim, # Required arguments
                         idx = onp.argsort(k0_range)
                         k0_range = k0_range[idx]
                         DOSall = DOSall[idx]
-                        onp.savetxt(file_name+'_temp_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_sf'+str(spacing_factor)+'.csv',onp.stack([k0_range,DOSall]).T)
+                        onp.savetxt(temp_filename,onp.stack([k0_range,DOSall]).T)
                 
-                
-                onp.savetxt(file_name+'_idos_size'+str(dos_size)+'_irad'+str(idos_radius)+'_sf'+str(spacing_factor)+'.csv',onp.stack([k0_range,DOSall]).T)
+                final_filename = f"{file_name}_idos_size{dos_size}_irad{idos_radius}_sf{spacing_factor}.csv"
+                onp.savetxt(final_filename,onp.stack([k0_range,DOSall]).T)
 
-                utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'idos', appended_string='_'+str(file_index)+'_size'+str(dos_size)+'_irad'+str(idos_radius)+'_sf'+str(spacing_factor))
+                utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'idos', appended_string=f"_{file_index}_size{dos_size}_irad{idos_radius}_sf{spacing_factor}")
                 
         if compute_cavityDOS:
 
@@ -949,8 +950,9 @@ def main(ndim, # Required arguments
                 DOSall = onp.array([])
                 k0_range = onp.array([])
 
-                if os.path.exists(file_name+'_temp_cdos_size'+str(dos_size)+'.csv'):
-                    existing = onp.loadtxt(file_name+'_temp_cdos_size'+str(dos_size)+'.csv')
+                temp_filename = f"{file_name}_temp_cdos_size{dos_size}_sf{spacing_factor}.csv"
+                if os.path.exists(temp_filename):
+                    existing = onp.loadtxt(temp_filename)
                     DOSall = existing[:,1]
                     k0_range = existing[:,0]
                     
@@ -987,12 +989,12 @@ def main(ndim, # Required arguments
                         idx = onp.argsort(k0_range)
                         k0_range = k0_range[idx]
                         DOSall = DOSall[idx]
-                        onp.savetxt(file_name+'_temp_cdos_size'+str(dos_size)+'.csv',onp.stack([k0_range,DOSall]).T)
+                        onp.savetxt(temp_filename,onp.stack([k0_range,DOSall]).T)
                 
-                
-                onp.savetxt(file_name+'_cdos_size'+str(dos_size)+'.csv',onp.stack([k0_range,DOSall]).T)
+                final_filename = f"{file_name}_cdos_size{dos_size}_sf{spacing_factor}.csv"
+                onp.savetxt(final_filename,onp.stack([k0_range,DOSall]).T)
 
-                utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'cdos', appended_string='_'+str(file_index)+'_size'+str(dos_size))
+                utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'cdos', appended_string=f"_{file_index}_size_{dos_size}_sf_{spacing_factor}")
 
         if compute_LDOS:
 
