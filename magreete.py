@@ -686,7 +686,8 @@ def main(ndim, # Required arguments
                     else:
                         viewing_unit_vector = measurement_points / np.linalg.norm(measurement_points, axis = -1).unsqueeze(-1)
                     if save_fields:
-                            hkl.dump(Eall.reshape(ngridy, ngridx,-1).numpy(), file_name+'_Eall_k0_'+str(k0_)+'_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'.hkl')
+                        savedata = Eall.reshape(ngridy, ngridx,-1).numpy()
+                        hkl.dump(savedata, file_name+'_Eall_k0_'+str(k0_)+'_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'.hkl')
                     if scalar:
                         Eall = Eall.reshape(ngridy, ngridx)
                         utils.plot_full_fields(Eall, ngridx, ngridy, k0_, angle_, intensity_fields, amplitude_fields, phase_fields, file_name, appended_string='_width_'+str(window_width)+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index), my_dpi = 300)
