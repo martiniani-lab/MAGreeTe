@@ -282,7 +282,7 @@ class Transmission2D_vector:
         G0 = np.transpose(G0,1,2).reshape(2*G0.shape[0],2*G0.shape[1]).to(np.complex128)
         return G0
 
-    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", t_matrix = True, transverse = True, regularize = False, discard_absorption = False):
+    def mean_DOS_measurements(self, measure_points, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", t_matrix = True, transverse = False, regularize = False, discard_absorption = False):
         '''
         Computes the LDOS averaged at a list of measurement points, for TM and TE.
         This computation is a bit less expensive than the actual LDOS one,
@@ -346,7 +346,7 @@ class Transmission2D_vector:
 
         return dos_factor_vector
 
-    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", t_matrix = True, regularize = False, discard_absorption = False, transverse=True):
+    def LDOS_measurements(self, measure_points, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", t_matrix = False, regularize = False, discard_absorption = False, transverse=True, single_polarization = False):
         '''
         Computes the LDOS at a list of measurement points, for TM and TE.
         This computation is fairly expensive, the number of measurement points should be small to avoid saturating resources.
@@ -392,6 +392,7 @@ class Transmission2D_vector:
             if self_interaction:
                 volume = onp.pi*radius*radius
                 G0_measure[point_idx][scatter_idx] += self_interaction_integral_vector(k0, radius, self_interaction_type)/volume
+
         # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
         # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
         ldos_factor_vector = np.einsum('ij, ji->i',np.matmul(G0_measure, W_tensor), (G0_measure).t() )
@@ -405,7 +406,10 @@ class Transmission2D_vector:
         ldos_factor_vector *= 4.0 * k0*k0*alpha_
         ldos_factor_vector = np.imag(ldos_factor_vector)
         ldos_factor_vector = ldos_factor_vector.reshape(M,2,-1)
-        ldos_factor_vector = np.sum(ldos_factor_vector, 1)
+        if single_polarization:
+            ldos_factor_vector = 2*ldos_factor_vector[:, 0]
+        else:
+            ldos_factor_vector = np.sum(ldos_factor_vector, 1)
 
         return ldos_factor_vector
 
