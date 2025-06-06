@@ -22,7 +22,7 @@ def main(ndim, # Required arguments
         lattice=None, cold_atoms=False, kresonant_ = None, annulus = 0, composite = False, cut_circle=True, kick = 0.0, shift = 0.0, input_files_args = None, # Special cases
         k0range_args = None, thetarange_args = None, polarization_angle_degrees = 0, switch_angle_scans = False, rotate_u = [0,0], # Range of values to use
         compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, scattered_fields=False, transmission_radius = 2.0,
-        compute_DOS=False, compute_cavityDOS = False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, dos_sizes_args = None, dospoints=1, spacing_factor = 1.0, idos_radius = 1.0, N_fibo = 1000,
+        compute_DOS=False, compute_cavityDOS = False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, compute_LCDOS = False, dos_sizes_args = None, dospoints=1, spacing_factor = 1.0, idos_radius = 1.0, N_fibo = 1000,
         compute_eigenmodes = False, number_eigenmodes = 1, plot_eigenmodes = False, sorting_type = 'IPR', adapt_z = True, slice_coordinate = 0,
         intensity_fields = False, amplitude_fields = False, phase_fields = False, just_compute_averages = False,# Computations to perform
         save_fields=True, write_eigenvalues=False, write_ldos= False,  gridsize=(301,301), window_width=1.2, angular_width = 0.0, plot_theta_index = 0, batch_size = 101*101, adapt_scale = False, raw_output_directory="" # Parameters for outputs
@@ -230,7 +230,6 @@ def main(ndim, # Required arguments
         assert ndim == points.shape[1]
         print("\n\nLoaded a "+print_type+" system of N = "+str(N_raw)+" points in d = "+str(ndim))
         print("N = "+str(N)+" points remain after cutting to a disk and rescaling to L = "+str(L)+"\n\n")
-        hkl.dump(points.numpy(),"triangular.hkl")
         # Define wave-vector list here to avoid defining it again when averaging
         if ndim == 2:
             
@@ -997,7 +996,30 @@ def main(ndim, # Required arguments
 
                 utils.plot_averaged_DOS(k0range, L, DOSall, file_name, 'cdos', appended_string=f"_{file_index}_size_{dos_size}_sf_{spacing_factor}")
 
-        if compute_LDOS:
+        if compute_LDOS or compute_LCDOS:
+
+            if compute_LCDOS:
+                disk_points = lattices.cut_circle(points)
+                # Find all overlaps and remove from system
+                # Following Pierrat et al., I use 1 diameter as the spacing there
+                spacing = 2.0*radius
+                spacing *= spacing_factor
+                disk_points = lattices.exclude_circle(disk_points, spacing)
+                
+                if ndim == 2:
+                    utils.plot_2d_points(disk_points, file_name+'_measurement')
+                    if scalar:
+                        dos_solver = Transmission2D_scalar(disk_points, source = None)
+                    else:
+                        dos_solver = Transmission2D_vector(disk_points, source = None)
+                    
+                else:
+                    if scalar:
+                        dos_solver = Transmission3D_scalar(disk_points, source = None)
+                    else:
+                        dos_solver = Transmission3D_vector(disk_points, source = None)
+            else:
+                dos_solver = solver
 
             ngridx = gridsize[0]
             ngridy = gridsize[1]
@@ -1028,7 +1050,7 @@ def main(ndim, # Required arguments
                 for batch in range(0, n_batches):
                     print("Batch "+str(batch+1))
                     batch_points = batches[batch]
-                    ldos = solver.LDOS_measurements(batch_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
+                    ldos = dos_solver.LDOS_measurements(batch_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
 
                     outputs.append(ldos)
 
@@ -1038,10 +1060,17 @@ def main(ndim, # Required arguments
                 if ndim == 3:
                     slice_ = ('z','x','y')
                     slice_string = '_slice_'+slice_[slice_coordinate%3]
-                utils.plot_LDOS_2D(ldos,k0_,ngridx,ngridy,file_name, appended_string='_width_'+str(window_width)+slice_string+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index), my_dpi = 300)
+                image_filename_suffix = f'_width_{window_width}{slice_string}_grid_{ngridx}x{ngridy}_{file_index}'
+                if compute_LCDOS:
+                    image_filename_suffix += f'_cdos_sf{spacing_factor}'
+                utils.plot_LDOS_2D(ldos,k0_,ngridx,ngridy,file_name, appended_string=image_filename_suffix, my_dpi = 300)
 
                 if write_ldos:
-                    onp.savetxt(file_name+'_ldos_'+str(k0_)+'_'+str(index)+'.csv',ldos.numpy())
+                    csv_filename = file_name+'_ldos_'+str(k0_)+'_'+str(index)
+                    if compute_LCDOS:
+                        csv_filename += f'_cdos_sf{spacing_factor}'
+                    csv_filename += '.csv'
+                    onp.savetxt(csv_filename,ldos.numpy())
 
     ### Deal with averaging if several files provided
     n_copies = len(file_index_list)
@@ -1299,6 +1328,8 @@ if __name__ == '__main__':
         default=False", default=False)
     parser.add_argument("-ldos","--compute_LDOS", action='store_true', help="Compute an LDOS map  \
         default=False", default=False)
+    parser.add_argument("-lcdos","--compute_LCDOS", action='store_true', help="Compute an LDOS map with the CDOS cavity \
+        default=False", default=False)
     parser.add_argument("-ds", "--dos_sizes_args", nargs = "+", type = float, help = "System linear sizes to consider, as fractions of L\
         default=1", default = None)
     parser.add_argument("-em", "--compute_eigenmodes", action='store_true', help="Compute the eigenmodes of the linear system used to solve coupled dipoles, and saves eigenvalues, IPR, and some eigenfields\
@@ -1394,6 +1425,7 @@ if __name__ == '__main__':
     compute_interDOS                = args.compute_interDOS
     compute_SDOS                    = args.compute_SDOS
     compute_LDOS                    = args.compute_LDOS
+    compute_LCDOS                   = args.compute_LCDOS
     dos_sizes_args                       = args.dos_sizes_args
     if dos_sizes_args     != None:
         dos_sizes_args                   = tuple(dos_sizes_args)
@@ -1429,7 +1461,7 @@ if __name__ == '__main__':
         k0range_args = k0range_args, thetarange_args=thetarange_args, polarization_angle_degrees=polarization_angle_degrees, switch_angle_scans = switch_angle_scans, rotate_u = rotate_u, input_files_args = input_files_args,
         cold_atoms=cold_atoms, kresonant_ = kresonant_, lattice=lattice, annulus = annulus, composite = composite, cut_circle=cut_circle, kick = kick, shift = shift,
         compute_transmission = compute_transmission, plot_transmission=plot_transmission, single_scattering_transmission=single_scattering_transmission, scattered_fields=scattered_fields, transmission_radius=transmission_radius, N_fibo=N_fibo,
-        compute_DOS=compute_DOS, compute_cavityDOS = compute_cavityDOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS, dos_sizes_args= dos_sizes_args, 
+        compute_DOS=compute_DOS, compute_cavityDOS = compute_cavityDOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS, compute_LCDOS = compute_LCDOS, dos_sizes_args= dos_sizes_args, 
         compute_eigenmodes = compute_eigenmodes, number_eigenmodes = number_eigenmodes, plot_eigenmodes = plot_eigenmodes, sorting_type = sorting_type, slice_coordinate = slice_coordinate,
         intensity_fields = intensity_fields, amplitude_fields=amplitude_fields, phase_fields=phase_fields, just_compute_averages=just_compute_averages,
         dospoints=dospoints, spacing_factor=spacing_factor, idos_radius=idos_radius, write_eigenvalues=write_eigenvalues, write_ldos=write_ldos, gridsize=gridsize, window_width=window_width, batch_size = batch_size, angular_width=angular_width, plot_theta_index=plot_theta_index, adapt_scale = adapt_scale,
