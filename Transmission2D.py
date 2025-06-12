@@ -839,7 +839,7 @@ class Transmission2D_scalar:
         
         # Here, 2d vector waves: prefactor - c_d k^(2-d) = -4
         # Monsarrat uses -G as their G and has a minus in the c_d
-        G_tensor = 4 * self.G0(None, k0, print_statement='Hamiltonian DOS')
+        G_tensor = 4 * self.G0(self.r, k0, print_statement='Hamiltonian DOS')
         G_tensor.fill_diagonal_(0)
         lambdas = np.linalg.eigvals(G_tensor)
         
