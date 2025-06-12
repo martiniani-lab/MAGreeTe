@@ -180,6 +180,20 @@ def rotate_3d_xy(u, rotate_u):
     
     return(rotated)
 
+def plot_hdos(k0range, L, deltas, hdos, file_name_root,  appended_string = ''):
+    
+    freqs = onp.real(k0range*L/(2*onp.pi))
+        
+    fig = plt.figure()
+    ax = fig.gca()
+    pc = ax.imshow(hdos.T,  cmap=cmr.cosmic, norm = clr.LogNorm(), extent =[freqs[0],freqs[-1],deltas[0],deltas[-1]], origin='lower')
+    ax.set_ylabel(r'$\delta$')
+    ax.set_xlabel(r'$k_0L/2\pi$')
+    ax.set_aspect((freqs[-1] - freqs[0])/(deltas[-1] - deltas[0]))
+    fig.colorbar(pc)
+    plt.savefig(file_name_root+'_hdos_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
+    plt.close()
+
 def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,  n_thetas_trans = 0.0, adapt_scale = False, normalization = onp.array([]), appended_string=''):
     """
     Plots a radial version of the frequency-angle transmission plot given 

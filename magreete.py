@@ -22,7 +22,7 @@ def main(ndim, # Required arguments
         lattice=None, cold_atoms=False, kresonant_ = None, annulus = 0, composite = False, cut_circle=True, kick = 0.0, shift = 0.0, input_files_args = None, # Special cases
         k0range_args = None, thetarange_args = None, polarization_angle_degrees = 0, switch_angle_scans = False, rotate_u = [0,0], # Range of values to use
         compute_transmission = False, plot_transmission = False, single_scattering_transmission = False, scattered_fields=False, transmission_radius = 2.0,
-        compute_DOS=False, compute_cavityDOS = False, compute_interDOS=False, compute_SDOS=False, compute_LDOS=False, compute_LCDOS = False, dos_sizes_args = None, dospoints=1, spacing_factor = 1.0, idos_radius = 1.0, N_fibo = 1000,
+        compute_DOS=False, compute_cavityDOS = False, compute_interDOS=False, compute_SDOS=False, compute_HDOS = False, compute_LDOS=False, compute_LCDOS = False, dos_sizes_args = None, dospoints=1, spacing_factor = 1.0, idos_radius = 1.0, N_fibo = 1000,
         compute_eigenmodes = False, number_eigenmodes = 1, plot_eigenmodes = False, sorting_type = 'IPR', adapt_z = True, slice_coordinate = 0,
         intensity_fields = False, amplitude_fields = False, phase_fields = False, just_compute_averages = False,# Computations to perform
         save_fields=True, write_eigenvalues=False, write_ldos= False,  gridsize=(301,301), window_width=1.2, angular_width = 0.0, plot_theta_index = 0, batch_size = 101*101, adapt_scale = False, raw_output_directory="" # Parameters for outputs
@@ -847,6 +847,24 @@ def main(ndim, # Required arguments
 
                         utils.plot_full_fields(Eall_amplitude, ngridx, ngridy, k0_, 0, True, False, False, file_name, appended_string='_width_'+str(window_width)+slice_string+'_grid_'+str(ngridx)+'x'+str(ngridy)+'_'+str(file_index)+'_eigen_'+sorting_type+str(i), my_dpi = 300)
 
+        if compute_HDOS:
+            
+            deltas = np.arange(-5,5,0.1)
+            HDOSall = []
+            k0_range = []
+            for k0 in k0range:
+                hdos = solver.compute_hamiltonian_DOS(k0, deltas, file_name, write_eigenvalues=write_eigenvalues)
+                HDOSall.append(hdos.numpy())
+                
+                k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
+                k0_range.append(k0_)
+
+                onp.savetxt(file_name+'_hdos_k0_'+str(k0_)+'.csv',onp.stack([deltas, hdos.numpy()]).T)
+                
+                
+            HDOSall = onp.array(HDOSall)
+            utils.plot_hdos(k0range, L, deltas, HDOSall, file_name,  appended_string = 'hdostest')
+
         if compute_DOS:
 
             DOSall = []
@@ -1326,6 +1344,8 @@ if __name__ == '__main__':
         default=False", default=False)
     parser.add_argument("-sdos","--compute_SDOS", action='store_true', help="Compute the spectrum of the Green's matrix, as well as the mean DOS at scatterers  \
         default=False", default=False)
+    parser.add_argument("-hdos", "--compute_HDOS", action='store_true', help="Compute the spectrum of the Green's matrix and deduce the near-resonance DOS as a function of detuning \
+        default=False", default=False)
     parser.add_argument("-ldos","--compute_LDOS", action='store_true', help="Compute an LDOS map  \
         default=False", default=False)
     parser.add_argument("-lcdos","--compute_LCDOS", action='store_true', help="Compute an LDOS map with the CDOS cavity \
@@ -1424,6 +1444,7 @@ if __name__ == '__main__':
     compute_cavityDOS               = args.compute_cavityDOS
     compute_interDOS                = args.compute_interDOS
     compute_SDOS                    = args.compute_SDOS
+    compute_HDOS                    = args.compute_HDOS
     compute_LDOS                    = args.compute_LDOS
     compute_LCDOS                   = args.compute_LCDOS
     dos_sizes_args                       = args.dos_sizes_args
@@ -1461,7 +1482,7 @@ if __name__ == '__main__':
         k0range_args = k0range_args, thetarange_args=thetarange_args, polarization_angle_degrees=polarization_angle_degrees, switch_angle_scans = switch_angle_scans, rotate_u = rotate_u, input_files_args = input_files_args,
         cold_atoms=cold_atoms, kresonant_ = kresonant_, lattice=lattice, annulus = annulus, composite = composite, cut_circle=cut_circle, kick = kick, shift = shift,
         compute_transmission = compute_transmission, plot_transmission=plot_transmission, single_scattering_transmission=single_scattering_transmission, scattered_fields=scattered_fields, transmission_radius=transmission_radius, N_fibo=N_fibo,
-        compute_DOS=compute_DOS, compute_cavityDOS = compute_cavityDOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_LDOS=compute_LDOS, compute_LCDOS = compute_LCDOS, dos_sizes_args= dos_sizes_args, 
+        compute_DOS=compute_DOS, compute_cavityDOS = compute_cavityDOS, compute_interDOS=compute_interDOS, compute_SDOS=compute_SDOS, compute_HDOS = compute_HDOS, compute_LDOS=compute_LDOS, compute_LCDOS = compute_LCDOS, dos_sizes_args= dos_sizes_args, 
         compute_eigenmodes = compute_eigenmodes, number_eigenmodes = number_eigenmodes, plot_eigenmodes = plot_eigenmodes, sorting_type = sorting_type, slice_coordinate = slice_coordinate,
         intensity_fields = intensity_fields, amplitude_fields=amplitude_fields, phase_fields=phase_fields, just_compute_averages=just_compute_averages,
         dospoints=dospoints, spacing_factor=spacing_factor, idos_radius=idos_radius, write_eigenvalues=write_eigenvalues, write_ldos=write_ldos, gridsize=gridsize, window_width=window_width, batch_size = batch_size, angular_width=angular_width, plot_theta_index=plot_theta_index, adapt_scale = adapt_scale,
