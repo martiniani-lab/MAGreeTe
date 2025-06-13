@@ -853,14 +853,17 @@ def main(ndim, # Required arguments
             HDOSall = []
             k0_range = []
             for k0 in k0range:
-                hdos = solver.compute_hamiltonian_DOS(k0, deltas, file_name, write_eigenvalues=write_eigenvalues)
-                HDOSall.append(hdos.numpy())
-                
                 k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
                 k0_range.append(k0_)
-
-                onp.savetxt(file_name+'_hdos_k0_'+str(k0_)+'.csv',onp.stack([deltas, hdos.numpy()]).T)
-                
+                hdos_filename = file_name+'_hdos_k0_'+str(k0_)+'.csv'
+                if os.path.exists(hdos_filename):
+                    existing = onp.loadtxt(hdos_filename)
+                    hdos = existing[:,1]
+                else:
+                    hdos = solver.compute_hamiltonian_DOS(k0, deltas, file_name, write_eigenvalues=write_eigenvalues).numpy()
+                    onp.savetxt(file_name+'_hdos_k0_'+str(k0_)+'.csv',onp.stack([deltas, hdos]).T)
+                    
+                HDOSall.append(hdos)
                 
             HDOSall = onp.array(HDOSall)
             utils.plot_hdos(k0range, L, deltas, HDOSall, file_name,  appended_string = 'hdostest')
