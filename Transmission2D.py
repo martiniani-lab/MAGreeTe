@@ -389,6 +389,30 @@ class Transmission2D_vector:
 
         return ldos_factor_vector
 
+    def compute_hamiltonian_DOS(self, k0, deltas, file_name, write_eigenvalues = True):
+        '''
+        Computes the eigenvalues of the Green's matrix and the corresponding resolvant of a simple near-resonant Hamiltonian to evaluate a DOS
+        '''
+        
+        Npoints = self.r.shape[0]
+        k0_ = onp.round(k0/(2.0*onp.pi),1)
+        print("Computing Hamiltonian DOS od "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
+        
+        # Here, 2d vector waves: prefactor - c_d k^(2-d) = -8
+        # Monsarrat uses -G as their G and has a minus in the c_d
+        G_tensor = 8 * self.G0_vector(None, k0, print_statement='Hamiltonian DOS')
+        G_tensor.fill_diagonal_(0)
+        lambdas = np.linalg.eigvals(G_tensor)
+        
+        if write_eigenvalues:
+            onp.savetxt(file_name+'_hamiltonian_lambdas_'+str(k0_)+'_vector.csv', onp.stack([np.real(lambdas).numpy(), np.imag(lambdas).numpy()]).T)
+            
+        resonance = deltas - 1j
+        resolvant = np.mean(1/(resonance.reshape(-1,1) - lambdas.reshape(1,-1)), axis=-1)
+        dos = np.imag(resolvant)/np.pi
+        
+        return dos
+        
     def compute_eigenvalues_and_scatterer_LDOS(self, k0, alpha, radius, file_name, self_interaction = True, self_interaction_type = "Rayleigh", write_eigenvalues = True):
         '''
         Computes the eigenvalues of the Green's matrix, and the corresponding LDOS at scatterers, for TM and TE.
@@ -803,6 +827,30 @@ class Transmission2D_scalar:
         ldos_factor_scalar = np.imag(ldos_factor_scalar)
 
         return ldos_factor_scalar
+    
+    def compute_hamiltonian_DOS(self, k0, deltas, file_name, write_eigenvalues = True):
+        '''
+        Computes the eigenvalues of the Green's matrix and the corresponding resolvant of a simple near-resonant Hamiltonian to evaluate a DOS
+        '''
+        
+        Npoints = self.r.shape[0]
+        k0_ = onp.round(k0/(2.0*onp.pi),1)
+        print("Computing Hamiltonian DOS od "+str(Npoints)+" points at k0L/2pi = "+str(k0_))
+        
+        # Here, 2d vector waves: prefactor - c_d k^(2-d) = -4
+        # Monsarrat uses -G as their G and has a minus in the c_d
+        G_tensor = 4 * self.G0(self.r, k0, print_statement='Hamiltonian DOS')
+        G_tensor.fill_diagonal_(0)
+        lambdas = np.linalg.eigvals(G_tensor)
+        
+        if write_eigenvalues:
+            onp.savetxt(file_name+'_hamiltonian_lambdas_'+str(k0_)+'_vector.csv', onp.stack([np.real(lambdas).numpy(), np.imag(lambdas).numpy()]).T)
+            
+        resonance = deltas - 1j
+        resolvant = np.mean(1/(resonance.reshape(-1,1) - lambdas.reshape(1,-1)), axis=-1)
+        dos = np.imag(resolvant)/np.pi
+        
+        return dos
 
     def compute_eigenvalues_and_scatterer_LDOS(self, k0, alpha, radius, file_name, self_interaction = True, self_interaction_type = "Rayleigh", write_eigenvalues = True):
         '''
