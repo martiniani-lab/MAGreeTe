@@ -186,7 +186,7 @@ def plot_hdos(k0range, L, deltas, hdos, file_name_root,  appended_string = ''):
         
     fig = plt.figure()
     ax = fig.gca()
-    pc = ax.imshow(hdos.T,  cmap=cmr.cosmic, norm = clr.LogNorm(), extent =[freqs[0],freqs[-1],deltas[0],deltas[-1]], origin='lower')
+    pc = ax.imshow(hdos.T,  cmap=cmr.cosmic, norm = clr.LogNorm(), extent =[freqs[0],freqs[-1],deltas[0],deltas[-1]])
     ax.set_ylabel(r'$\delta$')
     ax.set_xlabel(r'$k_0L/2\pi$')
     ax.set_aspect((freqs[-1] - freqs[0])/(deltas[-1] - deltas[0]))
