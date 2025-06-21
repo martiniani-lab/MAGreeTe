@@ -193,6 +193,37 @@ def plot_hdos(k0range, L, deltas, hdos, file_name_root,  appended_string = ''):
     fig.colorbar(pc)
     plt.savefig(file_name_root+'_hdos_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
     plt.close()
+    
+    fig = plt.figure()
+    ax = fig.gca()
+    pc = ax.imshow(hdos.T,  cmap=cmr.cosmic, vmin = 0, vmax = 0.5, extent =[freqs[0],freqs[-1],deltas[0],deltas[-1]])
+    ax.set_ylabel(r'$\delta$')
+    ax.set_xlabel(r'$k_0L/2\pi$')
+    ax.set_aspect((freqs[-1] - freqs[0])/(deltas[-1] - deltas[0]))
+    fig.colorbar(pc)
+    plt.savefig(file_name_root+'_hdos_linear_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
+    plt.close()
+    
+    pisa = (1./np.pi) / (deltas**2 + 1) 
+    fig = plt.figure()
+    ax = fig.gca()
+    pc = ax.imshow(hdos.T / pisa.reshape(-1,1),  cmap=cmr.iceburn, norm = clr.LogNorm(vmin = 1e-2, vmax = 1e2), extent =[freqs[0],freqs[-1],deltas[0],deltas[-1]])
+    ax.set_ylabel(r'$\delta$')
+    ax.set_xlabel(r'$k_0L/2\pi$')
+    ax.set_aspect((freqs[-1] - freqs[0])/(deltas[-1] - deltas[0]))
+    fig.colorbar(pc)
+    plt.savefig(file_name_root+'_hdos_pisaratio_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
+    plt.close()
+    
+    fig = plt.figure()
+    ax = fig.gca()
+    pc = ax.imshow(hdos.T / pisa.reshape(-1,1),  cmap=cmr.iceburn, vmin = 0, vmax = 2, extent =[freqs[0],freqs[-1],deltas[0],deltas[-1]])
+    ax.set_ylabel(r'$\delta$')
+    ax.set_xlabel(r'$k_0L/2\pi$')
+    ax.set_aspect((freqs[-1] - freqs[0])/(deltas[-1] - deltas[0]))
+    fig.colorbar(pc)
+    plt.savefig(file_name_root+'_hdos_linearpisaratio_'+appended_string+'.png', bbox_inches = 'tight',dpi=100, pad_inches = 0.1)
+    plt.close()
 
 def plot_transmission_angularbeam(k0range, L, thetas, intensity, file_name_root,  n_thetas_trans = 0.0, adapt_scale = False, normalization = onp.array([]), appended_string=''):
     """

@@ -1065,17 +1065,9 @@ def main(ndim, # Required arguments
 
             for k0, alpha in zip(k0range,alpharange):
 
-                outputs = []
                 k0_ = onp.round(onp.real(k0*L/(2*onp.pi)),1)
 
-                for batch in range(0, n_batches):
-                    print("Batch "+str(batch+1))
-                    batch_points = batches[batch]
-                    ldos = dos_solver.LDOS_measurements(batch_points, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
-
-                    outputs.append(ldos)
-
-                ldos = np.cat(outputs)
+                ldos = dos_solver.batch_LDOS_measurements(batches, k0, alpha, radius, regularize = regularize, self_interaction = self_interaction, self_interaction_type = self_interaction_type)
                 ldos = ldos.reshape(ngridy, ngridx)
                 slice_string = ''
                 if ndim == 3:

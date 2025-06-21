@@ -388,6 +388,69 @@ class Transmission2D_vector:
         ldos_factor_vector = np.sum(ldos_factor_vector, 1)
 
         return ldos_factor_vector
+    
+    def batch_LDOS_measurements(self, batches, k0, alpha, radius, self_interaction = True, self_interaction_type = "Rayleigh", regularize = False, discard_absorption = False):
+        '''
+        Computes the LDOS at a list of measurement points, for TM and TE.
+        This computation is fairly expensive, the number of measurement points should be small to avoid saturating resources.
+        NB: This form of the calculation is only valid in the lossless case, alpha real.
+        Imaginary parts of alpha lead to diverging parts of the DOS close to scatterers, and will be discarded.
+        batches             - (B,b,2) coordinates of points where the LDOS is evaluated, organized in B batches of b points 
+        k0                  - (1)    frequency of source beam
+        alpha               - (1)    bare static polarizability at given k0
+        radius              - (1)    radius of the scatterers
+        self_interaction    - (bool) include or not self-interactions, defaults to True 
+        self_interaction_type - (string)      what order of approximation of S to use, "Rayleigh" or "full"
+        '''
+
+        ### TE calculation
+        # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
+        M_tensor = -alpha*k0*k0* self.G0_vector(None, k0, print_statement='LDOS inverse')
+        M_tensor.fill_diagonal_(1)
+        if self_interaction:
+            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
+            volume = onp.pi*radius*radius
+            dims = M_tensor.shape[0]
+            M_tensor -= alpha*k0*k0*self_interaction_integral_vector(k0, radius, self_interaction_type)/volume * np.eye(dims)
+        # Compute W_tensor = inverse(M_tensor)
+        W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
+
+
+        n_batches = len(batches)
+        outputs = []
+        for batch in range(0, n_batches):
+            print("Batch "+str(batch+1))
+            batch_points = batches[batch]
+            M = batch_points.shape[0]
+
+            # Define the propagators from scatterers to measurement points
+            G0_measure = self.G0_vector(batch_points, k0, print_statement='LDOS measure', regularize=regularize, radius=radius)
+            # Check for measurement points falling exactly on scatterers
+            for j in np.argwhere(np.isnan(G0_measure)):
+                point_idx = j[0]
+                scatter_idx = j[1]
+                # At scatterers, replace G0(r_i, r_i) by self-interaction
+                G0_measure[point_idx][scatter_idx] = 0
+                if self_interaction:
+                    volume = onp.pi*radius*radius
+                    G0_measure[point_idx][scatter_idx] += self_interaction_integral_vector(k0, radius, self_interaction_type)/volume
+            # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, Ainv),onp.transpose(G0_measure)))
+            # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
+            ldos_factor_vector = np.einsum('ij, ji->i',np.matmul(G0_measure, W_tensor), (G0_measure).t() )
+            if discard_absorption:
+                # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
+                alpha_ = onp.real(alpha)
+            else:
+                alpha_ = alpha
+            ldos_factor_vector *= 4.0 * k0*k0*alpha_
+            ldos_factor_vector = np.imag(ldos_factor_vector)
+            ldos_factor_vector = ldos_factor_vector.reshape(M,2,-1)
+            ldos_factor_vector = np.sum(ldos_factor_vector, 1)
+            outputs.append(ldos_factor_vector)
+
+        ldos = np.cat(outputs)
+
+        return ldos
 
     def compute_hamiltonian_DOS(self, k0, deltas, file_name, write_eigenvalues = True):
         '''
@@ -827,6 +890,67 @@ class Transmission2D_scalar:
         ldos_factor_scalar = np.imag(ldos_factor_scalar)
 
         return ldos_factor_scalar
+    
+    
+    def batch_LDOS_measurements(self, batches, k0, alpha, radius, self_interaction= True, self_interaction_type = "Rayleigh", regularize = False, discard_absorption = False):
+        '''
+        Computes the LDOS at a list of measurement points, for TM and TE.
+        This computation is fairly expensive, the number of measurement points should be small to avoid saturating resources.
+        NB: This form of the calculation is only valid in the lossless case, alpha real.
+        Imaginary parts of alpha lead to diverging parts of the DOS close to scatterers, and will be discarded.
+        batches             - (B,b,2) coordinates of points where the LDOS is evaluated, organized in B batches of b points 
+        k0                  - (1)    frequency of source beam
+        alpha               - (1)    bare static polarizability at given k0
+        radius              - (1)    radius of the scatterers
+        self_interaction    - (bool) include or not self-interactions, defaults to True
+        self_interaction_type - (string)      what order of approximation of S to use, "Rayleigh" or "full"
+        '''
+
+        # Define the matrix M_tensor = I_tensor - k^2 alpha Green_tensor
+        M_tensor = -alpha*k0*k0* self.G0(self.r, k0, print_statement='LDOS inverse')
+        M_tensor.fill_diagonal_(1)
+        if self_interaction:
+            # Add self-interaction, (M_tensor)_ii = 1 - k^2 alpha self_int
+            volume = onp.pi*radius*radius
+            dims = M_tensor.shape[0]
+            M_tensor -= alpha*k0*k0*self_interaction_integral_scalar(k0, radius, self_interaction_type)/volume * np.eye(dims)
+        # Compute W_tensor = inverse(M_tensor)
+        W_tensor = np.linalg.solve(M_tensor, np.eye(len(M_tensor), dtype=np.complex128))
+
+
+        n_batches = len(batches)
+        outputs = []
+        for batch in range(0, n_batches):
+            print("Batch "+str(batch+1))
+            batch_points = batches[batch]
+            M = batch_points.shape[0]
+
+            # Define the propagators from scatterers to measurement points
+            G0_measure = self.G0(batch_points, k0, print_statement='LDOS measure', regularize=regularize, radius=radius)
+            # Check for measurement points falling exactly on scatterers
+            for j in np.argwhere(np.isnan(G0_measure)):
+                point_idx = j[0]
+                scatter_idx = j[1]
+                # At scatterers, replace G0(r_i, r_i) by self-interaction
+                G0_measure[point_idx][scatter_idx] = 0
+                if self_interaction:
+                    volume = onp.pi*radius*radius
+                    G0_measure[point_idx][scatter_idx] += self_interaction_integral_scalar(k0, radius, self_interaction_type)/volume
+            # ldos_factor = onp.diagonal(onp.matmul(onp.matmul(G0_measure, W_tensor),onp.transpose(G0_measure)))
+            # Can be made better considering it's a diagonal https://stackoverflow.com/questions/17437817/python-how-to-get-diagonalab-without-having-to-perform-ab
+            ldos_factor_scalar = np.einsum('ij, ji->i',np.matmul(G0_measure, W_tensor), (G0_measure).t() )
+            if discard_absorption:
+                # Discard the imaginary part of alpha, only for the last part of the calculation https://www.jpier.org/pier/pier.php?paper=19111801
+                alpha_ = onp.real(alpha)
+            else:
+                alpha_ = alpha
+            ldos_factor_scalar *= 4.0 * k0*k0*alpha_
+            ldos_factor_scalar = np.imag(ldos_factor_scalar)
+            outputs.append(ldos_factor_scalar)
+
+        ldos = np.cat(outputs)
+
+        return ldos
     
     def compute_hamiltonian_DOS(self, k0, deltas, file_name, write_eigenvalues = True):
         '''
