@@ -857,7 +857,7 @@ def main(ndim, # Required arguments
                 k0_range.append(k0_)
                 hdos_filename = file_name+'_hdos_k0_'+str(k0_)+'.csv'
                 if os.path.exists(hdos_filename):
-                    existing = onp.loadtxt(hdos_filename)
+                    existing = onp.loadtxt(hdos_filename).reshape(-1,2)
                     hdos = existing[:,1]
                 else:
                     hdos = solver.compute_hamiltonian_DOS(k0, deltas, file_name, write_eigenvalues=write_eigenvalues).numpy()
@@ -904,7 +904,7 @@ def main(ndim, # Required arguments
 
                 temp_filename = f"{file_name}_temp_idos_size{dos_size}_irad{idos_radius}_sf{spacing_factor}.csv"
                 if os.path.exists(temp_filename):
-                    existing = onp.loadtxt(temp_filename)
+                    existing = onp.loadtxt(temp_filename).reshape(-1, 2)
                     DOSall = existing[:,1]
                     k0_range = existing[:,0]
                     
@@ -973,7 +973,7 @@ def main(ndim, # Required arguments
 
                 temp_filename = f"{file_name}_temp_cdos_size{dos_size}_sf{spacing_factor}.csv"
                 if os.path.exists(temp_filename):
-                    existing = onp.loadtxt(temp_filename)
+                    existing = onp.loadtxt(temp_filename).reshape(-1,2)
                     DOSall = existing[:,1]
                     k0_range = existing[:,0]
                     

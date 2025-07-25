@@ -14,8 +14,8 @@ plt.rc('xtick',labelsize=12)
 plt.rc('ytick',labelsize=12)
 plt.rc('axes', labelsize=16, titlesize=24)  
 plt.rc('legend', fontsize=10,frameon=False)
-plt.rc('text', usetex=True)
-plt.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
+# plt.rc('text', usetex=True)
+# plt.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
 import cmasher as cmr # https://github.com/1313e/CMasher
 
 from Transmission2D import self_interaction_integral_scalar as self_interaction_integral_TM
